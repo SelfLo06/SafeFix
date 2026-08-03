@@ -59,9 +59,6 @@ class Guardrail:
             return GuardDecision.REQUIRE_APPROVAL
         return GuardDecision.ALLOW
 
-    allow = check
-
-
 def _changed_lines(action: ToolCall) -> int:
     return sum(
         len(change.old_text.splitlines()) + len(change.new_text.splitlines())
