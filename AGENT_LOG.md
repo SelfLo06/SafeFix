@@ -131,3 +131,4 @@
 - Verification: `PYTHONPATH=src python -m pytest tests/unit/test_models.py tests/unit/test_config.py tests/unit/test_paths.py tests/unit/test_credentials.py -q` — PASS, 73 passed; `PYTHONPATH=src python -m pytest tests -q` — PASS, 73 passed; `git diff --check -- src/safefix/credentials.py tests/unit/test_credentials.py` — PASS.
 - Fix commit: `fix: narrow keyring exception handling` — `3641bd1`.
 - Audit-log commit: `docs: record Task 4 fix hash` — `82bff86`; the final Task 4 review range is `c39781c..82bff86`.
+- Final audit closure commit: `docs: close Task 4 review audit` — `65372ba`; its parent review range is `c39781c..65372ba`, and the current documentation-only update records the complete Task 4 commit chain.
