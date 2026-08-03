@@ -22,4 +22,4 @@
 - Final staged review: specification review PASS after the Task 13c dependency correction; code-quality review PASS. Staged scope is exactly AGENTS.md, PLAN.md, and AGENT_LOG.md.
 - Final verification: the AGENTS.md content check passed; the awk trailing-whitespace check passed for all three Task 0 docs; git diff --cached --check passed; no pytest was run because Task 0 is non-implementation.
 - Deviation: existing unrelated worktree changes were not cleaned or committed, because deleting or staging them would exceed Task 0 scope. This is recorded for the next subagent.
-- Commit: dedicated commit `docs: add repository agent engineering rules` is ready to execute; its hash will be recorded in the follow-up log entry.
+- Commit: dedicated commit `docs: add repository agent engineering rules` recorded as 61b9275.
