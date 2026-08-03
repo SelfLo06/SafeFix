@@ -35,6 +35,11 @@ def is_write_denied(project_root: Path, rel_path: str) -> bool:
         resolved = normalize_rel_path(project_root, rel_path)
     except ValueError:
         return True
+    return is_write_denied_resolved(project_root, resolved)
+
+
+def is_write_denied_resolved(project_root: Path, resolved: Path) -> bool:
+    """Apply write policy to a path already normalized inside the project root."""
     root = project_root.resolve()
     return _is_hard_denied(root, resolved) or _is_test_source(root, resolved)
 
