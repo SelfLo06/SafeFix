@@ -33,6 +33,6 @@
 - TDD green: `python -m pytest tests/unit/test_models.py -q` — PASS, 5 passed.
 - Regression/verification: `python -m pytest -q` — PASS, 5 passed; `python -m compileall -q src` — PASS; `git diff --check` — PASS.
 - Specification-compliance review: PASS. Implemented only Task 1 interfaces and the exact seven `StopReason` members; no `ConfigLoader`, TOML parsing, or Task 2 validation behavior.
-- Code-quality review: PASS. Models are explicit dataclasses/enums with standard-library-only implementation; no unnecessary abstraction, duplicated validation, broad exception handling, speculative fallback, dead code, or scope expansion.
-- Deviations: none.
+- Code-quality review: PASS for the reviewed Task 1 commit. A reviewer also reported out-of-scope models/tests in the root checkout; adjudication: those files are pre-existing untracked root state, are absent from /tmp/safefix-task-1 and commit 530c0b0, and were not modified or staged. They do not block this isolated Task 1 artifact.
+- Deviations: preserved unrelated root worktree changes; no Task 1 changes were made to them.
 - Commit: `feat: scaffold package and core models` initially created as `396814060b10e0354175450f639ac3e293115041`; this log update is amended into the final Task 1 commit.
