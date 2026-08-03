@@ -96,6 +96,7 @@ def _is_secret(name: str) -> bool:
         lower_name in _SECRET_NAMES
         or lower_name.startswith(".env.")
         or lower_name.endswith(tuple(_SECRET_SUFFIXES))
+        or lower_name.startswith("credential.")
         or lower_name.startswith("credentials.")
         or lower_name.startswith("secret.")
         or lower_name.startswith("secrets.")

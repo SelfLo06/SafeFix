@@ -36,6 +36,7 @@ def test_project_root_escape_is_denied(tmp_path: Path, relative: str):
         ".pytest_cache/state",
         ".env",
         "credential",
+        "credential.json",
         "credentials.json",
         "private.pem",
         "src/secret.py",
