@@ -21,5 +21,3 @@ class ApprovalProvider:
         except (EOFError, OSError):
             return False
         return answer.strip().lower() in {"y", "yes"}
-
-    request_approval = approve
