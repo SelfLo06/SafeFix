@@ -50,4 +50,3 @@ def test_more_than_three_files_or_eighty_lines_requires_approval(tmp_path: Path)
 
     assert guardrail.check(four_files) is GuardDecision.REQUIRE_APPROVAL
     assert guardrail.check(eighty_one_lines) is GuardDecision.REQUIRE_APPROVAL
-
