@@ -219,5 +219,5 @@
 - Specification-compliance review: PASS. The implementation satisfies exact-match, non-overlap, pre-check, transactional temporary-file, and pre-apply rollback contracts while remaining within the Task 7b file scope.
 - Code-quality review: PASS. Validation is at the project-path/change boundary; replacement failures catch only `OSError`; all temporary files are cleaned; no broad exception handling, invented fallback, duplicated policy implementation, dead code, scope expansion, or implementation-coupled assertions were found.
 - Review execution note: the configured tool surface exposed no `spawn_agent`/reviewer dispatch capability, so the required specification-compliance and code-quality reviews were performed as two separate read-only in-controller passes; no review finding remains open.
-- Deviations: the authoritative root `SPEC.md` remains empty in the provided worktree, consistent with prior tasks; PLAN, brief, AGENTS.md, and existing SnapshotStore contracts were followed. No product behavior deviation was introduced. The implementation commit hash will be recorded in the follow-up audit entry after committing with the required subject.
-- Implementation commit: pending — required subject `feat: apply_patch transactional tool`.
+- Deviations: the authoritative root `SPEC.md` remains empty in the provided worktree, consistent with prior tasks; PLAN, brief, AGENTS.md, and existing SnapshotStore contracts were followed. No product behavior deviation was introduced.
+- Implementation commit: `feat: apply_patch transactional tool` — `c6bc875`.
