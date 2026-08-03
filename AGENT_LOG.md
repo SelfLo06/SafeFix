@@ -100,3 +100,4 @@
 - The final review package before this documentation-only closure covered `4dd54ef..af5ae4f`; the specification reviewer found the implementation contracts satisfied but rejected incomplete audit-range recording, while the code-quality reviewer passed.
 - Complete implementation and audit trail through that range: `c406ebe`, `a9c1f16`, `581f30d`, `90ec056`, `c4f46a3`, `4307521`, `af5ae4f`.
 - This entry is a documentation-only closure after `af5ae4f`; no product files changed. A fresh final specification and code-quality review covers the complete range including this closure.
+- Complete Task 3 workflow skills: `using-git-worktrees`; `subagent-driven-development`; `test-driven-development`; `requesting-code-review`; `receiving-code-review`; `verification-before-completion`. The implementation and review subagents were each instructed to read SPEC.md, PLAN.md, and AGENTS.md first.
