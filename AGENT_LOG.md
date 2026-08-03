@@ -45,8 +45,8 @@
 - TDD red: `pytest tests/unit/test_config.py -v` — expected collection failure, `ModuleNotFoundError: No module named 'safefix.config'`.
 - TDD green: `python -m pytest tests/unit/test_config.py -q` — PASS, 30 passed; `python -m pytest -q` — PASS, 35 passed.
 - Regression/verification: `python -m compileall -q src` — PASS; `git diff --check` — PASS.
-- Specification-compliance review: PASS for the original implementation; the external code-quality review gate is pending coordinator completion.
-- Code-quality review: external review pending. The prior self-review is not recorded as an external PASS; the fix round addresses source-validation ordering and test validity.
+- External specification review: pending coordinator re-review after the fix.
+- External code-quality review: pending coordinator re-review after the fix; no external PASS is claimed.
 - Deviations: The worktree copy of `SPEC.md` is empty; the requested authoritative root `SPEC.md` and Task 2 brief were read, and their locked configuration fields/allowlist were followed. No product-scope deviation was made.
 - Commit: `feat: config loader with allowlisted pytest_args` — `66be27f4bcf2ef05090ae871e597d56e70743904`.
 
@@ -56,6 +56,7 @@
 - TDD red: `python -m pytest tests/unit/test_config.py -q` — FAIL, 1 failed and 31 passed; `test_invalid_toml_cannot_be_masked_by_cli_override` exposed the masking bug.
 - TDD green: `python -m pytest tests/unit/test_config.py -q` — PASS, 32 passed.
 - Regression/verification: `python -m pytest -q` — PASS, 37 passed; `python -m compileall -q src` — PASS; `git diff --check` — PASS.
-- Specification-compliance review: PASS for this fix; external code-quality review gate remains pending coordinator completion.
+- External specification review: pending coordinator re-review after the fix.
+- External code-quality review: pending coordinator re-review after the fix.
 - Deviations: none; no later-task behavior added.
-- Fix commit: `fix: validate config sources before merge` — `f02b879dda13009e630be47b7b516e7b87d91b84`.
+- Fix commit: `fix: validate config sources before merge` — `4a1a790c061151efefa3b34277c42f9b165f7b75`.
