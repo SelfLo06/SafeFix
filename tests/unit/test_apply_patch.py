@@ -1,10 +1,14 @@
 from pathlib import Path
+from importlib import import_module
 
 import pytest
 
 from safefix.models import Change
 from safefix.snapshot import SnapshotStore
 from safefix.tools.apply_patch import apply_patch
+
+
+apply_patch_module = import_module("safefix.tools.apply_patch")
 
 
 def _project_with_files(tmp_path: Path) -> tuple[Path, Path]:
@@ -120,4 +124,25 @@ def test_apply_patch_restores_pre_apply_contents_when_replace_fails(
 
     assert first.read_text() == "first baseline\n"
     assert second.read_text() == "second baseline\n"
+    assert list((tmp_path / "src").glob(".*.safefix-*")) == []
+
+
+def test_apply_patch_cleans_temporary_file_when_fsync_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    first, _ = _project_with_files(tmp_path)
+
+    def fail_fsync(_: int) -> None:
+        raise OSError("injected fsync failure")
+
+    monkeypatch.setattr(apply_patch_module.os, "fsync", fail_fsync)
+
+    with pytest.raises(OSError, match="injected fsync failure"):
+        apply_patch(
+            tmp_path,
+            [Change("src/first.py", "first baseline", "updated first")],
+        )
+
+    assert first.read_text() == "first baseline\n"
     assert list((tmp_path / "src").glob(".*.safefix-*")) == []

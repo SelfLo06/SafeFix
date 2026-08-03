@@ -108,14 +108,21 @@ def _find_exact_match(content: str, old_text: str) -> int:
 
 
 def _write_temporary(target: Path, content: str) -> Path:
-    with tempfile.NamedTemporaryFile(
-        mode="w",
-        encoding="utf-8",
-        dir=target.parent,
-        prefix=f".{target.name}.safefix-",
-        delete=False,
-    ) as temporary:
-        temporary.write(content)
-        temporary.flush()
-        os.fsync(temporary.fileno())
-        return Path(temporary.name)
+    temporary_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=target.parent,
+            prefix=f".{target.name}.safefix-",
+            delete=False,
+        ) as temporary:
+            temporary_path = Path(temporary.name)
+            temporary.write(content)
+            temporary.flush()
+            os.fsync(temporary.fileno())
+        return temporary_path
+    except OSError:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
+        raise
