@@ -129,4 +129,4 @@
 - Specification-compliance review: PASS. All three keyring operations now translate only `KeyringError` to `CredentialError`; deletion failures are no longer silently ignored; set/clear tests observe `CredentialError`; injected fake backends avoid the real system keyring; only requested files changed.
 - Code-quality review: PASS. No broad exception handling remains in `credentials.py`, no speculative fallback or duplicated validation was added, programming errors propagate, tests assert behavior rather than implementation details, and no scope expansion was found.
 - Verification: `PYTHONPATH=src python -m pytest tests/unit/test_models.py tests/unit/test_config.py tests/unit/test_paths.py tests/unit/test_credentials.py -q` — PASS, 73 passed; `PYTHONPATH=src python -m pytest tests -q` — PASS, 73 passed; `git diff --check -- src/safefix/credentials.py tests/unit/test_credentials.py` — PASS.
-- Fix commit: to be recorded after the implementation commit is created.
+- Fix commit: `fix: narrow keyring exception handling` — `3641bd1`.
