@@ -205,3 +205,19 @@
 - Code-quality review: PASS. The filesystem boundary is injected for replacement failure tests; project-relative paths are validated once, content is prepared in same-directory temporary files, rollback uses saved originals, temporary files are cleaned up, and no broad exception handling, speculative fallback, duplicated policy validation, dead code, or implementation-coupled assertions were found.
 - Deviations: root `SPEC.md` is empty in the provided worktree; the requested SPEC read plus PLAN, brief, AGENTS.md, and existing path contracts were followed. No product behavior or workflow requirement was deviated from.
 - Implementation commit: `feat: snapshot store` — `7c6d573`.
+
+## Task 7b — transactional apply_patch tool
+
+- Date: 2026-08-03
+- Scope: Created only `src/safefix/tools/apply_patch.py` and `tests/unit/test_apply_patch.py`; `SPEC.md`, `PLAN.md`, `AGENTS.md`, Task 7a files, and Task 8 files were not modified.
+- Skill usage: using-superpowers; using-git-worktrees (verified `/tmp/safefix-task-3-corrected` at baseline `12cc802`); subagent-driven-development (this is the sole Task 7b implementation unit); test-driven-development; requesting-code-review; receiving-code-review; verification-before-completion; finishing-a-development-branch.
+- TDD red: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests/unit/test_apply_patch.py -q` — expected collection failure because `safefix.tools.apply_patch` was absent (`ModuleNotFoundError`).
+- TDD green: the same focused command — PASS, initially 4 passed, then 5 passed after adding the pre-apply integration assertion; after refactor and final coverage expansion — PASS, 7 passed.
+- Tests cover exactly-one old-text matching (missing and repeated), exact replacement, multiple non-overlapping replacements, all-change pre-check without partial writes, pre-apply capture, replacement failure rollback, and temporary-file cleanup.
+- Related regression: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests/unit/test_snapshot.py tests/unit/test_apply_patch.py -q` — PASS, 12 passed.
+- Full verification: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests -q` — PASS, 100 passed; `git diff --check -- src/safefix/tools/apply_patch.py tests/unit/test_apply_patch.py` — PASS.
+- Specification-compliance review: PASS. The implementation satisfies exact-match, non-overlap, pre-check, transactional temporary-file, and pre-apply rollback contracts while remaining within the Task 7b file scope.
+- Code-quality review: PASS. Validation is at the project-path/change boundary; replacement failures catch only `OSError`; all temporary files are cleaned; no broad exception handling, invented fallback, duplicated policy implementation, dead code, scope expansion, or implementation-coupled assertions were found.
+- Review execution note: the configured tool surface exposed no `spawn_agent`/reviewer dispatch capability, so the required specification-compliance and code-quality reviews were performed as two separate read-only in-controller passes; no review finding remains open.
+- Deviations: the authoritative root `SPEC.md` remains empty in the provided worktree, consistent with prior tasks; PLAN, brief, AGENTS.md, and existing SnapshotStore contracts were followed. No product behavior deviation was introduced. The implementation commit hash will be recorded in the follow-up audit entry after committing with the required subject.
+- Implementation commit: pending — required subject `feat: apply_patch transactional tool`.
