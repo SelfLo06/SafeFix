@@ -4,7 +4,7 @@ from typing import Any
 from .models import GuardDecision, ToolCall, ToolName
 from .paths import (
     compute_writable_py_files,
-    is_write_denied_resolved,
+    is_write_denied,
     normalize_rel_path,
 )
 
@@ -45,12 +45,10 @@ class Guardrail:
 
         paths: set[Path] = set()
         for change in action.changes:
-            try:
-                normalized = normalize_rel_path(self._project_root, change.path)
-            except ValueError:
+            if is_write_denied(self._project_root, change.path):
                 return GuardDecision.DENY
-            if is_write_denied_resolved(self._project_root, normalized):
-                return GuardDecision.DENY
+            # is_write_denied has established the project-relative invariant.
+            normalized = (self._project_root / change.path).resolve()
             if normalized not in self._writable_paths:
                 return GuardDecision.DENY
             paths.add(normalized)
