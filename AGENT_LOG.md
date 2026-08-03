@@ -103,3 +103,17 @@
 - Complete Task 3 workflow skills: `using-git-worktrees`; `subagent-driven-development`; `test-driven-development`; `requesting-code-review`; `receiving-code-review`; `verification-before-completion`. The implementation and review subagents were each instructed to read SPEC.md, PLAN.md, and AGENTS.md first.
 - The preceding audit commit `fe91515` has parent `af5ae4f`; its documented parent review range was `4dd54ef..fe91515`. This line closes that parent-range evidence; the current commit is documentation-only.
 - The preceding workflow-skill log commit `d2bf3e7` has parent `fe91515`; its documented review range was `4dd54ef..d2bf3e7`. The complete prior audit chain therefore includes `d2bf3e7`; this current commit remains documentation-only.
+
+## Task 4 — keyring-only credentials
+
+- Date: 2026-08-03
+- Scope: Created only `src/safefix/credentials.py` and `tests/unit/test_credentials.py`; no SPEC/PLAN or prior implementation files changed. Credentials use the injected/default keyring interface only, with no environment, `.env`, plaintext, or other fallback.
+- Skill usage: using-superpowers; using-git-worktrees (verified the requested linked worktree and did not create another); subagent-driven-development (this is the sole Task 4 implementation unit); test-driven-development; requesting-code-review; receiving-code-review (self-review applied; no external review feedback to apply); verification-before-completion; finishing-a-development-branch (verification performed; integration remains externally managed).
+- TDD red: `PYTHONPATH=src python -m pytest tests/unit/test_credentials.py -q` — expected collection failure because `safefix.credentials` was absent (`ModuleNotFoundError`).
+- TDD green: `PYTHONPATH=src python -m pytest tests/unit/test_credentials.py -q` — PASS, 5 passed.
+- Regression: `PYTHONPATH=src python -m pytest tests/unit/test_models.py tests/unit/test_config.py tests/unit/test_paths.py tests/unit/test_credentials.py -q` — PASS, 70 passed.
+- Full verification: `PYTHONPATH=src python -m pytest tests -q` — PASS, 70 passed; `git diff --check -- src/safefix/credentials.py tests/unit/test_credentials.py` — PASS.
+- Specification-compliance review: PASS. Covered status, set, get, clear, missing-credential behavior, no environment fallback, injected fake backend, and specific errors for missing values, invalid values, and backend failures. Scope is limited to Task 4 files plus this log/report.
+- Code-quality review: PASS. Validation is at the credential/value and keyring boundaries; backend failures preserve causes through `CredentialError`; no broad fallback, duplicated validation, speculative abstraction, dead code, or implementation-coupled assertions were found.
+- Deviations: root `SPEC.md` is empty; authoritative root SPEC was read as requested, and PLAN/brief/AGENTS contracts were followed. No deviation from product behavior was introduced.
+- Commit: pending exact message `feat: keyring-only credentials`.
