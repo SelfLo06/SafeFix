@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 import keyring
+import keyring.errors as keyring_errors
 
 
 class CredentialError(RuntimeError):
@@ -39,7 +40,7 @@ class CredentialsResolver:
             raise CredentialValueError("credential must be a non-empty string")
         try:
             self._keyring.set_password(self._service_name, self._username, value)
-        except Exception as exc:
+        except keyring_errors.KeyringError as exc:
             raise CredentialError("cannot store credential in keyring") from exc
 
     def get(self) -> str:
@@ -51,15 +52,13 @@ class CredentialsResolver:
     def clear(self) -> None:
         try:
             self._keyring.delete_password(self._service_name, self._username)
-        except KeyError:
-            return
-        except Exception as exc:
+        except keyring_errors.KeyringError as exc:
             raise CredentialError("cannot clear credential from keyring") from exc
 
     def _read(self) -> str | None:
         try:
             value = self._keyring.get_password(self._service_name, self._username)
-        except Exception as exc:
+        except keyring_errors.KeyringError as exc:
             raise CredentialError("cannot read credential from keyring") from exc
         if value is not None and (not isinstance(value, str) or not value):
             raise CredentialError("keyring returned an invalid credential")

@@ -116,4 +116,17 @@
 - Specification-compliance review: PASS. Covered status, set, get, clear, missing-credential behavior, no environment fallback, injected fake backend, and specific errors for missing values, invalid values, and backend failures. Scope is limited to Task 4 files plus this log/report.
 - Code-quality review: PASS. Validation is at the credential/value and keyring boundaries; backend failures preserve causes through `CredentialError`; no broad fallback, duplicated validation, speculative abstraction, dead code, or implementation-coupled assertions were found.
 - Deviations: root `SPEC.md` is empty; authoritative root SPEC was read as requested, and PLAN/brief/AGENTS contracts were followed. No deviation from product behavior was introduced.
-- Commit: pending exact message `feat: keyring-only credentials`.
+- Implementation commit: `feat: keyring-only credentials` — `947cffc`.
+
+### Task 4 fix round 1 — narrow keyring exception handling
+
+- Date: 2026-08-03
+- Scope: Modified only `src/safefix/credentials.py`, `tests/unit/test_credentials.py`, and this log. `SPEC.md` and `PLAN.md` were not changed; Task 0–3 history is preserved.
+- Review feedback received and evaluated with `receiving-code-review`: the three `except Exception` clauses could swallow programming errors, and `clear()` had an unrequested silent `KeyError` fallback. The feedback is technically applicable at the keyring trust boundary.
+- Skill usage: receiving-code-review; test-driven-development; requesting-code-review; verification-before-completion; finishing-a-development-branch (integration remains externally managed and the requested worktree is preserved).
+- TDD red: after changing backend-failure tests to `keyring_errors.KeyringError` and adding set/clear failure tests plus programming-error propagation, `PYTHONPATH=src python -m pytest tests/unit/test_credentials.py -q` — FAIL, 1 failed and 7 passed; the programming `RuntimeError` was incorrectly wrapped by the old broad catch.
+- TDD green: narrowed all three catches to `keyring_errors.KeyringError`, removed `clear()`'s `except KeyError: return`, and reran `PYTHONPATH=src python -m pytest tests/unit/test_credentials.py -q` — PASS, 8 passed.
+- Specification-compliance review: PASS. All three keyring operations now translate only `KeyringError` to `CredentialError`; deletion failures are no longer silently ignored; set/clear tests observe `CredentialError`; injected fake backends avoid the real system keyring; only requested files changed.
+- Code-quality review: PASS. No broad exception handling remains in `credentials.py`, no speculative fallback or duplicated validation was added, programming errors propagate, tests assert behavior rather than implementation details, and no scope expansion was found.
+- Verification: `PYTHONPATH=src python -m pytest tests/unit/test_models.py tests/unit/test_config.py tests/unit/test_paths.py tests/unit/test_credentials.py -q` — PASS, 73 passed; `PYTHONPATH=src python -m pytest tests -q` — PASS, 73 passed; `git diff --check -- src/safefix/credentials.py tests/unit/test_credentials.py` — PASS.
+- Fix commit: to be recorded after the implementation commit is created.

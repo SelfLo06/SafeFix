@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+import keyring.errors as keyring_errors
 
 from safefix.credentials import (
     CredentialError,
@@ -65,9 +66,42 @@ def test_empty_credential_is_rejected() -> None:
 def test_keyring_failure_is_not_swallowed() -> None:
     class BrokenKeyring(FakeKeyring):
         def get_password(self, service: str, username: str) -> str | None:
-            raise RuntimeError("backend unavailable")
+            raise keyring_errors.KeyringError("backend unavailable")
 
     credentials = CredentialsResolver(BrokenKeyring())
 
     with pytest.raises(CredentialError, match="cannot read credential"):
+        credentials.status()
+
+
+def test_set_keyring_failure_raises_credential_error() -> None:
+    class BrokenKeyring(FakeKeyring):
+        def set_password(self, service: str, username: str, password: str) -> None:
+            raise keyring_errors.KeyringError("backend unavailable")
+
+    credentials = CredentialsResolver(BrokenKeyring())
+
+    with pytest.raises(CredentialError, match="cannot store credential"):
+        credentials.set("test-api-key")
+
+
+def test_clear_keyring_failure_raises_credential_error() -> None:
+    class BrokenKeyring(FakeKeyring):
+        def delete_password(self, service: str, username: str) -> None:
+            raise keyring_errors.KeyringError("backend unavailable")
+
+    credentials = CredentialsResolver(BrokenKeyring())
+
+    with pytest.raises(CredentialError, match="cannot clear credential"):
+        credentials.clear()
+
+
+def test_programming_errors_are_not_wrapped_as_credential_errors() -> None:
+    class BrokenKeyring(FakeKeyring):
+        def get_password(self, service: str, username: str) -> str | None:
+            raise RuntimeError("programming error")
+
+    credentials = CredentialsResolver(BrokenKeyring())
+
+    with pytest.raises(RuntimeError, match="programming error"):
         credentials.status()
