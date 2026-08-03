@@ -71,13 +71,11 @@ def test_config_default_allowed_paths_make_src_writable(tmp_path: Path):
     assert compute_writable_py_files(tmp_path, Config().allowed_paths, []) == {path.resolve()}
 
 
-def test_project_root_python_fallback_when_src_missing(tmp_path: Path):
+def test_missing_src_has_no_default_writable_files(tmp_path: Path):
     path = tmp_path / "app.py"
     path.write_text("value = 1\n", encoding="utf-8")
-    (tmp_path / "nested").mkdir()
-    (tmp_path / "nested" / "ignored.py").write_text("value = 2\n", encoding="utf-8")
 
-    assert compute_writable_py_files(tmp_path, None, []) == {path.resolve()}
+    assert compute_writable_py_files(tmp_path, None, []) == set()
 
 
 def test_explicit_allowed_paths_replace_default_derivation(tmp_path: Path):

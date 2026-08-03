@@ -48,9 +48,8 @@ def compute_writable_py_files(
     root = project_root.resolve()
     excluded = [normalize_rel_path(root, path) for path in excluded_paths]
 
-    root_fallback = not allowed_paths and not (root / "src").is_dir()
     if not allowed_paths:
-        search_roots = [root / "src"] if not root_fallback else [root]
+        search_roots = [root / "src"] if (root / "src").is_dir() else []
     else:
         search_roots = [normalize_rel_path(root, path) for path in allowed_paths]
 
@@ -60,14 +59,14 @@ def compute_writable_py_files(
             if search_root.suffix == ".py":
                 candidates.add(search_root)
         elif search_root.is_dir():
-            pattern = "*.py" if root_fallback and search_root == root else "**/*.py"
-            candidates.update(path.resolve() for path in search_root.glob(pattern))
+            candidates.update(path.resolve() for path in search_root.glob("**/*.py"))
 
     return {
         path
         for path in candidates
         if _inside(path, root)
-        and not is_write_denied(root, path.relative_to(root).as_posix())
+        and not _is_hard_denied(root, path)
+        and not _is_test_source(root, path)
         and not any(_inside(path, excluded_path) for excluded_path in excluded)
     }
 

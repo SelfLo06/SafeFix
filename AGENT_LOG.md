@@ -78,3 +78,11 @@
 - TDD green: treated an empty configured allowlist as the Config default derivation input, checked secret rules across all relative path components, and added `cache`/`.cache` hard denials; focused, related, and full regression commands passed.
 - Verification commands: `PYTHONPATH=src python -m pytest tests/unit/test_paths.py -q`; `PYTHONPATH=src python -m pytest tests/unit/test_models.py tests/unit/test_config.py tests/unit/test_paths.py -q`; `PYTHONPATH=src python -m pytest tests -q`; and `git diff --check 4dd54ef HEAD`.
 - Scope: only `src/safefix/paths.py`, `tests/unit/test_paths.py`, and this additive log entry changed; no Task 1/2 file was deleted or modified.
+
+### Task 3 final review fix round — remove invented fallback and duplicate validation
+
+- Review result: final specification review found no path-policy semantic gap but required final review evidence in the log; final code-quality review rejected the root-level `*.py` fallback as outside PLAN scope and identified a repeated public boundary validation inside the writable-set filter.
+- Source-of-truth ruling: PLAN specifies default `src/**/*.py`, while later runner semantics allow an empty writable set; AGENTS forbids invented fallback paths. The root-level fallback was removed. Already-normalized candidate paths now use internal `_is_hard_denied` and `_is_test_source` checks directly.
+- TDD red: `PYTHONPATH=src python -m pytest tests/unit/test_paths.py -q -k missing_src` — 1 failed, 26 deselected against the old fallback, proving the new contract test caught the behavior.
+- TDD green: `PYTHONPATH=src python -m pytest tests/unit/test_paths.py -q` — 27 passed; related regression — 64 passed; full regression — 64 passed.
+- Review feedback was evaluated using receiving-code-review; no SPEC/PLAN conflict remained after the source-of-truth ruling. A fresh final two-part review is required after this fix.
