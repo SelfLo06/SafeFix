@@ -167,3 +167,12 @@
 - Fix commits: `85746f8` (`fix: normalize Task 6 test file ending`) and `5a46962` (`fix: remove unused approval alias`).
 - Final verification evidence: `git diff --check 0a6e28a..5a46962` — PASS; focused guardrail/approval tests — 9 passed; full suite — 88 passed.
 - Complete Task 6 commit chain: `cf44544`, `38c5470`, `85746f8`, `5a46962`; fresh external specification and code-quality reviews are pending this audit update.
+
+### Task 6 review correction rounds
+
+- Review feedback was received and evaluated with `receiving-code-review` before each correction. The first final review identified an unused `Guardrail.allow` alias; it was removed in `62e243d` (`fix: remove unused guardrail alias`). Focused tests remained 9 passed and the full suite remained 88 passed.
+- The next quality review identified duplicate normalization of each Guardrail change path: `Guardrail` normalized the path and then `is_write_denied` normalized it again. The next specification review also identified that the test-file denial test could pass solely because the default writable set was empty, and required the final audit hashes.
+- TDD red for the duplicate-validation contract: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests/unit/test_guardrail.py::test_guardrail_normalizes_each_change_path_once -q` — FAIL, observed two normalizations instead of one.
+- TDD red for the strengthened test-file contract: with the test path explicitly writable and the test-denial rule temporarily removed, `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests/unit/test_guardrail.py::test_test_file_edit_is_permanently_denied -q` — FAIL, observed `ALLOW` instead of `DENY`.
+- TDD green: added `is_write_denied_resolved` with an explicit normalized-path invariant, reused it from Guardrail, and made the test-file fixture explicitly writable. Focused `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests/unit/test_guardrail.py tests/unit/test_approval.py -q` — PASS, 10 passed; full `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests -q` — PASS, 89 passed.
+- Fix commit: `21e58b5` (`fix: avoid duplicate guardrail path validation`). Complete Task 6 implementation/audit range now ends at `21e58b5`; final fresh specification and code-quality reviews are required for `0a6e28a..21e58b5`.
