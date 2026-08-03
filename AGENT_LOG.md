@@ -156,12 +156,14 @@
 - TDD green: the same focused command — PASS, 9 passed.
 - Regression: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests/unit/test_models.py tests/unit/test_config.py tests/unit/test_paths.py tests/unit/test_credentials.py tests/unit/test_parse.py tests/unit/test_guardrail.py tests/unit/test_approval.py -q` — PASS, 88 passed.
 - Verification: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests -q` — PASS, 88 passed. Review caught a trailing blank line at EOF in `tests/unit/test_guardrail.py`; after removing it, `git diff --check 0a6e28a..85746f8` is clean, and the focused test remains 9 passed.
-- Specification-compliance review: PASS by independent self-review. Guardrail permanently denies test edits, rejects unknown/stub actions and untrusted/non-writable paths, allows exact 3-file/80-line boundaries, and returns `REQUIRE_APPROVAL` only above either threshold. Approval is injectable and non-interactive mode fails closed. Existing `ToolCall`, `ToolName`, `Change`, `GuardDecision`, and path-policy contracts are used without parser duplication.
-- Code-quality review: PASS by independent self-review. No broad exception handling, automatic approval, fallback credential/input behavior, speculative abstraction, dead code, implementation-coupled contract assertions, or later-task scope expansion was found.
-- Review limitation: no reviewer subagent tool is exposed in this execution context; the two required review lenses were performed separately and recorded as self-reviews.
+- Initial self-review: Guardrail permanently denies test edits, rejects unknown/stub actions and untrusted/non-writable paths, allows exact 3-file/80-line boundaries, and returns `REQUIRE_APPROVAL` only above either threshold. Approval is injectable and non-interactive mode fails closed.
+- External review fix history: final reviewers found and the coordinator fixed the inaccurate diff-check range and unused approval aliases; no product behavior expansion was introduced. A fresh external specification-compliance and code-quality review is required after this record.
 - Deviations: the authoritative `SPEC.md` and worktree copy are empty; the requested SPEC read plus PLAN, AGENTS.md, Task 6 brief, existing models/parser/path contracts, and explicit user requirements were followed. No product behavior deviation was introduced.
 - Commit: implementation commit `cf44544` with subject `feat: guardrail and approval providers`; the following audit-log commit records this hash.
 
 ### Task 6 verification fix
 
 - Receiving-code-review identified the inaccurate whitespace evidence and the extra EOF blank line. The fix is limited to removing that blank line and correcting this verification record; no behavior changed.
+- Fix commits: `85746f8` (`fix: normalize Task 6 test file ending`) and `5a46962` (`fix: remove unused approval alias`).
+- Final verification evidence: `git diff --check 0a6e28a..5a46962` — PASS; focused guardrail/approval tests — 9 passed; full suite — 88 passed.
+- Complete Task 6 commit chain: `cf44544`, `38c5470`, `85746f8`, `5a46962`; fresh external specification and code-quality reviews are pending this audit update.
