@@ -45,7 +45,17 @@
 - TDD red: `pytest tests/unit/test_config.py -v` — expected collection failure, `ModuleNotFoundError: No module named 'safefix.config'`.
 - TDD green: `python -m pytest tests/unit/test_config.py -q` — PASS, 30 passed; `python -m pytest -q` — PASS, 35 passed.
 - Regression/verification: `python -m compileall -q src` — PASS; `git diff --check` — PASS.
-- Specification-compliance review: PASS. TOML defaults, CLI-over-TOML precedence, unknown and secret-key rejection, malformed TOML, type and positive numeric-bound validation, `require_llm` requirements, and the fixed pytest display-argument allowlist are covered; Task 1 model interfaces are preserved.
-- Code-quality review: PASS. Validation is performed at the TOML/CLI boundary; no duplicated model validation, broad exception handling, speculative fallback, dead code, or scope expansion was found. Tests assert observable loader behavior.
+- Specification-compliance review: PASS for the original implementation; the external code-quality review gate is pending coordinator completion.
+- Code-quality review: external review pending. The prior self-review is not recorded as an external PASS; the fix round addresses source-validation ordering and test validity.
 - Deviations: The worktree copy of `SPEC.md` is empty; the requested authoritative root `SPEC.md` and Task 2 brief were read, and their locked configuration fields/allowlist were followed. No product-scope deviation was made.
-- Commit: `feat: config loader with allowlisted pytest_args` — `59928a805d723fb715ce164fd4af16f9a599cff6`.
+- Commit: `feat: config loader with allowlisted pytest_args` — `66be27f4bcf2ef05090ae871e597d56e70743904`.
+
+### Task 2 fix round — validate sources before merge
+
+- Scope: Validate TOML values before applying CLI overrides, validate non-None CLI values independently, preserve CLI > TOML > defaults for valid inputs, and correct TOML/CLI type-boundary tests.
+- TDD red: `python -m pytest tests/unit/test_config.py -q` — FAIL, 1 failed and 31 passed; `test_invalid_toml_cannot_be_masked_by_cli_override` exposed the masking bug.
+- TDD green: `python -m pytest tests/unit/test_config.py -q` — PASS, 32 passed.
+- Regression/verification: `python -m pytest -q` — PASS, 37 passed; `python -m compileall -q src` — PASS; `git diff --check` — PASS.
+- Specification-compliance review: PASS for this fix; external code-quality review gate remains pending coordinator completion.
+- Deviations: none; no later-task behavior added.
+- Fix commit: `fix: validate config sources before merge` — `f02b879dda13009e630be47b7b516e7b87d91b84`.

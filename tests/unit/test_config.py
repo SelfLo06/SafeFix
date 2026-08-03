@@ -38,6 +38,12 @@ def test_cli_overrides_toml(tmp_path: Path):
     assert config.max_steps == 9
 
 
+def test_invalid_toml_cannot_be_masked_by_cli_override(tmp_path: Path):
+    (tmp_path / "safefix.toml").write_text('max_steps = "not-an-integer"\n', encoding="utf-8")
+    with pytest.raises(ConfigError):
+        load_config(tmp_path, {"max_steps": 9})
+
+
 def test_forbidden_pytest_args(tmp_path: Path):
     (tmp_path / "safefix.toml").write_text('pytest_args = ["-k", "test"]\n', encoding="utf-8")
     with pytest.raises(ConfigError):
@@ -65,11 +71,16 @@ def test_secret_key_rejected(tmp_path: Path, key: str):
         load_config(tmp_path, {})
 
 
-@pytest.mark.parametrize("value", ["30", True, 1.5, [30]])
-def test_config_type_validation(tmp_path: Path, value):
-    (tmp_path / "safefix.toml").write_text(f"max_steps = {value!r}\n", encoding="utf-8")
+@pytest.mark.parametrize("toml_value", ['"30"', "true", "1.5", "[30]"])
+def test_config_type_validation(tmp_path: Path, toml_value: str):
+    (tmp_path / "safefix.toml").write_text(f"max_steps = {toml_value}\n", encoding="utf-8")
     with pytest.raises(ConfigError):
         load_config(tmp_path, {})
+
+
+def test_cli_type_validation_rejects_boolean_max_steps(tmp_path: Path):
+    with pytest.raises(ConfigError):
+        load_config(tmp_path, {"max_steps": True})
 
 
 @pytest.mark.parametrize("key", ["max_steps", "max_rounds", "max_no_progress_rounds"])

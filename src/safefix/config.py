@@ -41,9 +41,11 @@ def load_config(
             raise ConfigError(f"cannot read {config_path}") from exc
 
     _validate_keys(values)
-    _validate_keys(cli_overrides)
-    values.update({key: value for key, value in cli_overrides.items() if value is not None})
     _validate_values(values)
+    _validate_keys(cli_overrides)
+    cli_values = {key: value for key, value in cli_overrides.items() if value is not None}
+    _validate_values(cli_values)
+    values.update(cli_values)
 
     if require_llm and (not values.get("base_url", "").strip() or not values.get("model", "").strip()):
         raise ConfigError("base_url and model are required when require_llm is true")
