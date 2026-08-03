@@ -166,7 +166,7 @@
 - Receiving-code-review identified the inaccurate whitespace evidence and the extra EOF blank line. The fix is limited to removing that blank line and correcting this verification record; no behavior changed.
 - Fix commits: `85746f8` (`fix: normalize Task 6 test file ending`) and `5a46962` (`fix: remove unused approval alias`).
 - Final verification evidence: `git diff --check 0a6e28a..5a46962` — PASS; focused guardrail/approval tests — 9 passed; full suite — 88 passed.
-- Complete Task 6 commit chain: `cf44544`, `38c5470`, `85746f8`, `5a46962`; fresh external specification and code-quality reviews are pending this audit update.
+- Historical initial Task 6 commit chain: `cf44544`, `38c5470`, `85746f8`, `5a46962`; subsequent review-correction commits are recorded below.
 
 ### Task 6 review correction rounds
 

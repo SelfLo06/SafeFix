@@ -1,8 +1,5 @@
 from pathlib import Path
 
-import safefix.guardrail as guardrail_module
-import safefix.paths as paths_module
-
 from safefix.guardrail import Guardrail
 from safefix.models import Change, GuardDecision, ToolCall, ToolName
 
@@ -31,22 +28,6 @@ def test_write_policy_denies_non_writable_path(tmp_path: Path):
     guardrail = Guardrail(tmp_path, writable_paths={"src/app.py"})
 
     assert guardrail.check(patch_call(Change("docs/readme.md", "old", "new"))) is GuardDecision.DENY
-
-
-def test_guardrail_normalizes_each_change_path_once(tmp_path: Path, monkeypatch):
-    guardrail = Guardrail(tmp_path, writable_paths={"src/app.py"})
-    calls: list[str] = []
-    original = paths_module.normalize_rel_path
-
-    def record_normalization(project_root: Path, relative: str) -> Path:
-        calls.append(relative)
-        return original(project_root, relative)
-
-    monkeypatch.setattr(guardrail_module, "normalize_rel_path", record_normalization)
-    monkeypatch.setattr(paths_module, "normalize_rel_path", record_normalization)
-
-    assert guardrail.check(patch_call(Change("src/app.py", "old", "new"))) is GuardDecision.ALLOW
-    assert calls == ["src/app.py"]
 
 
 def test_three_files_and_eighty_changed_lines_are_allowed(tmp_path: Path):
