@@ -23,18 +23,15 @@ def dispatch(
             raise ValueError("read_file requires a path")
         return read_file(project_root, action.path)
     if action.tool is ToolName.LIST_DIR:
-        return list_dir(
-            project_root,
-            "." if action.path is None else action.path,
-        )
+        if action.path is None:
+            raise ValueError("list_dir requires a path")
+        return list_dir(project_root, action.path)
     if action.tool is ToolName.SEARCH_CODE:
+        if action.path is None:
+            raise ValueError("search_code requires a path")
         if action.query is None:
             raise ValueError("search_code requires a query")
-        return search_code(
-            project_root,
-            "." if action.path is None else action.path,
-            action.query,
-        )
+        return search_code(project_root, action.path, action.query)
     if action.tool is ToolName.APPLY_PATCH:
         apply_patch(project_root, action.changes, snapshot_store)
         return None

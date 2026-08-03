@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from safefix.models import StopReason, ToolCall, ToolName
 from safefix.tools.dispatch import dispatch
 
@@ -35,6 +37,14 @@ def test_dispatch_routes_search_code(tmp_path: Path):
     )
 
     assert result == [("src/app.py", 1, "needle")]
+
+
+@pytest.mark.parametrize("tool", [ToolName.LIST_DIR, ToolName.SEARCH_CODE])
+def test_dispatch_requires_directory_tool_path(tmp_path: Path, tool: ToolName):
+    action = ToolCall(tool=tool, query="needle" if tool is ToolName.SEARCH_CODE else None)
+
+    with pytest.raises(ValueError, match="requires a path"):
+        dispatch(tmp_path, action)
 
 
 def test_dispatch_finish_requests_stop(tmp_path: Path):

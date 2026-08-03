@@ -13,17 +13,20 @@ def search_code(
 ) -> list[Match]:
     """Find substring matches in readable files under a project path."""
     if query is None:
-        query = path
-        path = "."
+        raise ValueError("search_code requires a path and query")
     if not isinstance(query, str) or not query:
         raise ValueError("query must be a non-empty string")
 
     root = project_root.resolve()
     target = _readable_path(root, path)
+    if not target.exists():
+        raise FileNotFoundError(path)
     if target.is_file():
         files = [(target, target.relative_to(root).as_posix())]
-    else:
+    elif target.is_dir():
         files = [(candidate, None) for candidate in sorted(target.rglob("*"))]
+    else:
+        raise ValueError("search path must be a file or directory")
     matches: list[Match] = []
     for file_path, relative in files:
         if not file_path.is_file():

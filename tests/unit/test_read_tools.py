@@ -31,5 +31,15 @@ def test_search_code_finds_string(tmp_path: Path):
     assert matches == [("src/app.py", 2, "    return 'needle'")]
 
 
+def test_search_code_rejects_missing_path(tmp_path: Path):
+    with pytest.raises(FileNotFoundError):
+        search_code(tmp_path, "missing", "needle")
+
+
+def test_search_code_requires_path_and_query(tmp_path: Path):
+    with pytest.raises(ValueError, match="path and query"):
+        search_code(tmp_path, "needle")
+
+
 def test_finish_requests_stop():
     assert finish("repair complete") is StopReason.REQUESTED
