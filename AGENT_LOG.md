@@ -146,3 +146,18 @@
 - Code-quality review: PASS. Validation is confined to the LLM/path trust boundary; no broad exception handling, generic parser framework, invented fallback, duplicated downstream validation, dead code, or implementation-coupled tests were found.
 - Deviations: none. The authoritative `SPEC.md` in the provided workspace is empty; the requested SPEC read plus PLAN, AGENTS.md, and the exact Task 5 brief were followed. The required report was written at the user-specified path.
 - Commit: `feat: strict ToolCall JSON parser` — `06c9268`.
+
+## Task 6 — Guardrail + ApprovalProvider
+
+- Date: 2026-08-03
+- Scope: Created only `src/safefix/guardrail.py`, `src/safefix/approval.py`, `tests/unit/test_guardrail.py`, `tests/unit/test_approval.py`, this log entry, and the requested Task 6 report. `SPEC.md` and `PLAN.md` were not modified; Snapshot, tools, and later tasks were not implemented.
+- Skill usage: using-git-worktrees (verified the requested `/tmp/safefix-task-3-corrected` worktree at baseline `0a6e28a`); subagent-driven-development (sole Task 6 implementation unit); test-driven-development; requesting-code-review; verification-before-completion; finishing-a-development-branch. `receiving-code-review` was read; no external review feedback was received.
+- TDD red: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests/unit/test_guardrail.py tests/unit/test_approval.py -q` — expected collection failure because `safefix.guardrail` and `safefix.approval` were absent (`ModuleNotFoundError`).
+- TDD green: the same focused command — PASS, 9 passed.
+- Regression: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests/unit/test_models.py tests/unit/test_config.py tests/unit/test_paths.py tests/unit/test_credentials.py tests/unit/test_parse.py tests/unit/test_guardrail.py tests/unit/test_approval.py -q` — PASS, 88 passed.
+- Verification: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests -q` — PASS, 88 passed; `git diff --check` — PASS.
+- Specification-compliance review: PASS by independent self-review. Guardrail permanently denies test edits, rejects unknown/stub actions and untrusted/non-writable paths, allows exact 3-file/80-line boundaries, and returns `REQUIRE_APPROVAL` only above either threshold. Approval is injectable and non-interactive mode fails closed. Existing `ToolCall`, `ToolName`, `Change`, `GuardDecision`, and path-policy contracts are used without parser duplication.
+- Code-quality review: PASS by independent self-review. No broad exception handling, automatic approval, fallback credential/input behavior, speculative abstraction, dead code, implementation-coupled contract assertions, or later-task scope expansion was found.
+- Review limitation: no reviewer subagent tool is exposed in this execution context; the two required review lenses were performed separately and recorded as self-reviews.
+- Deviations: the authoritative `SPEC.md` and worktree copy are empty; the requested SPEC read plus PLAN, AGENTS.md, Task 6 brief, existing models/parser/path contracts, and explicit user requirements were followed. No product behavior deviation was introduced.
+- Commit: pending `feat: guardrail and approval providers`.
