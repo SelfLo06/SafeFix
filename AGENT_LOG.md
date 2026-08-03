@@ -36,3 +36,16 @@
 - Code-quality review: PASS for the reviewed Task 1 commit. A reviewer also reported out-of-scope models/tests in the root checkout; adjudication: those files are pre-existing untracked root state, are absent from /tmp/safefix-task-1 and commit 530c0b0, and were not modified or staged. They do not block this isolated Task 1 artifact.
 - Deviations: preserved unrelated root worktree changes; no Task 1 changes were made to them.
 - Commit: `feat: scaffold package and core models` initially created as `396814060b10e0354175450f639ac3e293115041`; this log update is amended into the final Task 1 commit.
+
+## Task 2 — ConfigLoader (`safefix.toml` plus CLI merge)
+
+- Date: 2026-08-03
+- Scope: Added `src/safefix/config.py` and `tests/unit/test_config.py`; configuration validation remains outside `models.py`. No paths, credentials, or CLI implementation was added.
+- Skill usage: using-git-worktrees (verified the requested `/tmp/safefix-task-1` worktree); subagent-driven-development; test-driven-development; requesting-code-review; receiving-code-review (no external feedback was received); verification-before-completion; finishing-a-development-branch (full-suite verification only; integration remains externally managed).
+- TDD red: `pytest tests/unit/test_config.py -v` — expected collection failure, `ModuleNotFoundError: No module named 'safefix.config'`.
+- TDD green: `python -m pytest tests/unit/test_config.py -q` — PASS, 30 passed; `python -m pytest -q` — PASS, 35 passed.
+- Regression/verification: `python -m compileall -q src` — PASS; `git diff --check` — PASS.
+- Specification-compliance review: PASS. TOML defaults, CLI-over-TOML precedence, unknown and secret-key rejection, malformed TOML, type and positive numeric-bound validation, `require_llm` requirements, and the fixed pytest display-argument allowlist are covered; Task 1 model interfaces are preserved.
+- Code-quality review: PASS. Validation is performed at the TOML/CLI boundary; no duplicated model validation, broad exception handling, speculative fallback, dead code, or scope expansion was found. Tests assert observable loader behavior.
+- Deviations: The worktree copy of `SPEC.md` is empty; the requested authoritative root `SPEC.md` and Task 2 brief were read, and their locked configuration fields/allowlist were followed. No product-scope deviation was made.
+- Commit: `feat: config loader with allowlisted pytest_args` — `59928a805d723fb715ce164fd4af16f9a599cff6`.
