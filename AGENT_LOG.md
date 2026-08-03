@@ -225,3 +225,10 @@
 - SnapshotStore cleanup correction: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests/unit/test_snapshot.py::test_restore_cleans_temporary_file_when_fsync_fails -q` — FAIL before the fix, with one leftover temporary file. SnapshotStore `_write_temporary` now removes its own created path on `OSError`; the regression test passes. Focused SnapshotStore: 6 passed; Task 7a+7b regression: 14 passed; full suite: 102 passed. A fresh final two-part review is required for the corrected range.
 - The next quality review also identified repeated path normalization when apply_patch passed already-canonical relative paths back through SnapshotStore. The correction passes canonical absolute paths internally to SnapshotStore, preserving the existing public boundary and avoiding a new API; focused Task 7a+7b tests remain 14 passed and the full suite remains 102 passed.
 - The same review required the current cleanup commit hash to be recorded; the complete corrected range is pending the final review closure.
+
+### Task 7a/7b final review closure
+
+- Complete Task 7a/7b commit chain: `7c6d573`, `dc9ac75`, `12cc802`, `c6bc875`, `2d811ff`, `6ab22bf`, `39ad7f9`, `f9e0a94`.
+- Final specification-compliance review: PASS for `70eef16..f9e0a94`. The reviewer verified the net file scope, SnapshotStore/apply_patch contracts, canonical-path handling, temporary-file cleanup, TDD evidence, no deletion, and no Task 8 implementation.
+- Final code-quality review found no code or test defects; its only failure was this missing audit-hash record. This closure records the missing hashes and requires the documentation-only closure to be verified as the final audit state.
+- Final verification for the corrected implementation: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests/unit/test_snapshot.py tests/unit/test_apply_patch.py -q` — PASS, 14 passed; `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests -q` — PASS, 102 passed; `git diff --check 70eef16..HEAD` — PASS; `git diff --diff-filter=D --name-only 70eef16 HEAD` — empty.
