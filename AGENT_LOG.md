@@ -160,4 +160,4 @@
 - Code-quality review: PASS by independent self-review. No broad exception handling, automatic approval, fallback credential/input behavior, speculative abstraction, dead code, implementation-coupled contract assertions, or later-task scope expansion was found.
 - Review limitation: no reviewer subagent tool is exposed in this execution context; the two required review lenses were performed separately and recorded as self-reviews.
 - Deviations: the authoritative `SPEC.md` and worktree copy are empty; the requested SPEC read plus PLAN, AGENTS.md, Task 6 brief, existing models/parser/path contracts, and explicit user requirements were followed. No product behavior deviation was introduced.
-- Commit: pending `feat: guardrail and approval providers`.
+- Commit: implementation commit `cf44544` with subject `feat: guardrail and approval providers`; the following audit-log commit records this hash.
