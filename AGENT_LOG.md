@@ -70,3 +70,11 @@
 - Verification: `PYTHONPATH=src python -m pytest tests/unit/test_models.py tests/unit/test_config.py tests/unit/test_paths.py -q` — 58 passed; `PYTHONPATH=src python -m pytest tests -q` — 58 passed; `git diff --stat 4dd54ef HEAD` and `git diff --name-status 4dd54ef HEAD` showed only this additive log entry and the two Task 3 files, with no prior file deleted.
 - Review deviation: the first specification and code-quality reviews both failed on the incorrect parent/scope; this corrected artifact requires fresh two-part review before Task 3 can be marked complete.
 - Implementation commit: `c406ebe` (`feat: enforce read and write path policies`).
+
+### Task 3 review fix round — boundary cases
+
+- Skill usage: receiving-code-review; test-driven-development; requesting-code-review; verification-before-completion. The first corrected-baseline specification review failed on Config default-list integration, secret/credential directory components, cache directory coverage, and incomplete Task 3 skill logging. The code-quality review passed.
+- TDD red: added tests for `Config().allowed_paths`, `secrets/token.txt`, `credentials/api.txt`, `src/secret/token.py`, `cache/data.py`, and `.cache/data.py`; focused pytest failed before the corresponding implementation changes.
+- TDD green: treated an empty configured allowlist as the Config default derivation input, checked secret rules across all relative path components, and added `cache`/`.cache` hard denials; focused, related, and full regression commands passed.
+- Verification commands: `PYTHONPATH=src python -m pytest tests/unit/test_paths.py -q`; `PYTHONPATH=src python -m pytest tests/unit/test_models.py tests/unit/test_config.py tests/unit/test_paths.py -q`; `PYTHONPATH=src python -m pytest tests -q`; and `git diff --check 4dd54ef HEAD`.
+- Scope: only `src/safefix/paths.py`, `tests/unit/test_paths.py`, and this additive log entry changed; no Task 1/2 file was deleted or modified.

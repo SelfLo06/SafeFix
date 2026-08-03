@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 
+from safefix.models import Config
 from safefix.paths import (
     compute_writable_py_files,
     is_read_denied,
@@ -38,6 +39,11 @@ def test_project_root_escape_is_denied(tmp_path: Path, relative: str):
         "credentials.json",
         "private.pem",
         "src/secret.py",
+        "secrets/token.txt",
+        "credentials/api.txt",
+        "src/secret/token.py",
+        "cache/data.py",
+        ".cache/data.py",
     ],
 )
 def test_hard_excluded_paths_are_not_readable_or_writable(tmp_path: Path, relative: str):
@@ -55,6 +61,14 @@ def test_src_default_writable(tmp_path: Path):
     path.write_text("value = 1\n", encoding="utf-8")
 
     assert compute_writable_py_files(tmp_path, None, []) == {path.resolve()}
+
+
+def test_config_default_allowed_paths_make_src_writable(tmp_path: Path):
+    (tmp_path / "src").mkdir()
+    path = tmp_path / "src" / "module.py"
+    path.write_text("value = 1\n", encoding="utf-8")
+
+    assert compute_writable_py_files(tmp_path, Config().allowed_paths, []) == {path.resolve()}
 
 
 def test_project_root_python_fallback_when_src_missing(tmp_path: Path):

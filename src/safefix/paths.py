@@ -2,7 +2,7 @@ from pathlib import Path
 
 
 _VIRTUAL_ENV_DIRS = {".venv", "venv", "env", "virtualenv", "virtualenvs"}
-_CACHE_DIRS = {"__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".tox", ".nox"}
+_CACHE_DIRS = {"__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".tox", ".nox", "cache", ".cache"}
 _SECRET_SUFFIXES = {".pem", ".key", ".p12", ".pfx", ".crt"}
 _SECRET_NAMES = {".env", "credential", "credentials", "secret", "secrets", "id_rsa"}
 
@@ -48,8 +48,8 @@ def compute_writable_py_files(
     root = project_root.resolve()
     excluded = [normalize_rel_path(root, path) for path in excluded_paths]
 
-    root_fallback = allowed_paths is None and not (root / "src").is_dir()
-    if allowed_paths is None:
+    root_fallback = not allowed_paths and not (root / "src").is_dir()
+    if not allowed_paths:
         search_roots = [root / "src"] if not root_fallback else [root]
     else:
         search_roots = [normalize_rel_path(root, path) for path in allowed_paths]
@@ -78,7 +78,7 @@ def _is_hard_denied(root: Path, path: Path) -> bool:
         return True
     if any(part in _VIRTUAL_ENV_DIRS or part in _CACHE_DIRS for part in relative_parts):
         return True
-    return _is_secret(path.name)
+    return any(_is_secret(part) for part in relative_parts)
 
 
 def _is_test_source(root: Path, path: Path) -> bool:
