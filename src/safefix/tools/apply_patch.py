@@ -29,7 +29,9 @@ def apply_patch(
     if not normalized_changes:
         raise ValueError("changes must not be empty")
 
-    paths = tuple(dict.fromkeys(change.path for change in normalized_changes))
+    paths = tuple(
+        dict.fromkeys(root / change.path for change in normalized_changes)
+    )
     store = snapshot_store or SnapshotStore(root, paths)
     store.snapshot_before_apply(paths)
     prepared = _prepare_changes(root, normalized_changes)
