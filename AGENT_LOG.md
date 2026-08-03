@@ -130,3 +130,4 @@
 - Code-quality review: PASS. No broad exception handling remains in `credentials.py`, no speculative fallback or duplicated validation was added, programming errors propagate, tests assert behavior rather than implementation details, and no scope expansion was found.
 - Verification: `PYTHONPATH=src python -m pytest tests/unit/test_models.py tests/unit/test_config.py tests/unit/test_paths.py tests/unit/test_credentials.py -q` — PASS, 73 passed; `PYTHONPATH=src python -m pytest tests -q` — PASS, 73 passed; `git diff --check -- src/safefix/credentials.py tests/unit/test_credentials.py` — PASS.
 - Fix commit: `fix: narrow keyring exception handling` — `3641bd1`.
+- Audit-log commit: `docs: record Task 4 fix hash` — `82bff86`; the final Task 4 review range is `c39781c..82bff86`.
