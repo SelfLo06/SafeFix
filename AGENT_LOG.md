@@ -66,6 +66,7 @@
 - Date: 2026-08-03
 - Scope: Added only `src/safefix/paths.py` and `tests/unit/test_paths.py`; this entry is additive to the Task 0–2 audit history.
 - Baseline correction: the first Task 3 artifact incorrectly used `05e4a4c` as its parent and deleted Task 1/2 files in the review range. This corrected artifact is based on `4dd54ef` and preserves all prior files and log entries.
-- TDD evidence: focused path-policy tests were retained from the prior implementation; the final focused and related regression commands were run against the corrected baseline.
-- Verification: `git diff --stat 4dd54ef HEAD` and `git diff --name-status 4dd54ef HEAD` must show only the two Task 3 files and this additive log entry; no prior file may be deleted.
+- TDD evidence: focused path-policy tests were retained from the prior implementation; `PYTHONPATH=src python -m pytest tests/unit/test_paths.py -q` — 21 passed.
+- Verification: `PYTHONPATH=src python -m pytest tests/unit/test_models.py tests/unit/test_config.py tests/unit/test_paths.py -q` — 58 passed; `PYTHONPATH=src python -m pytest tests -q` — 58 passed; `git diff --stat 4dd54ef HEAD` and `git diff --name-status 4dd54ef HEAD` showed only this additive log entry and the two Task 3 files, with no prior file deleted.
 - Review deviation: the first specification and code-quality reviews both failed on the incorrect parent/scope; this corrected artifact requires fresh two-part review before Task 3 can be marked complete.
+- Implementation commit: `c406ebe` (`feat: enforce read and write path policies`).
