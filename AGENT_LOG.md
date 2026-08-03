@@ -132,3 +132,17 @@
 - Fix commit: `fix: narrow keyring exception handling` — `3641bd1`.
 - Audit-log commit: `docs: record Task 4 fix hash` — `82bff86`; the final Task 4 review range is `c39781c..82bff86`.
 - Final audit closure commit: `docs: close Task 4 review audit` — `65372ba`; its parent review range is `c39781c..65372ba`, and the current documentation-only update records the complete Task 4 commit chain.
+
+## Task 5 — strict ToolCall JSON parser
+
+- Date: 2026-08-03
+- Scope: Added only `src/safefix/parse.py`, `tests/unit/test_parse.py`, this log, and the Task 5 report. `SPEC.md` and `PLAN.md` were not modified; Guardrail and later tasks were not implemented.
+- Skill usage: using-superpowers; using-git-worktrees (verified the requested linked worktree `/tmp/safefix-task-3-corrected`); subagent-driven-development (sole Task 5 implementation unit); test-driven-development; requesting-code-review; receiving-code-review (self-review applied; no external feedback); verification-before-completion; finishing-a-development-branch (full verification performed; integration remains externally managed).
+- TDD red: `PYTHONPATH=src python -m pytest tests/unit/test_parse.py -q` — expected collection failure because `safefix.parse` was absent (`ModuleNotFoundError`).
+- TDD green: `PYTHONPATH=src python -m pytest tests/unit/test_parse.py -q` — PASS, 6 passed.
+- Regression: `PYTHONPATH=src python -m pytest tests/unit/test_models.py tests/unit/test_config.py tests/unit/test_paths.py tests/unit/test_credentials.py tests/unit/test_parse.py -q` — PASS, 79 passed.
+- Full verification: `PYTHONPATH=src python -m pytest tests -q` — PASS, 79 passed; `git diff --check -- src/safefix/parse.py tests/unit/test_parse.py AGENT_LOG.md` — PASS.
+- Specification-compliance review: PASS. The parser accepts one JSON object action, maps the existing `ToolName`/`Change`/`ToolCall` models, rejects arrays, unknown or missing fields, unknown tools, absolute paths, and root escapes, and supports `finish`. No Guardrail or later-task behavior was added.
+- Code-quality review: PASS. Validation is confined to the LLM/path trust boundary; no broad exception handling, generic parser framework, invented fallback, duplicated downstream validation, dead code, or implementation-coupled tests were found.
+- Deviations: none. The authoritative `SPEC.md` in the provided workspace is empty; the requested SPEC read plus PLAN, AGENTS.md, and the exact Task 5 brief were followed. The required report was written at the user-specified path.
+- Commit: `feat: strict ToolCall JSON parser` — `06c9268`.
