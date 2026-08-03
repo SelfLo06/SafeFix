@@ -23,3 +23,16 @@
 - Final verification: the AGENTS.md content check passed; the awk trailing-whitespace check passed for all three Task 0 docs; git diff --cached --check passed; no pytest was run because Task 0 is non-implementation.
 - Deviation: existing unrelated worktree changes were not cleaned or committed, because deleting or staging them would exceed Task 0 scope. This is recorded for the next subagent.
 - Commit: dedicated commit `docs: add repository agent engineering rules` recorded as 61b9275.
+
+## Task 1 — project scaffold and core models
+
+- Date: 2026-08-03
+- Scope: Created `pyproject.toml`, `src/safefix/__init__.py`, `src/safefix/models.py`, and model-only tests in `tests/unit/test_models.py`.
+- Skill usage: using-git-worktrees (verified the requested isolated worktree); subagent-driven-development; test-driven-development; requesting-code-review; receiving-code-review (available for review feedback, none received); verification-before-completion; finishing-a-development-branch deferred because integration is externally managed.
+- TDD red: `python -m pytest tests/unit/test_models.py -q` — expected collection failure, `ModuleNotFoundError: No module named 'safefix'`.
+- TDD green: `python -m pytest tests/unit/test_models.py -q` — PASS, 5 passed.
+- Regression/verification: `python -m pytest -q` — PASS, 5 passed; `python -m compileall -q src` — PASS; `git diff --check` — PASS.
+- Specification-compliance review: PASS. Implemented only Task 1 interfaces and the exact seven `StopReason` members; no `ConfigLoader`, TOML parsing, or Task 2 validation behavior.
+- Code-quality review: PASS. Models are explicit dataclasses/enums with standard-library-only implementation; no unnecessary abstraction, duplicated validation, broad exception handling, speculative fallback, dead code, or scope expansion.
+- Deviations: none.
+- Commit: `feat: scaffold package and core models` initially created as `396814060b10e0354175450f639ac3e293115041`; this log update is amended into the final Task 1 commit.
