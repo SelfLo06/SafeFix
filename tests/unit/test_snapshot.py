@@ -1,8 +1,12 @@
 from pathlib import Path
+from importlib import import_module
 
 import pytest
 
 from safefix.snapshot import SnapshotStore
+
+
+snapshot_module = import_module("safefix.snapshot")
 
 
 def _project_with_files(tmp_path: Path) -> tuple[Path, Path]:
@@ -91,3 +95,26 @@ def test_restore_failure_leaves_all_files_unchanged(tmp_path: Path):
 
     assert first.read_text() == "first baseline\n"
     assert second.read_text() == "second baseline\n"
+
+
+def test_restore_cleans_temporary_file_when_fsync_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    first, second = _project_with_files(tmp_path)
+    store = SnapshotStore(tmp_path, ["src/first.py", "src/second.py"])
+
+    def fail_fsync(_: int) -> None:
+        raise OSError("injected fsync failure")
+
+    monkeypatch.setattr(snapshot_module.os, "fsync", fail_fsync)
+
+    with pytest.raises(OSError, match="injected fsync failure"):
+        store.restore({
+            "src/first.py": "new first\n",
+            "src/second.py": "new second\n",
+        })
+
+    assert first.read_text() == "first baseline\n"
+    assert second.read_text() == "second baseline\n"
+    assert list((tmp_path / "src").glob(".*.safefix-*")) == []
