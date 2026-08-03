@@ -86,3 +86,11 @@
 - TDD red: `PYTHONPATH=src python -m pytest tests/unit/test_paths.py -q -k missing_src` — 1 failed, 26 deselected against the old fallback, proving the new contract test caught the behavior.
 - TDD green: `PYTHONPATH=src python -m pytest tests/unit/test_paths.py -q` — 27 passed; related regression — 64 passed; full regression — 64 passed.
 - Review feedback was evaluated using receiving-code-review; no SPEC/PLAN conflict remained after the source-of-truth ruling. A fresh final two-part review is required after this fix.
+
+### Task 3 final credential boundary fix and review closure
+
+- TDD red: added `credential.json` to the hard-denial contract; `PYTHONPATH=src python -m pytest tests/unit/test_paths.py -q -k hard_excluded` — 1 failed, 15 passed, 12 deselected.
+- TDD green: added the singular `credential.` prefix rule; focused `PYTHONPATH=src python -m pytest tests/unit/test_paths.py -q` — 28 passed; related regression — 65 passed; full regression — 65 passed.
+- Final review results: specification-compliance PASS and code-quality PASS for `4dd54ef..90ec056` after the final fix review. The quality review verified no fallback path, no duplicate public validation, no broad exception handling, and no scope expansion. The specification review verified all path contracts and no prior-file deletions.
+- Complete Task 3 commit trail: `c406ebe`, `a9c1f16`, `581f30d`, `90ec056`; this final log update is the final verification record.
+- Deviation: the authoritative root `SPEC.md` is empty in the provided workspace; PLAN, AGENTS, the task brief, and the explicit user contracts were used, with no SPEC modification.
