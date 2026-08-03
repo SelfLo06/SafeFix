@@ -45,8 +45,8 @@
 - TDD red: `pytest tests/unit/test_config.py -v` — expected collection failure, `ModuleNotFoundError: No module named 'safefix.config'`.
 - TDD green: `python -m pytest tests/unit/test_config.py -q` — PASS, 30 passed; `python -m pytest -q` — PASS, 35 passed.
 - Regression/verification: `python -m compileall -q src` — PASS; `git diff --check` — PASS.
-- External specification review: pending coordinator re-review after the fix.
-- External code-quality review: pending coordinator re-review after the fix; no external PASS is claimed.
+- External specification review: PASS for full range 5954dc5..efd692f; invalid TOML cannot be masked by CLI overrides, and no later-task scope or SPEC/product change was found.
+- External code-quality review: PASS for full range 5954dc5..efd692f; validation is boundary-local, errors are specific, tests are behavior-focused, and no speculative abstraction or fallback was found.
 - Deviations: The worktree copy of `SPEC.md` is empty; the requested authoritative root `SPEC.md` and Task 2 brief were read, and their locked configuration fields/allowlist were followed. No product-scope deviation was made.
 - Commit: `feat: config loader with allowlisted pytest_args` — `66be27f4bcf2ef05090ae871e597d56e70743904`.
 
@@ -56,7 +56,7 @@
 - TDD red: `python -m pytest tests/unit/test_config.py -q` — FAIL, 1 failed and 31 passed; `test_invalid_toml_cannot_be_masked_by_cli_override` exposed the masking bug.
 - TDD green: `python -m pytest tests/unit/test_config.py -q` — PASS, 32 passed.
 - Regression/verification: `python -m pytest -q` — PASS, 37 passed; `python -m compileall -q src` — PASS; `git diff --check` — PASS.
-- External specification review: pending coordinator re-review after the fix.
-- External code-quality review: pending coordinator re-review after the fix.
+- External specification review: PASS for full range 5954dc5..efd692f.
+- External code-quality review: PASS for full range 5954dc5..efd692f.
 - Deviations: none; no later-task behavior added.
 - Fix commit: `fix: validate config sources before merge` — `4a1a790c061151efefa3b34277c42f9b165f7b75`.
