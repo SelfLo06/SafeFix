@@ -250,3 +250,31 @@
 - Final specification-compliance review: PASS for `ac46dd4..ff5d142`. The reviewer verified the planned file scope, readable/search/dispatch contracts, explicit missing-path errors, no silent fallback, TDD evidence, no deletion, and no Task 9 implementation.
 - Final code-quality review: PASS for `ac46dd4..ff5d142`. The reviewer verified KISS/YAGNI, explicit dispatcher routing, one-time boundary validation, no broad exception handling, no silent fallback, behavior-oriented negative tests, and no scope expansion.
 - Final verification: focused `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests/unit/test_read_tools.py tests/unit/test_dispatch.py -q` — PASS, 12 passed; related Task 7+8 regression — PASS, 26 passed; full suite — PASS, 114 passed; `git diff --check ac46dd4..HEAD` — PASS; no deleted files.
+
+## Task 9 — TestRunner and stable JUnit failure IDs
+
+- Date: 2026-08-04
+- Baseline: isolated worktree `/tmp/safefix-task-9`, branch `safefix-task-9`, HEAD `0f893e0`.
+- Scope: Created only `src/safefix/junit.py`, `src/safefix/testrunner.py`, `tests/unit/test_junit.py`, `tests/unit/test_testrunner.py`, and `tests/fixtures/junit/`; no Task 8 files, Task 10 files, SPEC.md, PLAN.md, or AGENTS.md were modified.
+- Skill usage: using-superpowers; using-git-worktrees (verified the requested isolated worktree); subagent-driven-development (single Task 9 execution unit); test-driven-development; requesting-code-review; receiving-code-review (no external review feedback was received); verification-before-completion; finishing-a-development-branch deferred because integration is externally managed.
+- Design gate: the locked Task 9 brief was treated as the approved design; no separate design document was created because the user restricted this execution unit to Task 9 files plus AGENT_LOG.md.
+- TDD red: `python -m pytest tests/unit/test_junit.py tests/unit/test_testrunner.py -q` — expected collection failure; 2 errors, `ModuleNotFoundError` for `safefix.junit` and `safefix.testrunner`.
+- TDD green: `python -m pytest tests/unit/test_junit.py tests/unit/test_testrunner.py -q` — PASS, 5 passed after the minimal implementation. The first green attempt exposed the JUnit `<failure>` metadata mapping defect; it was corrected before the final green run.
+- Refactor: preserved `classname::name` identities and parameter suffixes, kept failed/error as metadata, normalized collection messages for deterministic `collection_error::<suite>::<sha256(message)[:16]>` IDs, supported namespaced valid XML, normalized relative report paths, and retained `shell=False`.
+- Regression/verification: `PYTHONDONTWRITEBYTECODE=1 python -m pytest tests -q` — PASS, 119 passed; `PYTHONDONTWRITEBYTECODE=1 python -m pytest tests/unit/test_junit.py tests/unit/test_testrunner.py -q` — PASS, 5 passed; `git diff --check` on Task 9 files — PASS.
+- Specification-compliance review: PASS. The implementation matches the Task 9 file scope and all four required identity behaviors; TestRunner invokes `python -m pytest` with `shell=False`; tests use a local subprocess fake and local fixtures only.
+- Code-quality review: PASS. No unnecessary abstraction, duplicated validation, broad exception handling, speculative fallback, dead code, implementation-coupled assertions, or scope expansion was found.
+- Deviations: the authoritative worktree SPEC.md is empty, as in prior tasks; the Task 9 brief, PLAN.md, AGENTS.md, and existing package contracts were followed. No product-scope deviation was introduced.
+- Implementation commit: pending; the immediate audit closure will record its hash.
+
+### Task 9 continuation audit
+
+- Date: 2026-08-04
+- Audit baseline: `0f893e0`; the requested isolated worktree is `/tmp/safefix-task-9` on branch `safefix-task-9`.
+- Skill usage: using-superpowers; using-git-worktrees (confirmed the externally managed requested worktree); test-driven-development (verified the inherited red/green evidence and made no behavior change); requesting-code-review; receiving-code-review (no external feedback was supplied); verification-before-completion. Finishing-a-development-branch remains deferred because integration is externally managed.
+- Specification-compliance review: PASS. `failure_id` is exactly `classname::name` with parameter suffixes preserved; failed/error status is metadata and status changes do not change identity; collection errors use `collection_error::<suite>::<sha256(normalized_message)[:16]>`; TestRunner invokes `python -m pytest` with `shell=False`; only the requested Task 9 files and this log are in scope.
+- Code-quality review: PASS. The implementation is small and explicit, validates XML at the report boundary, has no unnecessary abstraction, duplicated validation, broad exception handling, speculative fallback, dead code, implementation-coupled assertions, or Task 10+ scope expansion.
+- TDD evidence confirmation: inherited red command `python -m pytest tests/unit/test_junit.py tests/unit/test_testrunner.py -q` recorded the expected two import collection errors; inherited green command recorded 5 passed after the minimal implementation and correction. This audit reran the exact focused command and observed 5 passed.
+- Fresh verification: exact focused `python -m pytest tests/unit/test_junit.py tests/unit/test_testrunner.py -q` — PASS, 5 passed; related Task 7/8 regression `PYTHONDONTWRITEBYTECODE=1 python -m pytest tests/unit/test_snapshot.py tests/unit/test_apply_patch.py tests/unit/test_read_tools.py tests/unit/test_dispatch.py -q` — PASS, 26 passed; full `PYTHONDONTWRITEBYTECODE=1 python -m pytest tests -q` — PASS, 119 passed.
+- Deviations: no implementation deviation and no SPEC.md/PLAN.md/AGENTS.md/Task 8 changes. `SPEC.md` is empty at the authoritative baseline, consistent with the existing Task 9 record. No corrective code change was necessary; generated `__pycache__` directories were removed from the isolated worktree before staging.
+- Requested implementation commit: pending; hash will be recorded in the follow-up log closure.
