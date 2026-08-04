@@ -256,16 +256,16 @@
 - Date: 2026-08-04
 - Baseline: isolated worktree `/tmp/safefix-task-9`, branch `safefix-task-9`, HEAD `0f893e0`.
 - Scope: Created only `src/safefix/junit.py`, `src/safefix/testrunner.py`, `tests/unit/test_junit.py`, `tests/unit/test_testrunner.py`, and `tests/fixtures/junit/`; no Task 8 files, Task 10 files, SPEC.md, PLAN.md, or AGENTS.md were modified.
-- Skill usage: using-superpowers; using-git-worktrees (verified the requested isolated worktree); subagent-driven-development (single Task 9 execution unit); test-driven-development; requesting-code-review; receiving-code-review (no external review feedback was received); verification-before-completion; finishing-a-development-branch deferred because integration is externally managed.
+- Skill usage: using-superpowers; using-git-worktrees (verified the requested isolated worktree); subagent-driven-development (single Task 9 execution unit); test-driven-development; requesting-code-review; receiving-code-review; verification-before-completion; finishing-a-development-branch deferred because integration is externally managed. The implementation and review work used fresh subagents instructed to read SPEC.md, PLAN.md, and AGENTS.md first.
 - Design gate: the locked Task 9 brief was treated as the approved design; no separate design document was created because the user restricted this execution unit to Task 9 files plus AGENT_LOG.md.
 - TDD red: `python -m pytest tests/unit/test_junit.py tests/unit/test_testrunner.py -q` — expected collection failure; 2 errors, `ModuleNotFoundError` for `safefix.junit` and `safefix.testrunner`.
 - TDD green: `python -m pytest tests/unit/test_junit.py tests/unit/test_testrunner.py -q` — PASS, 5 passed after the minimal implementation. The first green attempt exposed the JUnit `<failure>` metadata mapping defect; it was corrected before the final green run.
 - Refactor: preserved `classname::name` identities and parameter suffixes, kept failed/error as metadata, normalized collection messages for deterministic `collection_error::<suite>::<sha256(message)[:16]>` IDs, supported namespaced valid XML, normalized relative report paths, and retained `shell=False`.
 - Regression/verification: `PYTHONDONTWRITEBYTECODE=1 python -m pytest tests -q` — PASS, 119 passed; `PYTHONDONTWRITEBYTECODE=1 python -m pytest tests/unit/test_junit.py tests/unit/test_testrunner.py -q` — PASS, 5 passed; `git diff --check` on Task 9 files — PASS.
 - Specification-compliance review: PASS. The implementation matches the Task 9 file scope and all four required identity behaviors; TestRunner invokes `python -m pytest` with `shell=False`; tests use a local subprocess fake and local fixtures only.
-- Code-quality review: PASS. No unnecessary abstraction, duplicated validation, broad exception handling, speculative fallback, dead code, implementation-coupled assertions, or scope expansion was found.
+- Initial code-quality review: FAIL. The reviewer found that a relative project_root caused a relative JUnit report path to be resolved twice under cwd. No other quality issue was found.
 - Deviations: the authoritative worktree SPEC.md is empty, as in prior tasks; the Task 9 brief, PLAN.md, AGENTS.md, and existing package contracts were followed. No product-scope deviation was introduced.
-- Implementation commit: `9a83ae5` (`feat: pytest runner and stable failure ids`).
+- Implementation commit: `9a83ae5` (`feat: pytest runner and stable failure ids`); audit commit `a22b7ba` records the hash.
 
 ### Task 9 continuation audit
 
@@ -279,3 +279,4 @@
 - Deviations: no implementation deviation and no SPEC.md/PLAN.md/AGENTS.md/Task 8 changes. `SPEC.md` is empty at the authoritative baseline, consistent with the existing Task 9 record. No corrective code change was necessary; generated `__pycache__` directories were removed from the isolated worktree before staging.
 - Requested implementation commit: `9a83ae5` (`feat: pytest runner and stable failure ids`).
 - Audit correction: the implementation hash was omitted from the inherited entries; this documentation update closes that evidence gap. Final specification and code-quality review results for the corrected audit state remain to be recorded after the fresh review gate.
+- Receiving-code-review and TDD correction: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests/unit/test_testrunner.py::test_runner_resolves_relative_project_root_for_report_path -q` — FAIL before the fix with `FileNotFoundError` for the nested report path. `TestRunner` now resolves `project_root` once; corrected focused tests pass 6 and full suite passes 120. Fix commit is pending final review closure.

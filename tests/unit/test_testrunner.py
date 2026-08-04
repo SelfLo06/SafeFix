@@ -24,3 +24,35 @@ def test_runner_executes_python_pytest_without_a_shell(tmp_path: Path, monkeypat
     assert calls[0][1]["cwd"] == tmp_path
     assert result.exit_code == 0
     assert result.failure_ids == frozenset()
+
+
+def test_runner_resolves_relative_project_root_for_report_path(
+    tmp_path: Path,
+    monkeypatch,
+):
+    project = tmp_path / "project"
+    project.mkdir()
+    monkeypatch.chdir(tmp_path)
+
+    def fake_run(command, **kwargs):
+        report_arg = next(
+            arg.split("=", 1)[1]
+            for arg in command
+            if arg.startswith("--junitxml=")
+        )
+        report = Path(report_arg)
+        if not report.is_absolute():
+            report = Path(kwargs["cwd"]) / report
+        report.parent.mkdir(parents=True, exist_ok=True)
+        report.write_text(
+            '<testsuites><testsuite name="pytest" tests="0" failures="0" errors="0" />'
+            "</testsuites>"
+        )
+        return type("Completed", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+    monkeypatch.setattr("safefix.testrunner.subprocess.run", fake_run)
+
+    result = Runner(Path("project")).run()
+
+    assert result.exit_code == 0
+    assert result.failure_ids == frozenset()

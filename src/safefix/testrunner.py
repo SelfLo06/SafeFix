@@ -27,7 +27,7 @@ class TestRunner:
         pytest_args: Sequence[str] = (),
         report_path: str | Path | None = None,
     ) -> None:
-        self.project_root = Path(project_root)
+        self.project_root = Path(project_root).resolve()
         self.pytest_args = tuple(pytest_args)
         selected_report = report_path or Path(".safefix-junit.xml")
         selected_report = Path(selected_report)
