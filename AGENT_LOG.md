@@ -886,3 +886,19 @@
   `.git/worktrees` metadata; it created no files and did not alter the result.
   The externally managed stale `/tmp` worktree registrations were left alone;
   no uncommitted files remain in the main worktree.
+
+## Real-model integration smoke test
+
+- Date: 2026-08-05. The local, ignored `env.lock` was read without printing or
+  recording its credential value. No credential file was staged or committed.
+- The first controlled endpoint probe returned HTTP 200 with 90 total tokens
+  and used `max_tokens=2`; its empty content was caused by the output cap being
+  consumed by reasoning tokens.
+- The decisive test invoked the actual `OpenAICompatibleClient` and
+  `UrllibHTTPTransport` with a temporary test-only transport cap of 16 output
+  tokens, one request, 20-second timeout, and no retry. The real model returned
+  `OK`; usage was 91 prompt tokens, 16 completion tokens, 107 total tokens.
+- Combined observed usage was 197 tokens. No `safefix run` loop, file mutation,
+  shell tool, or additional production code was exercised. The exact API price
+  was not inferred from token usage; the request count and output caps were
+  deliberately kept minimal under the requested 3 RMB ceiling.
