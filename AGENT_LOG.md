@@ -265,7 +265,7 @@
 - Specification-compliance review: PASS. The implementation matches the Task 9 file scope and all four required identity behaviors; TestRunner invokes `python -m pytest` with `shell=False`; tests use a local subprocess fake and local fixtures only.
 - Code-quality review: PASS. No unnecessary abstraction, duplicated validation, broad exception handling, speculative fallback, dead code, implementation-coupled assertions, or scope expansion was found.
 - Deviations: the authoritative worktree SPEC.md is empty, as in prior tasks; the Task 9 brief, PLAN.md, AGENTS.md, and existing package contracts were followed. No product-scope deviation was introduced.
-- Implementation commit: pending; the immediate audit closure will record its hash.
+- Implementation commit: `9a83ae5` (`feat: pytest runner and stable failure ids`).
 
 ### Task 9 continuation audit
 
@@ -277,4 +277,5 @@
 - TDD evidence confirmation: inherited red command `python -m pytest tests/unit/test_junit.py tests/unit/test_testrunner.py -q` recorded the expected two import collection errors; inherited green command recorded 5 passed after the minimal implementation and correction. This audit reran the exact focused command and observed 5 passed.
 - Fresh verification: exact focused `python -m pytest tests/unit/test_junit.py tests/unit/test_testrunner.py -q` — PASS, 5 passed; related Task 7/8 regression `PYTHONDONTWRITEBYTECODE=1 python -m pytest tests/unit/test_snapshot.py tests/unit/test_apply_patch.py tests/unit/test_read_tools.py tests/unit/test_dispatch.py -q` — PASS, 26 passed; full `PYTHONDONTWRITEBYTECODE=1 python -m pytest tests -q` — PASS, 119 passed.
 - Deviations: no implementation deviation and no SPEC.md/PLAN.md/AGENTS.md/Task 8 changes. `SPEC.md` is empty at the authoritative baseline, consistent with the existing Task 9 record. No corrective code change was necessary; generated `__pycache__` directories were removed from the isolated worktree before staging.
-- Requested implementation commit: pending; hash will be recorded in the follow-up log closure.
+- Requested implementation commit: `9a83ae5` (`feat: pytest runner and stable failure ids`).
+- Audit correction: the implementation hash was omitted from the inherited entries; this documentation update closes that evidence gap. Final specification and code-quality review results for the corrected audit state remain to be recorded after the fresh review gate.
