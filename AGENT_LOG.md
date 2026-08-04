@@ -40,7 +40,11 @@
 - Specification-compliance review: PASS for the sole blocking requirement. The fix satisfies the exact no-deps help contract, changes no packaging configuration, preserves Task 15a scope, and does not implement 15b/15c or credential fallback behavior.
 - Code-quality review: PASS. The sentinel and one small dependency-loading helper are the minimum boundary change; review found no unnecessary abstraction, duplicated validation, broad exception handling, speculative fallback, excessive defensive branches, dead code, implementation-coupled regression assertion, or scope expansion.
 - Original review state: the independent Task 15a quality review `/home/selflo/MyCodes/summer-ai/safefix/.superpowers/sdd/PLAN/task-15a-quality-review.md` was FAIL solely because strict `--no-deps` help stopped with `ModuleNotFoundError: keyring`; that finding is addressed here. Follow-up specification and code-quality review of this repair remains pending after the required commit.
-- Implementation commit: `5edd5bb` (`fix: make cli help independent of keyring`). The subsequent log-closure amendment preserves this required subject; the final handoff reports the resulting HEAD hash.
+- Implementation commit: `d8c3b4a` (`fix: make cli help independent of keyring`). The subsequent log-closure amendment preserves this required subject; the final handoff reports the resulting HEAD hash.
+
+### Task 15a quality-review repair correction
+
+- Receiving-code-review verified that `5edd5bb` is not an ancestor of the current history and corrected the Implementation commit to the real `d8c3b4a`. The original review FAIL, TDD, 175-test full run, wheel `--no-deps` help smoke, keyring-only behavior, and scope evidence remain unchanged; subsequent review is pending.
 
 ## Task 12c — capped opt-in ProjectMemoryStore
 
