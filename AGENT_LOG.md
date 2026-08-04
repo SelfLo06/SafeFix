@@ -363,3 +363,19 @@
 - Code-quality review: PASS. The repair uses concrete immutable standard-library containers and reassignment, without unnecessary abstraction, duplicate boundary validation, broad exception handling, fallback logic, dead code, excessive defensive branches, scope expansion, or implementation-coupled production behavior. The two private-field assertions are intentional boundary tests, documented in their docstrings, because they directly protect SessionState's otherwise-bypassable public invariants.
 - Deviation: root `SPEC.md` is empty in this provided worktree; the Task 12a PLAN text, AGENTS.md, current-task instructions, and existing model contracts governed this correction. No product-scope deviation was introduced.
 - Repair commit: `0052cd1` (`fix: harden session state invariants`). Post-repair focused 11 and full 136 passed; final two-part review is pending on this corrected range.
+
+## Task 12a F0 immutable-deletion contract fix
+
+- Date: 2026-08-04
+- Scope: Modified only `src/safefix/session_state.py`, `tests/unit/test_session_state.py`, and this log. `SPEC.md`, `PLAN.md`, and `AGENTS.md` were not modified; Tasks 12b–12d were not implemented.
+- Skill usage: using-git-worktrees (verified the supplied linked `/tmp/safefix-task-12` worktree at `2a3e371`); subagent-driven-development (sole Task 12a repair unit); receiving-code-review; test-driven-development; requesting-code-review; verification-before-completion. Finishing-a-development-branch is deferred because the requested worktree is externally managed and must be preserved.
+- Receiving-code-review/spec feedback: independently reproduced the reported ordinary public path `del state.F0; state.F0 = replacement`. Existing `__setattr__` rejected only a present `F0`, so deletion succeeded and made reassignment possible. The feedback is valid and requires only a deletion guard compatible with the existing slot/custom-assignment contract.
+- TDD red: after adding `test_session_state_rejects_baseline_deletion_and_reassignment`, `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests/unit/test_session_state.py -q` — FAIL, 1 failed and 6 passed. The failure was the expected missing `AttributeError` from `del state.F0`.
+- Minimal repair: added `SessionState.__delattr__`, which raises `AttributeError("F0 is immutable")` only for `F0` and delegates every other name to the existing superclass behavior. The regression then verifies the baseline remains readable and reassignment is still rejected.
+- TDD green/focused: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests/unit/test_session_state.py tests/unit/test_feedback.py -q` — PASS, 12 passed.
+- Full verification: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests -q` — PASS, 137 passed. `git diff --check` — PASS.
+- Specification-compliance review: PASS. The fix enforces the Task 12a immutable-F0 contract for normal public deletion while preserving F0/F/U_best/counters and the existing bounded-event behavior; it does not implement artifacts, memory, or context work.
+- Code-quality review: PASS. The one-name `__delattr__` guard is the smallest compatible correction; it introduces no object-level super-defense, abstraction, duplicated validation, broad exception handling, fallback logic, dead code, scope expansion, or implementation-coupled assertion.
+- Deviation: `SPEC.md` is empty (0 lines) in the supplied worktree, so its §7.7 contract could not be inspected. The explicit Task 12a PLAN text, AGENTS.md, existing `SessionState` contract tests, and the user-provided reproduction governed this repair. No product-scope deviation was introduced.
+- Fix commit: `7e5888c` (`fix: protect immutable baseline deletion`).
+- Post-fix verification closure is pending the fresh final two-part review on this corrected range; the current final counts are focused 12 and full 137.
