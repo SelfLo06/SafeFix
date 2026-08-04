@@ -661,3 +661,10 @@
 - This repair records the missing current-commit evidence only in `AGENT_LOG.md`; CI, tests, production code, `SPEC.md`, `PLAN.md`, and Task 15a/15b files remain unchanged.
 - Final specification-compliance review: pending. Final code-quality review: pending. This closure does not record either review as PASS.
 - Fresh verification: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests/unit/test_ci_config.py tests/unit/test_packaging.py -q -p no:cacheprovider` — PASS, 4 passed; `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests -q -p no:cacheprovider` — PASS, 188 passed; `git diff --check f843a61` — PASS with Git's existing LF-to-CRLF warning; `git diff --diff-filter=D --name-only 5157ba8` — empty with the same warning.
+
+### Task 15c final specification-review repair closure
+
+- The prior correction subject `docs: correct Task 15c evidence hash` is recorded at `f843a61`; the current closure commit whose evidence was missing is `b8c3c0e`. Git reports the latter's actual subject as `docs: record Task 15c evidence correction`.
+- Current specification-compliance review: FAIL because the prior final closure omitted `b8c3c0e`; final code-quality review remains pending. This entry does not record either review as PASS.
+- This documentation-only repair modifies only `AGENT_LOG.md`; CI, tests, production code, `SPEC.md`, `PLAN.md`, and Task 15a/15b files remain unchanged.
+- Verification for this repair: focused `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests/unit/test_ci_config.py tests/unit/test_packaging.py -q -p no:cacheprovider`; full `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests -q -p no:cacheprovider`; `git diff --check b8c3c0e`; deletion check `git diff --diff-filter=D --name-only b8c3c0e`.
