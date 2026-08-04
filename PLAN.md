@@ -90,11 +90,11 @@ tests/
 
 **Dependencies:** None. This is a non-implementation prerequisite and must not modify `SPEC.md`, product scope, or implementation code.
 
-- [ ] **Step 1: Create the rules file.** Copy the approved SafeFix Agent Engineering Rules into root `AGENTS.md`, including source-of-truth priority, mandatory Superpowers workflow, boundary-defense/internal-invariant discipline, strict TDD, scope limits, and two-review requirements.
-- [ ] **Step 2: Verify the rules file content.** Run `test -f AGENTS.md && rg -n "Mandatory workflow|Sources of truth|Avoid excessive defensive programming|Strict TDD|Review requirements|AGENT_LOG.md" AGENTS.md`. Expected: exit 0 with every required section and logging rule found.
-- [ ] **Step 3: Update the plan gates.** Add the AGENTS.md read requirement, boundary-defense/internal-invariant rule, and excessive-defensive-programming review check to Global Constraints. Add the exact subagent prompt requirement “先阅读 SPEC.md、PLAN.md、AGENTS.md” and state that an AGENTS.md violation cannot pass code-quality review in the execution handoff.
-- [ ] **Step 4: Review and log Task 0.** Review AGENTS.md line-by-line against the approved user text; review PLAN.md for the three new gates; confirm `git diff --check -- AGENTS.md PLAN.md AGENT_LOG.md`; append the creation, verification command, review result, skill usage, no-deviation statement, and pending commit subject to AGENT_LOG.md.
-- [ ] **Step 5: Commit the prerequisite separately.** Run `git add AGENTS.md PLAN.md AGENT_LOG.md && git commit -m "docs: add repository agent engineering rules"`. Expected: one commit containing only Task 0 documentation/rule changes. Do not start Task 1 in the same execution unit.
+- [x] **Step 1: Create the rules file.** Copy the approved SafeFix Agent Engineering Rules into root `AGENTS.md`, including source-of-truth priority, mandatory Superpowers workflow, boundary-defense/internal-invariant discipline, strict TDD, scope limits, and two-review requirements.
+- [x] **Step 2: Verify the rules file content.** Run `test -f AGENTS.md && rg -n "Mandatory workflow|Sources of truth|Avoid excessive defensive programming|Strict TDD|Review requirements|AGENT_LOG.md" AGENTS.md`. Expected: exit 0 with every required section and logging rule found.
+- [x] **Step 3: Update the plan gates.** Add the AGENTS.md read requirement, boundary-defense/internal-invariant rule, and excessive-defensive-programming review check to Global Constraints. Add the exact subagent prompt requirement “先阅读 SPEC.md、PLAN.md、AGENTS.md” and state that an AGENTS.md violation cannot pass code-quality review in the execution handoff.
+- [x] **Step 4: Review and log Task 0.** Review AGENTS.md line-by-line against the approved user text; review PLAN.md for the three new gates; confirm `git diff --check -- AGENTS.md PLAN.md AGENT_LOG.md`; append the creation, verification command, review result, skill usage, no-deviation statement, and pending commit subject to AGENT_LOG.md.
+- [x] **Step 5: Commit the prerequisite separately.** Run `git add AGENTS.md PLAN.md AGENT_LOG.md && git commit -m "docs: add repository agent engineering rules"`. Expected: one commit containing only Task 0 documentation/rule changes. Do not start Task 1 in the same execution unit.
 
 ---
 
@@ -622,6 +622,25 @@ Dependencies: Tasks 6, 8, 10, and 13.
 - Create: `tests/mechanism/test_demo_deny.py`, `test_demo_feedback_changes_action.py`, `test_demo_progress_rollback.py`
 
 ---
+
+## Execution status
+
+All planned execution units are complete on the integrated `main` branch:
+
+| Tasks | Status | Evidence |
+|-------|--------|----------|
+| 0–8 | complete | implementation and review records in `AGENT_LOG.md` |
+| 9–11 | complete | implementation and review records in `AGENT_LOG.md` |
+| 12a–12d | complete | `task-12-report.md` and `AGENT_LOG.md` |
+| 13a–13d | complete | `task-13-report.md` and `AGENT_LOG.md` |
+| 14 | complete | `task-14-report.md` and `AGENT_LOG.md` |
+| 15a–15c | complete | `task-15-report.md` and `AGENT_LOG.md` |
+| 16 | complete | `task-16-report.md` and final review reports |
+
+Integration evidence: complete worktree branch `safefix-task-15` was merged
+into `main` as `15ee2f2` on 2026-08-05. The merged main branch passes
+`PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests -q` with 191
+tests passed. The root worktree has no uncommitted files.
 
 ## Spec coverage checklist (self-review)
 

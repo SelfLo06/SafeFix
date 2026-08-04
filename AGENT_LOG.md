@@ -863,3 +863,26 @@
   implementation-coupled test, or scope expansion.
 - Both review reports were read before closure. No review feedback remains to
   apply.
+
+## Main branch integration and verification
+
+- Date: 2026-08-05. The complete implementation branch `safefix-task-15` at
+  `ca4b88cf278d855740008a8149ba7fd131314f1b` was merged into `main` with
+  merge commit `15ee2f2` (`merge: integrate complete SafeFix implementation`).
+- Before merging, the root worktree had no tracked modifications. The only
+  untracked paths were generated Python caches and the uncommitted
+  `src/safefix/feedback.py` / `tests/unit/test_feedback.py`; the latter matched
+  the complete candidate test and behavior, so all four exact paths were
+  removed as temporary/uncommitted artifacts before checkout and merge.
+- Merge conflicts were limited to `AGENT_LOG.md`, `src/safefix/paths.py`, and
+  `tests/unit/test_paths.py`. The complete candidate versions were selected;
+  the candidate contains the reviewed path-policy corrections and full audit
+  trail. No product scope was expanded.
+- Post-merge verification on `main`:
+  `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests -q` — PASS,
+  `191 passed in 1.86s`.
+- `main` is clean after verification. The attempt to create an additional
+  temporary verification worktree was blocked by the sandbox's read-only
+  `.git/worktrees` metadata; it created no files and did not alter the result.
+  The externally managed stale `/tmp` worktree registrations were left alone;
+  no uncommitted files remain in the main worktree.
