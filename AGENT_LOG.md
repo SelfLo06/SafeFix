@@ -286,3 +286,16 @@
 - Final specification-compliance review: PASS for `0f893e0..82c0d16`; no Task 9 contract, evidence, scope, or deletion issue remained.
 - Final code-quality review: PASS for `0f893e0..82c0d16`; the reviewer confirmed no unnecessary abstraction, silent fallback, duplicated validation, broad exception handling, dead code, implementation-coupled tests, or scope expansion.
 - Final Task 9 verification closure: focused 7, full 121, `git diff --check 0f893e0..82c0d16` PASS, and `git diff --diff-filter=D --name-only 0f893e0 82c0d16` empty. Documentation closure commit: `82c0d16`.
+
+## Task 10 — FeedbackEngine strict-subset semantics
+
+- Date: 2026-08-04
+- Scope: Created only `src/safefix/feedback.py` and retained the inherited `tests/unit/test_feedback.py` behavior-contract draft; this log entry is the only other task file changed. `SPEC.md` and `PLAN.md` were read but not modified. No network access occurred.
+- Skill usage: using-superpowers; using-git-worktrees (verified the user-provided isolated `/tmp/safefix-task-10` worktree); subagent-driven-development (single Task 10 execution unit); test-driven-development; requesting-code-review; verification-before-completion. Finishing-a-development-branch is deferred because the user requested a commit in an externally managed worktree.
+- Inherited-state deviation: the worktree also contained an untracked `src/safefix/feedback.py`, contrary to the handoff statement that only the test draft remained. Its content made the requested initial red command pass (5 passed), so it was removed before the red verification and then re-created as the minimal implementation. This stayed within the user-authorized Task 10 file scope.
+- TDD red: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests/unit/test_feedback.py -q` — expected collection failure observed: `ModuleNotFoundError: No module named 'safefix.feedback'`.
+- TDD green: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests/unit/test_feedback.py -q` — PASS, 5 passed. The tests cover better (current strict subset), same, worse (prior strict subset), success (empty current set), and incomparable replacement failures.
+- Regression and verification: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests -q` — PASS, 126 passed; `git diff --check -- src/safefix/feedback.py tests/unit/test_feedback.py` — PASS.
+- Specification-compliance review: PASS. `FeedbackEngine.evaluate` returns `Feedback` with success for an empty current set and otherwise classifies `failure_id` sets as better/same/worse/incomparable using strict-subset semantics. The implementation is limited to Task 10.
+- Code-quality review: PASS. It reuses existing models, has no speculative API or abstraction, duplicated validation, broad exception handling, fallback behavior, dead code, scope expansion, or implementation-coupled assertions.
+- Implementation commit: pending until the controller completes the required externally managed worktree commit with subject `feat: strict-subset feedback engine`.
