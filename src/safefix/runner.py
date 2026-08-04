@@ -5,11 +5,12 @@ from pathlib import Path
 from typing import Protocol
 
 from .approval import ApprovalProvider
+from .artifacts import ArtifactWriter
 from .config import ConfigError, load_config
 from .credentials import CredentialError, CredentialsResolver
 from .feedback import FeedbackEngine
 from .guardrail import Guardrail
-from .llm.base import LLMClient
+from .llm.base import LLMClient, LLMTransportError
 from .models import (
     Config,
     FailureSet,
@@ -17,9 +18,10 @@ from .models import (
     GuardDecision,
     SessionResult,
     StopReason,
+    ToolCall,
     ToolName,
 )
-from .parse import ActionParser
+from .parse import ActionParser, ParseError
 from .paths import compute_writable_py_files
 from .session_state import SessionState
 from .snapshot import SnapshotStore
@@ -33,6 +35,7 @@ class BaselineRunner(Protocol):
 
 
 TestRunnerFactory = Callable[[Path, list[str]], BaselineRunner]
+TRANSPORT_ATTEMPTS = 3
 
 
 class SessionRunner:
@@ -95,7 +98,9 @@ class SessionRunner:
         """Run READY and DISPATCH until an early or requested stop."""
         early_stop = self.initialize()
         if early_stop is not None:
-            return early_stop
+            if self.state is None:
+                return early_stop
+            return self._finalize(early_stop.stop_reason)
 
         if self._llm_client is None:
             raise RuntimeError("READY requires an LLM client")
@@ -109,8 +114,23 @@ class SessionRunner:
         parser = ActionParser(self.project_root)
 
         while True:
+            stop_reason = self._ready_stop_reason()
+            if stop_reason is not None:
+                return self._finalize(stop_reason)
+
             state.increment_step()
-            action = parser.parse(self._llm_client.complete(self._prompt()))
+            try:
+                response = self._complete()
+            except LLMTransportError:
+                return self._finalize(StopReason.ERROR)
+            try:
+                action = parser.parse(response)
+            except ParseError:
+                state.record_tool_event(
+                    ToolCall(tool=ToolName.FINISH, reason="parse error"),
+                    Feedback("parse_error", "invalid tool call"),
+                )
+                continue
             decision = guardrail.check(action)
             state.record_guard_event(action, decision)
 
@@ -127,9 +147,8 @@ class SessionRunner:
                     self.project_root, self.config.pytest_args
                 ).run()
                 if evaluation.exit_code not in {0, 1}:
-                    self._restore_best()
                     state.record_tool_event(action, Feedback("error", "test run failed"))
-                    return self._result(StopReason.ERROR)
+                    return self._finalize(StopReason.ERROR)
 
                 state.increment_round()
                 current = FailureSet(evaluation.failure_ids)
@@ -143,7 +162,7 @@ class SessionRunner:
                     assert self.snapshot_store is not None
                     self.snapshot_store.best_contents = self.snapshot_store.snapshot_before_apply()
                     if feedback.outcome == "success":
-                        return self._result(StopReason.SUCCESS)
+                        return self._finalize(StopReason.SUCCESS)
                     continue
 
                 self._restore_best()
@@ -153,7 +172,7 @@ class SessionRunner:
 
             outcome = dispatch(self.project_root, action, self.snapshot_store)
             if outcome is StopReason.REQUESTED:
-                return self._result(StopReason.REQUESTED)
+                return self._finalize(StopReason.REQUESTED)
             state.record_tool_event(action, Feedback("completed"))
 
     @staticmethod
@@ -167,6 +186,35 @@ class SessionRunner:
             steps=self.state.steps,
             rounds=self.state.rounds,
             no_progress=self.state.no_progress_rounds,
+        )
+
+    def _ready_stop_reason(self) -> StopReason | None:
+        assert self.config is not None
+        assert self.state is not None
+        if self.state.steps >= self.config.max_steps:
+            return StopReason.MAX_STEPS
+        if self.state.rounds >= self.config.max_rounds:
+            return StopReason.MAX_ROUNDS
+        if self.state.no_progress_rounds >= self.config.max_no_progress_rounds:
+            return StopReason.NO_PROGRESS
+        return None
+
+    def _complete(self) -> str:
+        assert self._llm_client is not None
+        for attempt in range(TRANSPORT_ATTEMPTS):
+            try:
+                return self._llm_client.complete(self._prompt())
+            except LLMTransportError:
+                if attempt == TRANSPORT_ATTEMPTS - 1:
+                    raise
+        raise AssertionError("transport retry loop exhausted")
+
+    def _finalize(self, stop_reason: StopReason) -> SessionResult:
+        if self.snapshot_store is not None:
+            self._restore_best()
+        return ArtifactWriter(self.project_root / "safefix-session.json").write(
+            self.state,
+            self._result(stop_reason),
         )
 
     def _restore_best(self) -> None:
