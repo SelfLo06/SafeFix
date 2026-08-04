@@ -1,5 +1,18 @@
 # SafeFix Agent Log
 
+## Task 11 — Mock and injectable OpenAI-compatible LLM clients
+
+- Date: 2026-08-04
+- Scope: Added only `src/safefix/llm/base.py`, `src/safefix/llm/mock.py`, `src/safefix/llm/openai_compatible.py`, `tests/unit/test_mock_llm.py`, and `tests/unit/test_openai_client.py`, plus this log. No network transport, real HTTP client, credentials lookup, retry, fallback, registry, or Task 12+ behavior was added.
+- Skill usage: using-git-worktrees (verified the requested linked worktree); subagent-driven-development (Task 11 is the assigned implementation unit); test-driven-development; requesting-code-review; verification-before-completion; finishing-a-development-branch deferred because this is an externally managed task worktree. No separate dispatch facility is available in this environment, so the required specification and quality reviews were performed as distinct checklist passes below.
+- TDD red: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests/unit/test_mock_llm.py tests/unit/test_openai_client.py -q` — expected collection failure, actual `ModuleNotFoundError: No module named 'safefix.llm'` for both new test modules (2 collection errors).
+- TDD green and parse regression: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests/unit/test_mock_llm.py tests/unit/test_openai_client.py tests/unit/test_parse.py -q` — PASS, 10 passed. `git diff --check -- src/safefix/llm tests/unit/test_mock_llm.py tests/unit/test_openai_client.py` — PASS.
+- FakeTransport evidence: `FakeTransport` is test-only, records each `(url, headers, json_body, timeout)` call, returns a complete OpenAI-compatible `choices[0].message.content` response, and is the sole transport used by the OpenAI client test. The recorded request exactly contains `/chat/completions`, Bearer authorization, JSON content type, supplied model, one user message, and timeout 12; no sockets, real client, or real credential source is exercised.
+- Specification-compliance review: PASS. The changes define a prompt-completion protocol, return scripted MockLLM responses in order, fail deterministically after exhaustion, use only injected `post(url, headers, json_body, timeout)`, extract assistant content, and translate only bounded `OSError` transport failures. All changed product/test files are exactly within Task 11 scope.
+- Code-quality review: PASS. The implementation is small and direct, keeps HTTP and response validation at their trust boundaries, preserves an `OSError` cause, avoids broad catches, retries, fallback behavior, provider registries, and generic framework layers. Tests assert observable client results and the mandated boundary request rather than internals.
+- Deviation: the Task 11 brief's red/green commands omit the user-required `PYTHONDONTWRITEBYTECODE=1`; that environment prefix was added without changing test selection or behavior. No product-scope deviation.
+- Commit: `feat: mock and injectable OpenAI-compatible clients` — `78263dc` before this log-hash amendment.
+
 ## Task 0 — repository agent engineering rules
 
 - Date: 2026-08-03
