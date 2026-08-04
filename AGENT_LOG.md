@@ -797,3 +797,43 @@
 - Required commit subject: `test: demonstrate SafeFix mechanisms offline`.
   The final commit hash is established from Git after commit creation; this
   entry intentionally does not invent a self-referential hash.
+
+### Task 16 receiving-code-review repair
+
+- Date: 2026-08-04. The complete Task 16 specification-review feedback was
+  read before correction. The verified implementation commit is
+  `2400dec23cb4e2d5675d63bd569bba6e9e43b0e8`. The review found three audit
+  issues: missing real red evidence, the implementation hash absent from this
+  log/report, and a blank line at EOF in
+  `tests/mechanism/test_demo_progress_rollback.py` in the exact
+  `5d4489d..2400dec` diff.
+- Red replay: in `/tmp/safefix-task-16-red` at `5d4489d`, ran
+  `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests/mechanism -q`.
+  It returned exit 4 with `ERROR: file or directory not found:
+  tests/mechanism` and `no tests ran`; this is the real baseline result, not
+  fabricated historical evidence.
+- Repair scope: normalized only the target mechanism test's EOF whitespace;
+  the three mechanism tests and all local fixtures retain their behavior. No
+  production source, `SPEC.md`, `PLAN.md`, or Task 15 file was modified.
+  The current target file ends with exactly one terminal newline.
+- Verification evidence: focused mechanism tests — `3 passed`; full suite —
+  `191 passed`; `git diff --check 5d4489d HEAD` — PASS; and
+  `git diff --diff-filter=D --name-only 5d4489d HEAD` — empty. The exact
+  implementation diff's prior EOF finding is thereby corrected in the
+  resulting tree.
+- Specification-compliance review: PASS for this repair. The real red
+  baseline, implementation hash, EOF correction, focused/full results, and
+  protected-scope evidence are recorded. Code-quality review: PASS; no
+  unnecessary abstraction, duplicated validation, broad exception handling,
+  fallback logic, dead code, implementation-coupled test, or scope expansion
+  was introduced.
+- Deviation: `SPEC.md` is empty (0 bytes/0 lines) in the supplied repository,
+  a pre-existing repository deviation. Task 16 did not modify it; the task
+  brief, `PLAN.md`, `AGENTS.md`, and existing implementation contracts remain
+  the governing evidence.
+- Skill usage: `receiving-code-review`; `requesting-code-review` review gate
+  was handled as a separate documented checklist because no callable reviewer
+  subagent facility is exposed; `verification-before-completion`;
+  `finishing-a-development-branch` remains deferred because this is the
+  externally managed worktree requested by the user.
+- Required repair commit subject: `fix: normalize mechanism demo evidence`.
