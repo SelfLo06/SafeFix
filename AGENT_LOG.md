@@ -347,4 +347,4 @@
 - Specification-compliance review: PASS. The change preserves Task 12a's F0/F/U_best/counters and public session-state observability, keeps both event histories capped at ten, and does not load project memory or implement Tasks 12b–12d.
 - Code-quality review: PASS. The fix is three private fields plus three read-only views, with no generic container framework, repeated validation, broad exception handling, fallback path, dead code, scope expansion, or implementation-coupled test assertions.
 - Deviation: `SPEC.md` is empty in this worktree, so the relevant Task 12a PLAN text, AGENTS.md, current-task instructions, and existing model contracts governed this narrow correction. No product-scope deviation was introduced.
-- Commit: pending final verification and commit.
+- Repair commit: `e55bdd3` (`fix: encapsulate session state mutation boundaries`).
