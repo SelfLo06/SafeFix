@@ -654,3 +654,10 @@
 - Skill usage for this documentation-only repair: receiving-code-review; verification-before-completion; using-git-worktrees (verified the existing linked `/tmp/safefix-task-15` worktree). TDD red/green is not applicable because no behavior or tests changed; final specification and code-quality re-review remain pending rather than being recorded as PASS.
 - Fresh verification: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests/unit/test_ci_config.py tests/unit/test_packaging.py -q -p no:cacheprovider` — PASS, 4 passed; `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests -q -p no:cacheprovider` — PASS, 188 passed; `git diff --check` — PASS (only Git's existing LF-to-CRLF warning); `git diff --diff-filter=D --name-only 5157ba8` — empty.
 - Pending repair commit subject: `docs: correct Task 15c evidence hash`.
+
+### Task 15c receiving-code-review repair closure
+
+- The reviewed correction is present at current HEAD `f843a617fae2419c5a152e191d26a013118a2371` (`f843a61`), subject `docs: correct Task 15c evidence hash`.
+- This repair records the missing current-commit evidence only in `AGENT_LOG.md`; CI, tests, production code, `SPEC.md`, `PLAN.md`, and Task 15a/15b files remain unchanged.
+- Final specification-compliance review: pending. Final code-quality review: pending. This closure does not record either review as PASS.
+- Fresh verification: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests/unit/test_ci_config.py tests/unit/test_packaging.py -q -p no:cacheprovider` — PASS, 4 passed; `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests -q -p no:cacheprovider` — PASS, 188 passed; `git diff --check f843a61` — PASS with Git's existing LF-to-CRLF warning; `git diff --diff-filter=D --name-only 5157ba8` — empty with the same warning.
