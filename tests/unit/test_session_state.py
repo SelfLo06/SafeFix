@@ -70,6 +70,29 @@ def test_session_state_exposes_bounded_histories_as_read_only():
         state.patch_fingerprints.add("second-patch")
 
 
+def test_session_state_keeps_internal_history_backing_immutable():
+    """SessionState's cap invariant also applies at its internal mutation boundary."""
+    state = SessionState(failures("case-a"))
+
+    assert isinstance(state._recent_tool_events, tuple)
+    assert isinstance(state._recent_guard_events, tuple)
+    assert isinstance(state._patch_fingerprints, frozenset)
+    with pytest.raises(AttributeError):
+        state._recent_tool_events.append((
+            ToolCall(tool=ToolName.READ_FILE, path="src/app.py"),
+            Feedback(outcome="tool", summary="read src/app.py"),
+        ))
+    with pytest.raises(AttributeError):
+        state._patch_fingerprints.add("patch")
+
+
+def test_session_state_has_no_dict_rewrite_path_for_immutable_baseline():
+    """SessionState's F0 invariant has no normal-instance dictionary bypass."""
+    state = SessionState(failures("case-a"))
+
+    assert not hasattr(state, "__dict__")
+
+
 def test_session_state_updates_best_checkpoint():
     state = SessionState(failures("case-a", "case-b"))
 

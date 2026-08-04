@@ -348,3 +348,18 @@
 - Code-quality review: PASS. The fix is three private fields plus three read-only views, with no generic container framework, repeated validation, broad exception handling, fallback path, dead code, scope expansion, or implementation-coupled test assertions.
 - Deviation: `SPEC.md` is empty in this worktree, so the relevant Task 12a PLAN text, AGENTS.md, current-task instructions, and existing model contracts governed this narrow correction. No product-scope deviation was introduced.
 - Repair commit: `e55bdd3` (`fix: encapsulate session state mutation boundaries`).
+
+## Task 12a quality-review second-round fix — SessionState invariants
+
+- Date: 2026-08-04
+- Scope: Modified only `src/safefix/session_state.py`, `tests/unit/test_session_state.py`, and this log. `SPEC.md`, `PLAN.md`, and `AGENTS.md` were read and not modified; Tasks 12b–12d were not implemented.
+- Skill usage: using-git-worktrees (confirmed the user-provided linked worktree `/tmp/safefix-task-12` at `c13d373`); subagent-driven-development (sole Task 12a review-fix execution unit); receiving-code-review; test-driven-development; requesting-code-review; verification-before-completion; finishing-a-development-branch deferred because the user requested a commit in an externally managed worktree.
+- Receiving-code-review, second round: verified both findings against the code. The private backing fields were mutable `list`/`set` values, so direct private `append`/`add` bypassed the event cap and record boundary. The `F0` lock depended on ordinary instance `__dict__`, providing a direct dictionary rewrite path. Both findings are valid and the requested scope is limited to strengthening the existing SessionState invariant.
+- TDD red: after adding two boundary-regression tests, `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests/unit/test_session_state.py -q` — FAIL, 2 failed and 4 passed. The first failure observed `_recent_tool_events` as `list`; the second observed a normal `__dict__`.
+- Minimal repair: used `@dataclass(slots=True)` and `hasattr(self, "F0")` for the existing normal-assignment immutability guard; stored internal histories as tuples and patch fingerprints as a frozenset; record methods now assign capped/new immutable values. No broad exception handling or object-level bypass defense was added.
+- TDD green/focused regression: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests/unit/test_session_state.py tests/unit/test_feedback.py -q` — PASS, 11 passed.
+- Full verification: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests -q` — PASS, 136 passed. `git diff --check` — PASS.
+- Specification-compliance review: PASS. `F0`, `F`, `U_best`, counters, capped histories, and fingerprint observability remain unchanged; the only new behavior closes mutation paths that bypassed the Task 12a cap/immutability invariants. No project memory, artifacts, or context-builder behavior was added.
+- Code-quality review: PASS. The repair uses concrete immutable standard-library containers and reassignment, without unnecessary abstraction, duplicate boundary validation, broad exception handling, fallback logic, dead code, excessive defensive branches, scope expansion, or implementation-coupled production behavior. The two private-field assertions are intentional boundary tests, documented in their docstrings, because they directly protect SessionState's otherwise-bypassable public invariants.
+- Deviation: root `SPEC.md` is empty in this provided worktree; the Task 12a PLAN text, AGENTS.md, current-task instructions, and existing model contracts governed this correction. No product-scope deviation was introduced.
+- Commit: pending `fix: harden session state invariants`.
