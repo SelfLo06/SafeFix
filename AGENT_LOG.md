@@ -678,3 +678,31 @@
 - Skill usage: `using-git-worktrees` (verified the existing linked worktree); `receiving-code-review` (read and technically checked `task-15c-spec-review-final4.md`); `requesting-code-review` (no callable reviewer-subagent facility is exposed, so no review was fabricated); `verification-before-completion`. TDD is not applicable because this is documentation-only; `finishing-a-development-branch` remains deferred because this externally managed worktree is preserved for handoff.
 - Verification: focused `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests/unit/test_ci_config.py tests/unit/test_packaging.py -q -p no:cacheprovider` — PASS, 4 passed; full `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests -q -p no:cacheprovider` — PASS, 188 passed; `git diff --check` — PASS, exit 0 with Git's existing LF-to-CRLF warning; deletion check `test -z "$(git diff --diff-filter=D --name-only 5157ba8 HEAD)"` — PASS, empty output, exit 0.
 - Required commit subject: `docs: record Task 15c closure chain`.
+
+### Task 15c final review closure
+
+- Date: 2026-08-04. This entry replaces the current Task 15c pending-review
+  status with the completed final gate results. Earlier pending statements in
+  the preceding repair entries are retained as historical audit facts.
+- Final specification-compliance review: PASS, report
+  `task-15c-spec-review-final5.md`.
+- Final code-quality review: PASS, report
+  `task-15c-quality-review-final2.md`.
+- F1 repair commit: `b3c1ca9` (`fix: install pytest in CI jobs`). The evidence
+  chain through `8ebd394` is already recorded; `git log` confirms the current
+  prior closure `16a6ab4` (`docs: record Task 15c closure chain`).
+- `AGENT_LOG.md` cannot self-reference the SHA of the commit that appends this
+  entry: the SHA is unknown until Git creates that commit. This structural
+  limitation is not a defect and must not be treated as one; the resulting
+  closure SHA is established from `git log` after commit creation.
+- Fresh verification: focused tests — PASS, 4 passed; full suite — PASS, 188
+  passed; YAML parse with `yaml.safe_load` — PASS for both CI files;
+  `git diff --check` — PASS; deletion and protected-scope checks — PASS/empty.
+- Scope: no CI, tests, production/runtime/source, `SPEC.md`, `PLAN.md`, Task
+  15a, Task 15b, or out-of-scope Task 15c changes were made. This closure
+  modifies only this log; the requested report was updated separately at
+  `/home/selflo/MyCodes/summer-ai/safefix/.superpowers/sdd/PLAN/task-15c-report.md`.
+- Skill usage: `receiving-code-review`; `verification-before-completion`;
+  `finishing-a-development-branch` remains deferred because this is an
+  externally managed worktree preserved for handoff.
+- Required commit subject: `docs: close Task 15c final reviews`.
