@@ -1,0 +1,6 @@
+image: python:3.11
+
+unit-test:
+  script:
+    - pip install -e .
+    - python -m pytest
