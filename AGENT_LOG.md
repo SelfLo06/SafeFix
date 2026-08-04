@@ -1,5 +1,18 @@
 # SafeFix Agent Log
 
+## Task 12a — live SessionState
+
+- Date: 2026-08-04
+- Scope: Added only `src/safefix/session_state.py` and `tests/unit/test_session_state.py`, plus this record. No artifacts, project memory, context builder, runner, or other Task 12 units were implemented. `SPEC.md` and `PLAN.md` were not modified.
+- Skill usage: using-git-worktrees (verified the requested existing linked worktree `/tmp/safefix-task-12`); subagent-driven-development (this assigned subagent implements only Task 12a); test-driven-development; requesting-code-review; verification-before-completion. `finishing-a-development-branch` is deferred because this is an externally managed handoff worktree; no integration action was authorized.
+- TDD red: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests/unit/test_session_state.py -q` — expected collection failure, actual `ModuleNotFoundError: No module named 'safefix.session_state'` (1 collection error).
+- TDD green: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests/unit/test_session_state.py tests/unit/test_feedback.py -q` — PASS, 8 passed. A small contract-tightening red test then confirmed that tool events must carry the existing `Feedback` value (`TypeError` before the method accepted it); the same final command passed after the minimal update.
+- Field and boundary decision: `F0` is a `FailureSet` and cannot be reassigned after construction; the already-frozen `FailureSet.ids` preserves its value. `F` and `U_best` begin at `F0`; counter methods mutate only their respective zero-based counters. Tool events are `(ToolCall, Feedback)`, guard events are `(ToolCall, GuardDecision)`, and both retain the newest 10 entries. Patch fingerprints are a set for duplicate detection. The state trusts typed, validated internal values and adds no duplicate boundary validation or fallback behavior.
+- Specification-compliance review: PASS. The implementation and tests cover precisely Task 12a's state fields: immutable `F0`, zero counters, `U_best` checkpoint updates, bounded tool/guard event histories, and patch fingerprints. It does not access memory or implement Tasks 12b–d. The required `SPEC.md` was read but is empty in this supplied worktree; PLAN, the unique Task 12 brief, and existing Models/Feedback contracts supplied the observable detail.
+- Code-quality review: PASS. The dataclass is small and direct; its single cap constant is shared by both histories; mutation occurs only through narrow counter/event/checkpoint methods except the deliberately mutable current state; there are no broad catches, duplicated validation, speculative abstractions, fallback paths, dead code, or implementation-coupled mocks.
+- Verification: final selected tests passed (8); `git diff --check` passed for the two new files. The task report records the implementation commit hash after commit.
+- Deviation: no separate reviewer-dispatch facility is available to this assigned implementation subagent, so the required specification-compliance and code-quality reviews were conducted as distinct documented checklist passes. No product-scope deviation.
+
 ## Task 11 — Mock and injectable OpenAI-compatible LLM clients
 
 - Date: 2026-08-04
