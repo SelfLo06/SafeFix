@@ -47,6 +47,11 @@ class SessionState:
             raise AttributeError("F0 is immutable")
         super(SessionState, self).__setattr__(name, value)
 
+    def __delattr__(self, name: str) -> None:
+        if name == "F0":
+            raise AttributeError("F0 is immutable")
+        super(SessionState, self).__delattr__(name)
+
     def increment_step(self) -> None:
         self.steps += 1
 

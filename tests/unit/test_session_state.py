@@ -24,6 +24,18 @@ def test_session_state_defaults():
         state.F0 = failures("case-a")
 
 
+def test_session_state_rejects_baseline_deletion_and_reassignment():
+    baseline = failures("case-a")
+    state = SessionState(baseline)
+
+    with pytest.raises(AttributeError):
+        del state.F0
+
+    assert state.F0 == baseline
+    with pytest.raises(AttributeError):
+        state.F0 = failures("replacement")
+
+
 def test_session_state_records_tool_and_guard_events():
     state = SessionState(failures("case-a"))
     call = ToolCall(tool=ToolName.READ_FILE, path="src/app.py")
