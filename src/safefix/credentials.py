@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-import keyring
-import keyring.errors as keyring_errors
+_DEFAULT_KEYRING = object()
 
 
 class CredentialError(RuntimeError):
@@ -23,7 +22,7 @@ class CredentialsResolver:
 
     def __init__(
         self,
-        keyring_backend: Any = keyring,
+        keyring_backend: Any = _DEFAULT_KEYRING,
         *,
         service_name: str = "safefix",
         username: str = "api_key",
@@ -38,8 +37,9 @@ class CredentialsResolver:
     def set(self, value: str) -> None:
         if not isinstance(value, str) or not value:
             raise CredentialValueError("credential must be a non-empty string")
+        keyring, keyring_errors = self._dependencies()
         try:
-            self._keyring.set_password(self._service_name, self._username, value)
+            keyring.set_password(self._service_name, self._username, value)
         except keyring_errors.KeyringError as exc:
             raise CredentialError("cannot store credential in keyring") from exc
 
@@ -50,16 +50,27 @@ class CredentialsResolver:
         return value
 
     def clear(self) -> None:
+        keyring, keyring_errors = self._dependencies()
         try:
-            self._keyring.delete_password(self._service_name, self._username)
+            keyring.delete_password(self._service_name, self._username)
         except keyring_errors.KeyringError as exc:
             raise CredentialError("cannot clear credential from keyring") from exc
 
     def _read(self) -> str | None:
+        keyring, keyring_errors = self._dependencies()
         try:
-            value = self._keyring.get_password(self._service_name, self._username)
+            value = keyring.get_password(self._service_name, self._username)
         except keyring_errors.KeyringError as exc:
             raise CredentialError("cannot read credential from keyring") from exc
         if value is not None and (not isinstance(value, str) or not value):
             raise CredentialError("keyring returned an invalid credential")
         return value
+
+    def _dependencies(self) -> tuple[Any, Any]:
+        if self._keyring is _DEFAULT_KEYRING:
+            import keyring
+
+            self._keyring = keyring
+        import keyring.errors as keyring_errors
+
+        return self._keyring, keyring_errors
