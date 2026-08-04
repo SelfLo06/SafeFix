@@ -12,7 +12,10 @@ def test_github_workflow_runs_unit_tests():
     assert "actions/checkout@" in workflow
     assert "actions/setup-python@" in workflow
     assert re.search(r"(?m)^\s*python-version:\s*[\"']?3\.11[\"']?\s*$", workflow)
-    assert re.search(r"(?m)^\s*-?\s*run:\s*pip install -e \.\s*$", workflow)
+    assert re.search(
+        r"(?m)^\s*-?\s*run:\s*(?:python -m )?pip install -e \. pytest\s*$",
+        workflow,
+    )
     assert "python -m pytest" in workflow
 
 
@@ -21,5 +24,8 @@ def test_gitlab_has_unit_test_job():
 
     assert re.search(r"(?m)^unit-test:\s*$", pipeline)
     assert re.search(r"(?m)^image:\s*python:3\.11\s*$", pipeline)
-    assert re.search(r"(?m)^\s*-\s*pip install -e \.\s*$", pipeline)
+    assert re.search(
+        r"(?m)^\s*-\s*(?:python -m )?pip install -e \. pytest\s*$",
+        pipeline,
+    )
     assert "python -m pytest" in pipeline
