@@ -88,6 +88,10 @@ Only these pytest arguments are allowed through `pytest_args` or repeated
 execution-changing arguments such as `-k`, `-m`, `-x`, and `--collect-only`
 are rejected.
 
+The repair-loop defaults are `max_steps = 30`, `max_rounds = 10`, and
+`max_no_progress_rounds = 3`. HITL approval is required for changes affecting
+`>3 files` or `>80 lines`.
+
 Approval is fail-closed: in non-interactive mode SafeFix must deny an action
 requiring approval, and it never auto-approves it. The CLI does not enable an
 interactive approval prompt.
