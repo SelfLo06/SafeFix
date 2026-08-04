@@ -31,8 +31,20 @@ python -m venv .venv
 python -m pip install .
 ```
 
-The activation line above is for POSIX shells; on Windows use
-`.venv\\Scripts\\activate` in Command Prompt or PowerShell.
+The activation line above is for POSIX shells. On Windows, use the shell-specific
+command below:
+
+Command Prompt:
+
+```bat
+.venv\Scripts\activate.bat
+```
+
+PowerShell:
+
+```powershell
+.venv\Scripts\Activate.ps1
+```
 
 To build release artifacts, install the build frontend and create both a
 wheel and a source distribution (sdist):

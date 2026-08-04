@@ -2,7 +2,8 @@ from pathlib import Path
 
 
 def _readme_content() -> tuple[str, str]:
-    raw_content = Path("README.md").read_text(encoding="utf-8")
+    readme_path = Path(__file__).resolve().parents[2] / "README.md"
+    raw_content = readme_path.read_text(encoding="utf-8")
     return raw_content, raw_content.lower()
 
 
@@ -14,6 +15,13 @@ def test_readme_documents_install_and_build() -> None:
     assert "python -m build --wheel --sdist" in content
     assert "*.whl" in content
     assert "*.tar.gz" in content
+
+
+def test_readme_documents_distinct_windows_activation_commands() -> None:
+    raw_content, _ = _readme_content()
+
+    assert ".venv\\Scripts\\activate.bat" in raw_content
+    assert ".venv\\Scripts\\Activate.ps1" in raw_content
 
 
 def test_readme_documents_run_and_credentials() -> None:
