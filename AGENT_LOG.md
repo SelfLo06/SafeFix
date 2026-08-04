@@ -13,6 +13,9 @@
 - Deviation: the Task 11 brief's red/green commands omit the user-required `PYTHONDONTWRITEBYTECODE=1`; that environment prefix was added without changing test selection or behavior. No product-scope deviation.
 - Implementation commit: `9de7435` (`feat: mock and injectable OpenAI-compatible clients`). The implementation subagent's returned commit hash is the current HEAD of this isolated worktree.
 - Post-implementation verification at `9de7435`: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests/unit/test_mock_llm.py tests/unit/test_openai_client.py tests/unit/test_parse.py -q` — PASS, 10 passed; `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests -q` — PASS, 130 passed; `git diff --check d83ee95..9de7435` — PASS; `git diff --diff-filter=D --name-only d83ee95 9de7435` — empty. Fresh final two-part review is pending after this documentation correction.
+- Final specification-compliance review: PASS for `d83ee95..c8f6164`; no contract, evidence, scope, or deletion issue remained.
+- Final code-quality review: PASS for `d83ee95..c8f6164`; the reviewer confirmed minimal injected transport design, one-time boundary handling, preserved transport causes, no broad catches, fallback/retry/registry logic, dead code, implementation-coupled tests, or scope expansion.
+- Final Task 11 verification closure: focused 10, full 130, `git diff --check d83ee95..c8f6164` PASS, and `git diff --diff-filter=D --name-only d83ee95 c8f6164` empty. Documentation closure commit is pending.
 
 ## Task 0 — repository agent engineering rules
 
