@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 
+from safefix.models import Config
 from safefix.paths import (
     compute_writable_py_files,
     is_read_denied,
@@ -27,7 +28,24 @@ def test_project_root_escape_is_denied(tmp_path: Path, relative: str):
 
 @pytest.mark.parametrize(
     "relative",
-    [".git/config", ".venv/bin/python", "venv/lib/site.py", "src/__pycache__/x.pyc", ".pytest_cache/state", ".env", "credential", "credentials.json", "private.pem", "src/secret.py"],
+    [
+        ".git/config",
+        ".venv/bin/python",
+        "venv/lib/site.py",
+        "src/__pycache__/x.pyc",
+        ".pytest_cache/state",
+        ".env",
+        "credential",
+        "credential.json",
+        "credentials.json",
+        "private.pem",
+        "src/secret.py",
+        "secrets/token.txt",
+        "credentials/api.txt",
+        "src/secret/token.py",
+        "cache/data.py",
+        ".cache/data.py",
+    ],
 )
 def test_hard_excluded_paths_are_not_readable_or_writable(tmp_path: Path, relative: str):
     assert is_read_denied(tmp_path, relative) is True
@@ -46,13 +64,19 @@ def test_src_default_writable(tmp_path: Path):
     assert compute_writable_py_files(tmp_path, None, []) == {path.resolve()}
 
 
-def test_project_root_python_fallback_when_src_missing(tmp_path: Path):
+def test_config_default_allowed_paths_make_src_writable(tmp_path: Path):
+    (tmp_path / "src").mkdir()
+    path = tmp_path / "src" / "module.py"
+    path.write_text("value = 1\n", encoding="utf-8")
+
+    assert compute_writable_py_files(tmp_path, Config().allowed_paths, []) == {path.resolve()}
+
+
+def test_missing_src_has_no_default_writable_files(tmp_path: Path):
     path = tmp_path / "app.py"
     path.write_text("value = 1\n", encoding="utf-8")
-    (tmp_path / "nested").mkdir()
-    (tmp_path / "nested" / "ignored.py").write_text("value = 2\n", encoding="utf-8")
 
-    assert compute_writable_py_files(tmp_path, None, []) == {path.resolve()}
+    assert compute_writable_py_files(tmp_path, None, []) == set()
 
 
 def test_explicit_allowed_paths_replace_default_derivation(tmp_path: Path):

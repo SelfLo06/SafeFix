@@ -2,7 +2,7 @@ from pathlib import Path
 
 
 _VIRTUAL_ENV_DIRS = {".venv", "venv", "env", "virtualenv", "virtualenvs"}
-_CACHE_DIRS = {"__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".tox", ".nox"}
+_CACHE_DIRS = {"__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".tox", ".nox", "cache", ".cache"}
 _SECRET_SUFFIXES = {".pem", ".key", ".p12", ".pfx", ".crt"}
 _SECRET_NAMES = {".env", "credential", "credentials", "secret", "secrets", "id_rsa"}
 
@@ -48,9 +48,8 @@ def compute_writable_py_files(
     root = project_root.resolve()
     excluded = [normalize_rel_path(root, path) for path in excluded_paths]
 
-    root_fallback = allowed_paths is None and not (root / "src").is_dir()
-    if allowed_paths is None:
-        search_roots = [root / "src"] if not root_fallback else [root]
+    if not allowed_paths:
+        search_roots = [root / "src"] if (root / "src").is_dir() else []
     else:
         search_roots = [normalize_rel_path(root, path) for path in allowed_paths]
 
@@ -60,14 +59,14 @@ def compute_writable_py_files(
             if search_root.suffix == ".py":
                 candidates.add(search_root)
         elif search_root.is_dir():
-            pattern = "*.py" if root_fallback and search_root == root else "**/*.py"
-            candidates.update(path.resolve() for path in search_root.glob(pattern))
+            candidates.update(path.resolve() for path in search_root.glob("**/*.py"))
 
     return {
         path
         for path in candidates
         if _inside(path, root)
-        and not is_write_denied(root, path.relative_to(root).as_posix())
+        and not _is_hard_denied(root, path)
+        and not _is_test_source(root, path)
         and not any(_inside(path, excluded_path) for excluded_path in excluded)
     }
 
@@ -78,7 +77,7 @@ def _is_hard_denied(root: Path, path: Path) -> bool:
         return True
     if any(part in _VIRTUAL_ENV_DIRS or part in _CACHE_DIRS for part in relative_parts):
         return True
-    return _is_secret(path.name)
+    return any(_is_secret(part) for part in relative_parts)
 
 
 def _is_test_source(root: Path, path: Path) -> bool:
@@ -97,6 +96,7 @@ def _is_secret(name: str) -> bool:
         lower_name in _SECRET_NAMES
         or lower_name.startswith(".env.")
         or lower_name.endswith(tuple(_SECRET_SUFFIXES))
+        or lower_name.startswith("credential.")
         or lower_name.startswith("credentials.")
         or lower_name.startswith("secret.")
         or lower_name.startswith("secrets.")
