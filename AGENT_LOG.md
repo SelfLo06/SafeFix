@@ -1,5 +1,21 @@
 # SafeFix Agent Log
 
+## Task 15a — package metadata and CLI entrypoint
+
+- Date: 2026-08-04
+- Scope: Modified only `pyproject.toml` and created `tests/unit/test_packaging.py`, plus this record. Task 15b/15c, `SPEC.md`, source modules, and unrelated files were not modified.
+- Skill usage: using-superpowers; using-git-worktrees (verified the requested existing `/tmp/safefix-task-15` worktree); subagent-driven-development (sole assigned Task 15a implementation unit); test-driven-development; requesting-code-review; verification-before-completion. No review feedback was received, so receiving-code-review was not invoked. Finishing-a-development-branch remains deferred because this externally managed worktree is preserved for handoff.
+- TDD red: `python -m pytest tests/unit/test_packaging.py -q` — expected assertion failure; FAIL, `KeyError: 'setuptools'`, identifying the missing package-discovery metadata.
+- TDD green: `python -m pytest tests/unit/test_packaging.py -q` — PASS, 1 passed. The test covers Python `>=3.11`, setuptools build-system metadata, `src` package discovery, the `safefix` console script, the `keyring>=25` runtime dependency, and project name/version/description.
+- Build smoke: the exact disposable environment was created successfully. `"$BUILD_ENV/bin/python" -m pip install build` was blocked by the sandbox network policy (`ProxyError`, `Operation not permitted`); consequently the exact `python -m build --wheel --sdist` command could not run and no sdist claim is made. No alternate implementation was added.
+- Local build validation: `python -m pip wheel --no-build-isolation --no-deps --wheel-dir /tmp/safefix-dist .` — PASS, wheel `safefix-0.1.0-py3-none-any.whl` created; `"$BUILD_ENV/bin/python" -m pip install --no-deps /tmp/safefix-dist/*.whl` — PASS. The exact `"$BUILD_ENV/bin/python" -m safefix --help` smoke failed with `ModuleNotFoundError: No module named 'keyring'` because `--no-deps` intentionally omitted the declared runtime dependency. Using the existing local keyring installation via `PYTHONPATH` made the installed wheel CLI smoke pass with exit 0; no source change or fallback was introduced.
+- Regression: `python -m pytest tests/unit/test_packaging.py tests/unit/test_cli.py -q` — PASS, 6 passed. Full verification: `python -m pytest tests -q` — PASS, 174 passed.
+- Specification-compliance review: PASS. Metadata declares the required interpreter/build/package-discovery/script/dependency/project fields, and the test observes the TOML contract. The changed scope is exactly Task 15a.
+- Code-quality review: PASS. The test uses standard-library TOML parsing and observable metadata; the packaging configuration is direct, with no unnecessary abstraction, duplicated validation, broad exception handling, fallback logic, dead code, or scope expansion.
+- Verification: `PYTHONDONTWRITEBYTECODE=1 python -m pytest tests/unit/test_packaging.py tests/unit/test_cli.py -q` — PASS, 6 passed; `PYTHONDONTWRITEBYTECODE=1 python -m pytest tests -q` — PASS, 174 passed; `git diff --check` — PASS with only Git LF/CRLF normalization warnings. No SPEC or PLAN edits, deleted files, or 15b/15c artifacts are present.
+- Deviation: build frontend installation and the strict `--no-deps` CLI smoke were environment-blocked as documented above; local wheel and dependency-assisted CLI validation were completed without adding an alternative implementation.
+- Candidate commit: `968b832` (`chore: finalize package metadata and CLI entrypoint`). The documentation closure is amended into the same required-subject commit; the amended commit hash is reported in the handoff and task report.
+
 ## Task 12c — capped opt-in ProjectMemoryStore
 
 - Date: 2026-08-04
