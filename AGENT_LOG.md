@@ -647,4 +647,4 @@
 - TDD red: after adding the explicit pytest-install assertions, `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests/unit/test_ci_config.py -q` failed as expected because both original CI install commands omitted pytest.
 - TDD green: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests/unit/test_ci_config.py tests/unit/test_packaging.py -q` — PASS, 4 passed; full suite — PASS, 188 passed; PyYAML safe_load parsed both CI files; `git diff --check` — PASS; no deleted files; generated egg-info/cache files were cleaned.
 - Implementation report: `/home/selflo/MyCodes/summer-ai/safefix/.superpowers/sdd/PLAN/task-15c-report.md`.
-- Fix commit: pending until the updated CI files, tests, and this evidence are committed; final specification and quality reviews are pending.
+- Fix commit: `b3c1ca9` (`fix: install pytest in CI jobs`); final specification and quality reviews are pending.
