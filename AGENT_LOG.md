@@ -382,3 +382,15 @@
 - Final specification-compliance review: PASS for `42d26f2..37e89bb`; all Task 12a state and immutability contracts, repair evidence, scope, and deletion checks passed.
 - Final code-quality review: PASS for `42d26f2..37e89bb`; the reviewer confirmed KISS, narrow mutation boundaries, proportionate slots/immutable backing, no broad catches, fallback, dead code, or scope expansion.
 - Final Task 12a verification closure: focused 12, full 137, `git diff --check 42d26f2..37e89bb` PASS, and `git diff --diff-filter=D --name-only 42d26f2 37e89bb` empty.
+
+## Task 12b — redacted session artifacts
+
+- Date: 2026-08-04
+- Scope: Created only `src/safefix/artifacts.py` and `tests/unit/test_artifacts.py`; this log is the only modified existing file. `SPEC.md`, `PLAN.md`, and `AGENTS.md` were read and not modified. Task 12c memory, Task 12d context, and runner APIs were not implemented. No network access occurred.
+- Skill usage: using-git-worktrees (confirmed the user-provided linked `/tmp/safefix-task-12` worktree); subagent-driven-development (sole Task 12b execution unit); test-driven-development; requesting-code-review; verification-before-completion. Receiving-code-review had no findings to apply. Finishing-a-development-branch is deferred because the user requested a commit in an externally managed worktree.
+- TDD red: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests/unit/test_artifacts.py -q` — expected collection failure observed: `ModuleNotFoundError: No module named 'safefix.artifacts'`.
+- TDD green: the same focused command — PASS, 3 passed. Tests cover counters and baseline/current failure diffs, safe guard-event summaries, exclusion of key/source/traceback/transcript content, and writing a stop result with its artifact path.
+- Regression and verification: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests/unit/test_artifacts.py tests/unit/test_session_state.py -q` — PASS, 10 passed; `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests -q` — PASS, 140 passed; `git diff --check` — PASS.
+- Specification-compliance review: PASS. ArtifactWriter emits human-readable JSON with `counters`, `stop_reason`, `failure_diffs`, and `guard_events`; diffs compare immutable `F0` against current `F`; writing returns the immutable SessionResult updated only with `artifact_path`. Sensitive values are redacted by exclusion: tool-event feedback, tool-call reason/query, patch bodies, labels, and tracebacks/transcripts are never serialized.
+- Code-quality review: PASS. The writer directly consumes completed SessionState and SessionResult contracts, uses stdlib JSON and dataclass replacement, introduces no runner/memory/context API, serializer framework, duplicate validation, broad exception handling, fallback behavior, dead code, scope expansion, or implementation-coupled assertions.
+- Deviation: `SPEC.md` is empty (0 bytes) in the supplied worktree; the Task 12b brief, PLAN, AGENTS.md, existing model contracts, and user instructions governed the work. No product-scope deviation was introduced. The implementation commit hash is recorded in the required Task 12b report.
