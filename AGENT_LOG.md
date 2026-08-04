@@ -706,3 +706,94 @@
   `finishing-a-development-branch` remains deferred because this is an
   externally managed worktree preserved for handoff.
 - Required commit subject: `docs: close Task 15c final reviews`.
+
+## Task 16 — offline mechanism demos
+
+- Date: 2026-08-04. Scope is limited to the three new files under
+  `tests/mechanism/`, the two fixed local projects under
+  `tests/fixtures/projects/`, and this log. No production source, `SPEC.md`,
+  `PLAN.md`, or Task 15 file was modified. The required report is written at
+  `/home/selflo/MyCodes/summer-ai/safefix/.superpowers/sdd/PLAN/task-16-report.md`.
+- Skill usage: `using-superpowers`; `using-git-worktrees` was satisfied by
+  preserving the user-provided externally managed worktree
+  `/tmp/safefix-task-15`; `verification-before-completion`; and
+  `finishing-a-development-branch` for the final verification gate. The
+  requested continuation work does not require a new worktree. No callable
+  reviewer-subagent facility is exposed, so specification-compliance and
+  code-quality review were performed as two separate checklist passes and
+  recorded below.
+- TDD red evidence: the prior agent's Task 16 red run is not recorded in the
+  inherited `AGENT_LOG.md`, and the current continuation agent did not undo
+  working tests or fabricate a red result. Based on the current worktree, the
+  mechanism tests are collected and pass; no test/fixture correction was
+  necessary, so no new red-green repair cycle was applicable.
+- Mechanism evidence: `test_demo_test_edit_is_permanently_denied` uses
+  `MockLLM` and a recording fake approval to show a test-file patch receives
+  `GuardDecision.DENY`, makes zero approval calls, records `denied`, and leaves
+  the original test unchanged. `test_feedback_changes_the_next_scripted_action`
+  observes a denied first action followed by a successful second
+  `APPLY_PATCH`, with `src/app.py` changed only by the next scripted action.
+  `test_better_same_worse_and_no_progress_are_deterministic` observes the
+  exact `better`, `same`, `worse`, `same` feedback sequence, four evaluated
+  rounds, two no-progress rounds, and final filesystem state restored to the
+  best checkpoint after non-improving actions.
+- Boundary/scope review: tests inject only `MockLLM`, fake credentials, and
+  fake approval, and copy only local pytest fixtures. No network, generic
+  shell execution, public mock mode, or new production wiring is present.
+- Specification-compliance review: PASS. The three tests and fixtures match
+  Task 16's A.6 contracts, remain offline and deterministic, demonstrate the
+  requested guardrail/feedback/progress/rollback behavior, and stay within the
+  allowed file scope. `SPEC.md` is empty (0 lines) in this supplied worktree;
+  this known repository deviation is explicitly recorded, with the Task 16
+  brief, `PLAN.md`, `AGENTS.md`, and existing implementation contracts used as
+  the governing evidence. No deviation was introduced by this task.
+- Code-quality review: PASS. The tests assert observable behavior rather than
+  private implementation details; fixtures are minimal; no unnecessary
+  abstraction, duplicated validation, broad exception handling, speculative
+  fallback, excessive defensive branch, dead code, implementation-coupled
+  mock, or scope expansion was found.
+- Focused verification before commit: `PYTHONDONTWRITEBYTECODE=1
+  PYTHONPATH=src python -m pytest tests/mechanism -q` — PASS, 3 passed.
+- Commit subject required by the brief: `test: demonstrate SafeFix mechanisms
+  offline`. The resulting commit hash will be established from `git log`
+  after commit creation; this log entry intentionally does not fabricate a
+  self-referential hash.
+
+### Task 16 continuation — verification and commit closure
+
+- Date: 2026-08-04. This continuation agent preserved the inherited Task 16
+  tests and fixtures and changed no production source, `SPEC.md`, `PLAN.md`, or
+  Task 15 files. The only implementation-scope changes remain the three files
+  under `tests/mechanism/`, the two fixed projects under
+  `tests/fixtures/projects/`, and this log. The report is at
+  `/home/selflo/MyCodes/summer-ai/safefix/.superpowers/sdd/PLAN/task-16-report.md`.
+- Mechanism contract confirmed: the demos use only injected `MockLLM`, fake
+  approval/credentials, and copied local pytest fixtures. They demonstrate
+  permanent DENY for test edits without approval, a feedback-driven next
+  action, strict-subset `better`/`same`/`worse` progress, rollback to the best
+  checkpoint, and deterministic no-progress stopping. No network, generic
+  shell execution, or public mock mode is used or added.
+- TDD red evidence: the inherited log did not contain the prior agent's first
+  Task 16 failing command. This continuation agent did not fabricate or replay
+  historical red evidence; the red phase was completed during the prior
+  implementation stage but cannot be reproduced from the current passing
+  worktree without undoing inherited changes.
+- Specification-compliance review: PASS. The files match PLAN Task 16's A.6
+  contracts and allowed scope. `SPEC.md` is empty (0 bytes) in this supplied
+  worktree; this is a pre-existing repository deviation, explicitly recorded,
+  not introduced or changed by Task 16. The review used the Task 16 brief,
+  `PLAN.md`, `AGENTS.md`, and existing implementation contracts.
+- Code-quality review: PASS. Tests assert observable behavior and use local
+  deterministic boundaries; fixtures are minimal. No unnecessary abstraction,
+  duplicated validation, broad exception handling, speculative fallback,
+  excessive defensive branch, dead code, implementation-coupled mock, or
+  scope expansion was found.
+- Fresh verification: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m
+  pytest tests/mechanism -q` — PASS, 3 passed in 0.26s;
+  `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests -q` — PASS,
+  191 passed in 2.14s; `git diff --check` — PASS, exit 0 with only Git's
+  existing LF-to-CRLF warning; `git diff --diff-filter=D --name-only
+  5d4489d HEAD` — PASS, empty output.
+- Required commit subject: `test: demonstrate SafeFix mechanisms offline`.
+  The final commit hash is established from Git after commit creation; this
+  entry intentionally does not invent a self-referential hash.
