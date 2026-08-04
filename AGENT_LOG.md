@@ -11,7 +11,8 @@
 - Specification-compliance review: PASS. The changes define a prompt-completion protocol, return scripted MockLLM responses in order, fail deterministically after exhaustion, use only injected `post(url, headers, json_body, timeout)`, extract assistant content, and translate only bounded `OSError` transport failures. All changed product/test files are exactly within Task 11 scope.
 - Code-quality review: PASS. The implementation is small and direct, keeps HTTP and response validation at their trust boundaries, preserves an `OSError` cause, avoids broad catches, retries, fallback behavior, provider registries, and generic framework layers. Tests assert observable client results and the mandated boundary request rather than internals.
 - Deviation: the Task 11 brief's red/green commands omit the user-required `PYTHONDONTWRITEBYTECODE=1`; that environment prefix was added without changing test selection or behavior. No product-scope deviation.
-- Commit: `feat: mock and injectable OpenAI-compatible clients` — `78263dc` before this log-hash amendment.
+- Implementation commit: `9de7435` (`feat: mock and injectable OpenAI-compatible clients`). The implementation subagent's returned commit hash is the current HEAD of this isolated worktree.
+- Post-implementation verification at `9de7435`: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests/unit/test_mock_llm.py tests/unit/test_openai_client.py tests/unit/test_parse.py -q` — PASS, 10 passed; `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests -q` — PASS, 130 passed; `git diff --check d83ee95..9de7435` — PASS; `git diff --diff-filter=D --name-only d83ee95 9de7435` — empty. Fresh final two-part review is pending after this documentation correction.
 
 ## Task 0 — repository agent engineering rules
 
