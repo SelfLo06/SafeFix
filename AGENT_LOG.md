@@ -14,6 +14,9 @@
 - Deviation: no separate reviewer-dispatch facility is available to this assigned implementation subagent, so the required specification-compliance and code-quality reviews were performed as distinct documented checklist passes. No product-scope deviation.
 - Implementation commit: `7b69e4f` (`feat: add capped opt-in project memory`). The controller completed the externally managed worktree commit after the implementation subagent shutdown during its commit phase.
 - Post-implementation verification at `7b69e4f`: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests/unit/test_memory.py tests/unit/test_artifacts.py -q` — PASS, 7 passed; `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests -q` — PASS, 144 passed; `git diff --check bd7b2ad..7b69e4f` — PASS; `git diff --diff-filter=D --name-only bd7b2ad 7b69e4f` — empty. Final two-part review is pending on this exact HEAD.
+- Final specification-compliance review: PASS for `bd7b2ad..8fcf334`; the root `SPEC.md` empty-file deviation was acknowledged and did not block PLAN/AGENTS/brief contract verification.
+- Final code-quality review: PASS for `bd7b2ad..8fcf334`; the reviewer confirmed a small standard-library store, explicit opt-in, deterministic isolation, fixed caps, no broad catches, fallback, leakage, dead code, or Task 12d scope.
+- Final Task 12c verification closure: focused 7, full 144, `git diff --check bd7b2ad..8fcf334` PASS, and `git diff --diff-filter=D --name-only bd7b2ad 8fcf334` empty.
 
 ## Task 12a — live SessionState
 
