@@ -7,6 +7,7 @@ from typing import Protocol
 from .approval import ApprovalProvider
 from .config import ConfigError, load_config
 from .credentials import CredentialError, CredentialsResolver
+from .feedback import FeedbackEngine
 from .guardrail import Guardrail
 from .llm.base import LLMClient
 from .models import (
@@ -121,7 +122,34 @@ class SessionRunner:
                 continue
 
             if action.tool is ToolName.APPLY_PATCH:
-                raise NotImplementedError("EVALUATE is implemented in Task 13c")
+                dispatch(self.project_root, action, self.snapshot_store)
+                evaluation = self._test_runner_factory(
+                    self.project_root, self.config.pytest_args
+                ).run()
+                if evaluation.exit_code not in {0, 1}:
+                    self._restore_best()
+                    state.record_tool_event(action, Feedback("error", "test run failed"))
+                    return self._result(StopReason.ERROR)
+
+                state.increment_round()
+                current = FailureSet(evaluation.failure_ids)
+                feedback = FeedbackEngine().evaluate(state.U_best, current)
+                state.F = current
+                state.record_tool_event(action, feedback)
+
+                if feedback.outcome in {"better", "success"}:
+                    state.update_best_checkpoint(current)
+                    state.reset_no_progress()
+                    assert self.snapshot_store is not None
+                    self.snapshot_store.best_contents = self.snapshot_store.snapshot_before_apply()
+                    if feedback.outcome == "success":
+                        return self._result(StopReason.SUCCESS)
+                    continue
+
+                self._restore_best()
+                if feedback.outcome == "same":
+                    state.increment_no_progress()
+                continue
 
             outcome = dispatch(self.project_root, action, self.snapshot_store)
             if outcome is StopReason.REQUESTED:
@@ -140,3 +168,9 @@ class SessionRunner:
             rounds=self.state.rounds,
             no_progress=self.state.no_progress_rounds,
         )
+
+    def _restore_best(self) -> None:
+        assert self.state is not None
+        assert self.snapshot_store is not None
+        self.snapshot_store.restore()
+        self.state.F = self.state.U_best
