@@ -12,7 +12,8 @@
 - Code-quality review: PASS. The store is a single small class with two public operations; filesystem and JSON handling are direct standard-library calls. There are no broad exception handlers, fallback credential paths, duplicate validation, speculative extension points, dead code, context/runner dependencies, or implementation-coupled mocks. Tests exercise persistence and observable loading behavior.
 - Verification: the final pre-commit selected and full test commands above passed. Staged whitespace and scope verification are recorded immediately before commit.
 - Deviation: no separate reviewer-dispatch facility is available to this assigned implementation subagent, so the required specification-compliance and code-quality reviews were performed as distinct documented checklist passes. No product-scope deviation.
-- Implementation commit: pending controller commit after the implementation subagent shutdown during its commit phase; required subject is `feat: add capped opt-in project memory`.
+- Implementation commit: `7b69e4f` (`feat: add capped opt-in project memory`). The controller completed the externally managed worktree commit after the implementation subagent shutdown during its commit phase.
+- Post-implementation verification at `7b69e4f`: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests/unit/test_memory.py tests/unit/test_artifacts.py -q` — PASS, 7 passed; `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests -q` — PASS, 144 passed; `git diff --check bd7b2ad..7b69e4f` — PASS; `git diff --diff-filter=D --name-only bd7b2ad 7b69e4f` — empty. Final two-part review is pending on this exact HEAD.
 
 ## Task 12a — live SessionState
 
