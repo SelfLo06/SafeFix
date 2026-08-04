@@ -42,6 +42,16 @@ class UrllibHTTPTransport:
             return json.load(response)
 
 
+class _CachedCredentials:
+    """Provide SessionRunner the credential already validated by the CLI."""
+
+    def __init__(self, api_key: str) -> None:
+        self._api_key = api_key
+
+    def get(self) -> str:
+        return self._api_key
+
+
 def production_client(*, base_url: str, model: str, api_key: str) -> OpenAICompatibleClient:
     return OpenAICompatibleClient(
         base_url=base_url,
@@ -123,18 +133,25 @@ def _run_command(
     overrides = _overrides(args)
     try:
         config = config_loader(project_root, overrides, require_llm=True)
+        api_key = credentials.get()
         client = client_factory(
             base_url=config.base_url,
             model=config.model,
-            api_key=credentials.get(),
+            api_key=api_key,
         )
     except (ConfigError, CredentialError):
         return EXIT_CODES[StopReason.CONFIG_ERROR]
 
+    def cached_config_loader(
+        _project_root: Path, _cli_overrides: dict, *, require_llm: bool = False
+    ) -> Config:
+        return config
+
     result = runner_factory(
         project_root,
         cli_overrides=overrides,
-        credentials=credentials,
+        credentials=_CachedCredentials(api_key),
+        config_loader=cached_config_loader,
         llm_client=client,
         approval=approval_factory(),
     ).run()

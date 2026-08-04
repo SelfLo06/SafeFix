@@ -32,6 +32,54 @@ class FakeRunner:
         return self._result
 
 
+def test_run_command_caches_validated_boundaries_for_runner(tmp_path: Path) -> None:
+    from safefix.cli import main
+
+    class CountingCredentials(FakeCredentials):
+        def __init__(self) -> None:
+            super().__init__()
+            self.get_calls = 0
+
+        def get(self) -> str:
+            self.get_calls += 1
+            return super().get()
+
+    credentials = CountingCredentials()
+    credentials.set("stored-test-key")
+    config = Config(base_url="https://llm.example/v1", model="repair-model")
+    config_loader_calls = 0
+    seen: dict[str, object] = {}
+
+    def config_loader(root: Path, overrides: dict[str, object], require_llm: bool) -> Config:
+        nonlocal config_loader_calls
+        config_loader_calls += 1
+        return config
+
+    def runner_factory(project_root: Path, **kwargs: object) -> FakeRunner:
+        runner_config_loader = kwargs.get("config_loader", config_loader)
+        runner_credentials = kwargs["credentials"]
+        seen["runner_config"] = runner_config_loader(
+            project_root, kwargs["cli_overrides"], require_llm=True
+        )
+        seen["runner_key"] = runner_credentials.get()
+        return FakeRunner(SessionResult(stop_reason=StopReason.SUCCESS))
+
+    assert main(
+        ["run", "--project-root", str(tmp_path)],
+        credentials_factory=lambda: credentials,
+        config_loader=config_loader,
+        runner_factory=runner_factory,
+        client_factory=lambda **kwargs: object(),
+    ) == 0
+
+    assert config_loader_calls == 1
+    assert credentials.get_calls == 1
+    assert seen == {
+        "runner_config": config,
+        "runner_key": "stored-test-key",
+    }
+
+
 def test_run_command_passes_config_overrides(tmp_path: Path) -> None:
     from safefix.cli import main
     from safefix.__main__ import main as module_main
@@ -78,7 +126,8 @@ def test_run_command_passes_config_overrides(tmp_path: Path) -> None:
         "base_url": "https://llm.example/v1",
         "model": "repair-model",
     }
-    assert seen["credentials"] is credentials
+    assert seen["credentials"] is not credentials
+    assert seen["credentials"].get() == "stored-test-key"
     assert seen["client"] == {
         "base_url": "https://llm.example/v1",
         "model": "repair-model",
