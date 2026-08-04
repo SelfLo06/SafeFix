@@ -379,3 +379,6 @@
 - Deviation: `SPEC.md` is empty (0 lines) in the supplied worktree, so its §7.7 contract could not be inspected. The explicit Task 12a PLAN text, AGENTS.md, existing `SessionState` contract tests, and the user-provided reproduction governed this repair. No product-scope deviation was introduced.
 - Fix commit: `7e5888c` (`fix: protect immutable baseline deletion`).
 - Post-fix verification closure is pending the fresh final two-part review on this corrected range; the current final counts are focused 12 and full 137.
+- Final specification-compliance review: PASS for `42d26f2..37e89bb`; all Task 12a state and immutability contracts, repair evidence, scope, and deletion checks passed.
+- Final code-quality review: PASS for `42d26f2..37e89bb`; the reviewer confirmed KISS, narrow mutation boundaries, proportionate slots/immutable backing, no broad catches, fallback, dead code, or scope expansion.
+- Final Task 12a verification closure: focused 12, full 137, `git diff --check 42d26f2..37e89bb` PASS, and `git diff --diff-filter=D --name-only 42d26f2 37e89bb` empty.
