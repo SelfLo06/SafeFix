@@ -1,5 +1,19 @@
 # SafeFix Agent Log
 
+## Task 12c — capped opt-in ProjectMemoryStore
+
+- Date: 2026-08-04
+- Scope: Added only `src/safefix/memory.py` and `tests/unit/test_memory.py`, plus this record and the user-requested non-versioned task report. `SPEC.md` and `PLAN.md` were not modified; no ContextBuilder, runner, SQLite, or generic memory framework was added.
+- Skill usage: using-git-worktrees (verified the requested existing linked worktree `/tmp/safefix-task-12`); subagent-driven-development (sole assigned Task 12c unit); test-driven-development; requesting-code-review; verification-before-completion. `finishing-a-development-branch` is deferred because this externally managed handoff worktree is not authorized for integration.
+- TDD red: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests/unit/test_memory.py -q` — expected collection failure, actual `ModuleNotFoundError: No module named 'safefix.memory'` (1 collection error).
+- TDD green: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests/unit/test_memory.py tests/unit/test_artifacts.py -q` — PASS, 7 passed. Full verification: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests -q` — PASS, 144 passed. Small refactor review found no duplication or unnecessary indirection to remove.
+- Storage and cap decision: the default location is `${XDG_DATA_HOME:-~/.local/share}/safefix/memory/<sha256-resolved-project-root[:16]>.json`; `data_dir` is injectable solely for filesystem-isolated unit tests. JSON holds only `{"entries": [summary, ...]}`. It retains the newest 20 entries and truncates each to 500 characters. `load()` returns `()` unless the caller explicitly passes `use_memory=True`.
+- Specification-compliance review: PASS. The module provides JSON-backed project isolation via a deterministic resolved-root hash, fixed caps on both persisted entries and loaded slices, append/update behavior, explicit opt-in loading, and a schema containing neither key nor source fields. It stays within Task 12c file scope and does not implement Task 12d or other systems. `SPEC.md` was read as requested but is empty in the supplied worktree; the locked brief and PLAN supplied the actionable contract.
+- Code-quality review: PASS. The store is a single small class with two public operations; filesystem and JSON handling are direct standard-library calls. There are no broad exception handlers, fallback credential paths, duplicate validation, speculative extension points, dead code, context/runner dependencies, or implementation-coupled mocks. Tests exercise persistence and observable loading behavior.
+- Verification: the final pre-commit selected and full test commands above passed. Staged whitespace and scope verification are recorded immediately before commit.
+- Deviation: no separate reviewer-dispatch facility is available to this assigned implementation subagent, so the required specification-compliance and code-quality reviews were performed as distinct documented checklist passes. No product-scope deviation.
+- Implementation commit: pending controller commit after the implementation subagent shutdown during its commit phase; required subject is `feat: add capped opt-in project memory`.
+
 ## Task 12a — live SessionState
 
 - Date: 2026-08-04
