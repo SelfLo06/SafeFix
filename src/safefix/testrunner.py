@@ -29,7 +29,13 @@ class TestRunner:
     ) -> None:
         self.project_root = Path(project_root).resolve()
         self.pytest_args = tuple(pytest_args)
-        selected_report = report_path or Path(".safefix-junit.xml")
+        if report_path == "":
+            raise ValueError("report_path must not be empty")
+        selected_report = (
+            Path(".safefix-junit.xml")
+            if report_path is None
+            else Path(report_path)
+        )
         selected_report = Path(selected_report)
         self.report_path = (
             selected_report

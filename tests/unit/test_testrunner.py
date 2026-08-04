@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from safefix.testrunner import TestRunner as Runner
 
 
@@ -56,3 +58,8 @@ def test_runner_resolves_relative_project_root_for_report_path(
 
     assert result.exit_code == 0
     assert result.failure_ids == frozenset()
+
+
+def test_runner_rejects_empty_report_path(tmp_path: Path):
+    with pytest.raises(ValueError, match="report_path"):
+        Runner(tmp_path, report_path="")

@@ -64,11 +64,6 @@ def parse_junit_report(report_path: str | Path) -> tuple[TestCaseResult, ...]:
     return tuple(results)
 
 
-def parse_junit(report_path: str | Path) -> tuple[TestCaseResult, ...]:
-    """Short alias for :func:`parse_junit_report`."""
-    return parse_junit_report(report_path)
-
-
 def _iter_suites(root: ET.Element):
     if _local_name(root.tag) == "testsuite":
         yield root
