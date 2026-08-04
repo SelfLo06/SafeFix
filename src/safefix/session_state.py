@@ -16,11 +16,27 @@ class SessionState:
     steps: int = 0
     rounds: int = 0
     no_progress_rounds: int = 0
-    recent_tool_events: list[tuple[ToolCall, Feedback]] = field(default_factory=list)
-    recent_guard_events: list[tuple[ToolCall, GuardDecision]] = field(
-        default_factory=list
+    _recent_tool_events: list[tuple[ToolCall, Feedback]] = field(
+        default_factory=list, init=False, repr=False
     )
-    patch_fingerprints: set[str] = field(default_factory=set)
+    _recent_guard_events: list[tuple[ToolCall, GuardDecision]] = field(
+        default_factory=list, init=False, repr=False
+    )
+    _patch_fingerprints: set[str] = field(
+        default_factory=set, init=False, repr=False
+    )
+
+    @property
+    def recent_tool_events(self) -> tuple[tuple[ToolCall, Feedback], ...]:
+        return tuple(self._recent_tool_events)
+
+    @property
+    def recent_guard_events(self) -> tuple[tuple[ToolCall, GuardDecision], ...]:
+        return tuple(self._recent_guard_events)
+
+    @property
+    def patch_fingerprints(self) -> frozenset[str]:
+        return frozenset(self._patch_fingerprints)
 
     def __post_init__(self) -> None:
         self.F = self.F0
@@ -44,13 +60,13 @@ class SessionState:
         self.no_progress_rounds = 0
 
     def record_tool_event(self, call: ToolCall, feedback: Feedback) -> None:
-        self._append_recent(self.recent_tool_events, (call, feedback))
+        self._append_recent(self._recent_tool_events, (call, feedback))
 
     def record_guard_event(self, call: ToolCall, decision: GuardDecision) -> None:
-        self._append_recent(self.recent_guard_events, (call, decision))
+        self._append_recent(self._recent_guard_events, (call, decision))
 
     def record_patch_fingerprint(self, fingerprint: str) -> None:
-        self.patch_fingerprints.add(fingerprint)
+        self._patch_fingerprints.add(fingerprint)
 
     def update_best_checkpoint(self, failures: FailureSet) -> None:
         self.F = failures

@@ -333,3 +333,18 @@
 - Final specification-compliance review: PASS for `4abac7e..b9755e8`; no contract, evidence, scope, or deletion issue remained.
 - Final code-quality review: PASS for `4abac7e..b9755e8`; the reviewer confirmed KISS/YAGNI, trust in validated FailureSet invariants, no unnecessary abstraction, duplicated validation, excessive defensive programming, broad exception handling, fallback logic, dead code, implementation-coupled tests, or scope expansion.
 - Final Task 10 verification closure: focused 5, full 126, `git diff --check 4abac7e..b9755e8` PASS, and `git diff --diff-filter=D --name-only 4abac7e b9755e8` empty. Documentation closure commit is pending.
+
+## Task 12a quality-review fix — SessionState mutation boundaries
+
+- Date: 2026-08-04
+- Scope: Modified only `src/safefix/session_state.py`, `tests/unit/test_session_state.py`, and this log. `SPEC.md` and `PLAN.md` were read but not modified; Tasks 12b–12d were not implemented.
+- Skill usage: using-superpowers; using-git-worktrees (confirmed the user-provided linked worktree `/tmp/safefix-task-12` at `6ecc7b4`); subagent-driven-development (this is the sole Task 12a review-fix unit); receiving-code-review; test-driven-development; requesting-code-review; verification-before-completion. Finishing-a-development-branch is deferred because this externally managed worktree is to be preserved after the requested commit.
+- Review feedback received and evaluated with receiving-code-review: public mutable event lists and patch-fingerprint set let callers bypass `RECENT_EVENT_LIMIT` and the `record_*` mutation boundary. Source inspection confirmed all three direct-mutation paths; the correction is compatible with Task 12a's required observable state and bounded events.
+- TDD red: after adding `test_session_state_exposes_bounded_histories_as_read_only`, `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests/unit/test_session_state.py -q` — FAIL, 1 failed and 3 passed. The new test observed the old mutable `list` instead of the required immutable `tuple` view, before reaching the direct `append` checks.
+- Minimal correction: moved the two capped histories and patch fingerprints into private list/set fields; retained the public names as tuple/frozenset properties; record methods are the only mutators and continue to use the existing cap helper. The regression test uses eleven distinct calls/feedback values, asserts the newest ten entries, and asserts direct `append`/`add` mutation fails.
+- TDD green/focused regression: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests/unit/test_session_state.py tests/unit/test_feedback.py -q` — PASS, 9 passed.
+- Full verification: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests -q` — PASS, 134 passed.
+- Specification-compliance review: PASS. The change preserves Task 12a's F0/F/U_best/counters and public session-state observability, keeps both event histories capped at ten, and does not load project memory or implement Tasks 12b–12d.
+- Code-quality review: PASS. The fix is three private fields plus three read-only views, with no generic container framework, repeated validation, broad exception handling, fallback path, dead code, scope expansion, or implementation-coupled test assertions.
+- Deviation: `SPEC.md` is empty in this worktree, so the relevant Task 12a PLAN text, AGENTS.md, current-task instructions, and existing model contracts governed this narrow correction. No product-scope deviation was introduced.
+- Commit: pending final verification and commit.
