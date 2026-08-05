@@ -1008,5 +1008,6 @@
   `src/safefix/patch_preflight.py` and all traceability documents. `env.lock`
   remains ignored and unstaged. Project completion is not claimed until the
   external A6 Release evidence is supplied.
-- Integration commit created on main: `4b96dfe` (`fix: repair SPEC
-  implementation traceability`). The staged-name check excluded `env.lock`.
+- Initial integration commit was `4b96dfe` (`fix: repair SPEC
+  implementation traceability`); it was amended as `2b40c64` to include this
+  final gate record. The staged-name check excluded `env.lock`.
