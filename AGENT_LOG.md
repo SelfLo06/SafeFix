@@ -1011,3 +1011,18 @@
 - Initial integration commit was `4b96dfe` (`fix: repair SPEC
   implementation traceability`); it was amended as `2b40c64` to include this
   final gate record. The staged-name check excluded `env.lock`.
+
+## Post-commit final verification
+
+- On the committed main worktree, `test -s SPEC.md` passed, `python -m pytest
+  tests -q` passed with `230 passed`, and `git diff --check` passed.
+- The required exact `python -m build --wheel --sdist` was rerun and failed
+  only while the isolated environment attempted to download
+  `setuptools>=68` through the sandbox-blocked network. The project build
+  itself passed with `python -m build --wheel --sdist --no-isolation`.
+- Generated build and test-cache artifacts were removed; `git status --short`
+  is clean. `git ls-files env.lock` is empty, so the credential-bearing file
+  remains untracked and uncommitted.
+- Final repository SPEC review is PASS; final code-quality review is PASS.
+  Overall completion remains blocked solely by the external A6 hosted Release
+  requirement (wheel/sdist hosting and a non-placeholder README URL).
