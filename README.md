@@ -23,8 +23,7 @@ Obtain a source checkout from the published repository, then install it in a
 virtual environment:
 
 ```bash
-# Replace REPOSITORY_URL with the published repository URL.
-git clone REPOSITORY_URL safefix
+git clone https://github.com/SelfLo06/SafeFix.git safefix
 cd safefix
 python -m venv .venv
 . .venv/bin/activate
