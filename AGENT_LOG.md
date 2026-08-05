@@ -1072,3 +1072,16 @@
 - External delivery status: A6 remains **BLOCKED** because no hosted
   Release/tag or externally verifiable wheel/sdist URL exists; README still
   contains the `REPOSITORY_URL` placeholder. No release was fabricated.
+
+## Post-repair committed-main verification
+
+- Commit under verification: `dc51ddc` (`fix: complete SPEC conformance
+  repair`).
+- Exact required verification passed on committed main: `test -s SPEC.md`;
+  `python -m pytest tests -q` — `256 passed in 4.86s`;
+  `python -m build --wheel --sdist` — wheel and sdist built successfully;
+  `git diff --check` — PASS. The final status output was clean before the
+  verification artifacts were removed.
+- The generated build, distribution, egg-info, Python cache, and pytest cache
+  artifacts were removed after verification. `env.lock` was not read,
+  staged, or committed; `git ls-files env.lock` remains empty.
