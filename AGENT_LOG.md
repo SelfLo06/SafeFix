@@ -1040,3 +1040,35 @@
   clean-state check. `env.lock` was not read, staged, or committed.
 - After cleanup, `git diff --check` passed, `git status --short` was empty, and
   `test -s SPEC.md` still passed. `git ls-files env.lock` produced no output.
+
+## Final SPEC conformance repair and replacement reviews
+
+- Date: 2026-08-05. This pass repaired implementation findings from the fresh
+  SPEC traceability review and replacement code-quality review. The earlier
+  empty-SPEC-era compliance review is superseded by the restored-SPEC review;
+  no product scope or SPEC text was changed.
+- TDD evidence: added focused coverage for preserving ordinary long memory
+  identifiers and for `SessionRunner.initialize()` rejecting explicit
+  `env.lock` and `tests` write paths before baseline execution. The focused
+  memory/initialization command `python -m pytest tests/unit/test_memory.py
+  tests/unit/test_runner_init.py -q` passed with 33 tests; the follow-up full
+  suite `python -m pytest tests -q` passed with 256 tests.
+- Implementation repairs: memory redaction now targets recognized credential
+  shapes instead of every long identifier; explicit hard-denied allowed paths
+  fail fast at initialization; `.gitignore` covers generated Python,
+  pytest, build, distribution, and egg-info artifacts. `env.lock` remains
+  ignored, unread, unstaged, and uncommitted.
+- Replacement specification-compliance review: **PASS** for internal
+  repository evidence. Exit codes, path boundaries, ToolCall and stable
+  `failure_id` contracts, artifacts, transactions, event redaction, memory,
+  no-progress behavior, and stop priority are covered. A1-A5 and A7-A9 pass.
+- Replacement code-quality review: implementation quality **PASS** after the
+  repairs; prior findings on over-redaction and missing initialization
+  integration coverage are resolved. The review also confirmed no broad
+  `except Exception`, `default=str`, real API key, or speculative scope.
+- Review and verification results supersede the prior pending/failed notes for
+  this repair round. The exact final verification commands still run before
+  the integration commit.
+- External delivery status: A6 remains **BLOCKED** because no hosted
+  Release/tag or externally verifiable wheel/sdist URL exists; README still
+  contains the `REPOSITORY_URL` placeholder. No release was fabricated.

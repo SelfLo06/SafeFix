@@ -1,6 +1,5 @@
 from pathlib import Path
 
-from ..paths import is_read_denied
 from .read_file import _readable_path
 
 
@@ -17,8 +16,9 @@ def list_dir(project_root: Path, path: str = ".") -> list[str]:
     entries: list[str] = []
     for entry in sorted(directory.iterdir(), key=lambda item: item.name):
         relative = entry.relative_to(root).as_posix()
-        if is_read_denied(root, relative):
+        try:
+            readable = _readable_path(root, relative)
+        except ValueError:
             continue
-        readable = _readable_path(root, relative)
         entries.append(readable.relative_to(root).as_posix())
     return entries[:MAX_LIST_ENTRIES]

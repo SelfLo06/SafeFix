@@ -133,10 +133,12 @@ def test_apply_patch_restores_pre_apply_contents_when_replace_fails(
         Change("src/first.py", "first baseline", "updated first"),
         Change("src/second.py", "second baseline", "updated second"),
     ]
+    store = SnapshotStore(tmp_path, ["src/first.py", "src/second.py"])
 
     with pytest.raises(OSError, match="injected replacement failure"):
-        apply_patch(tmp_path, changes, replace=fail_on_second_replacement)
+        apply_patch(tmp_path, changes, store, replace=fail_on_second_replacement)
 
+    assert replacements == 4
     assert first.read_text() == "first baseline\n"
     assert second.read_text() == "second baseline\n"
     assert list((tmp_path / "src").glob(".*.safefix-*")) == []

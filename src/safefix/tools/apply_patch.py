@@ -8,7 +8,7 @@ from typing import Callable
 
 from ..models import Change
 from ..patch_preflight import prepare_changes
-from ..paths import is_write_denied, normalize_rel_path
+from ..paths import is_write_denied_path, normalize_rel_path
 from ..snapshot import SnapshotStore
 
 
@@ -33,11 +33,11 @@ def apply_patch(
     paths = tuple(
         dict.fromkeys(root / change.path for change in normalized_changes)
     )
-    store = snapshot_store or SnapshotStore(root, paths)
+    store = snapshot_store or SnapshotStore(root, paths, replace=replace)
     store.snapshot_before_apply(paths)
     prepared = prepare_changes(root, normalized_changes)
 
-    replace_file = replace or os.replace
+    replace_file = replace or store.replace
     temporary_files: list[Path] = []
     replacement_started = False
     try:
@@ -53,7 +53,7 @@ def apply_patch(
             replace_file(temporary_file, root / relative_path)
     except OSError:
         if replacement_started:
-            store.restore_pre_apply()
+            store.restore_pre_apply(replace=replace_file)
         raise
     finally:
         for temporary_file in temporary_files:
@@ -65,7 +65,7 @@ def _normalize_change(project_root: Path, change: Change) -> Change:
         raise TypeError("changes must contain Change instances")
     normalized = normalize_rel_path(project_root, change.path)
     relative_path = normalized.relative_to(project_root).as_posix()
-    if normalized.suffix != ".py" or is_write_denied(project_root, relative_path):
+    if normalized.suffix != ".py" or is_write_denied_path(project_root, normalized):
         raise ValueError("write denied for path")
     return Change(relative_path, change.old_text, change.new_text)
 

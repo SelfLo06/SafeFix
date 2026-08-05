@@ -5,7 +5,8 @@ from .models import Change, GuardDecision, ToolCall, ToolName
 from .paths import (
     compute_writable_py_files,
     is_read_denied,
-    is_write_denied,
+    is_read_path_obviously_denied,
+    is_write_denied_path,
     normalize_rel_path,
 )
 from .patch_preflight import prepare_changes
@@ -41,7 +42,11 @@ class Guardrail:
                 ToolName.READ_FILE,
                 ToolName.LIST_DIR,
                 ToolName.SEARCH_CODE,
-            } and (action.path is None or is_read_denied(self._project_root, action.path)):
+            } and (
+                action.path is None
+                or is_read_path_obviously_denied(action.path)
+                or is_read_denied(self._project_root, action.path)
+            ):
                 return GuardDecision.DENY
             return (
                 GuardDecision.ALLOW
@@ -57,11 +62,11 @@ class Guardrail:
         # preflight owns exact-match and overlap validation; apply_patch calls
         # it again at the write boundary to protect against TOCTOU changes.
         for change in action.changes:
-            if is_write_denied(self._project_root, change.path):
-                return GuardDecision.DENY
             try:
                 normalized = normalize_rel_path(self._project_root, change.path)
             except ValueError:
+                return GuardDecision.DENY
+            if is_write_denied_path(self._project_root, normalized):
                 return GuardDecision.DENY
             if normalized not in self._writable_paths:
                 return GuardDecision.DENY

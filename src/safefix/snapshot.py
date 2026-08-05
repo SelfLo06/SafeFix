@@ -51,7 +51,16 @@ class SnapshotStore:
             if content != self.baseline_contents[relative_path]
         }
 
-    def restore(self, contents: Mapping[str, str] | None = None) -> None:
+    @property
+    def replace(self) -> Replace:
+        return self._replace
+
+    def restore(
+        self,
+        contents: Mapping[str, str] | None = None,
+        *,
+        replace: Replace | None = None,
+    ) -> None:
         target_contents: dict[str, str] = {}
         if contents is None:
             source_contents = {
@@ -67,6 +76,7 @@ class SnapshotStore:
             target_contents[relative_path] = content
         selected = tuple(target_contents)
         self._validate_selected_paths(selected)
+        replace_file = self._replace if replace is None else replace
 
         temporary_files: dict[str, Path] = {}
         backups: dict[str, Path] = {}
@@ -80,22 +90,22 @@ class SnapshotStore:
 
             try:
                 for relative_path in target_contents:
-                    self._replace(
+                    replace_file(
                         temporary_files[relative_path],
                         self._absolute_path(relative_path),
                     )
             except OSError:
                 for relative_path, backup in backups.items():
-                    os.replace(backup, self._absolute_path(relative_path))
+                    replace_file(backup, self._absolute_path(relative_path))
                 raise
         finally:
             for temporary_file in (*temporary_files.values(), *backups.values()):
                 temporary_file.unlink(missing_ok=True)
 
-    def restore_pre_apply(self) -> None:
+    def restore_pre_apply(self, *, replace: Replace | None = None) -> None:
         if self.pre_apply_contents is None:
             raise RuntimeError("pre-apply snapshot has not been captured")
-        self.restore(self.pre_apply_contents)
+        self.restore(self.pre_apply_contents, replace=replace)
 
     def _selected_paths(self, paths: Iterable[str | Path] | None) -> tuple[str, ...]:
         selected = self._paths if paths is None else tuple(

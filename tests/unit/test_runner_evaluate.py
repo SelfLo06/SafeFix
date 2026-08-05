@@ -166,6 +166,48 @@ def test_post_patch_infra_error_restores_and_stops_error(tmp_path: Path) -> None
     assert runner.state is not None
     assert runner.state.F == runner.state.U_best == runner.state.F0
 
+
+def test_snapshot_restore_failure_maps_to_runtime_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _project(tmp_path)
+    runner = _runner(
+        tmp_path,
+        [_report(1, "tests.app::test_a"), _report(1, "tests.app::test_a")],
+        _patch_then_finish(),
+    )
+
+    def fail_restore(self: object) -> None:
+        raise OSError("restore unavailable")
+
+    monkeypatch.setattr("safefix.snapshot.SnapshotStore.restore", fail_restore)
+
+    result = runner.run()
+
+    assert result.stop_reason is StopReason.ERROR
+    assert result.exit_code == 3
+
+
+def test_snapshot_update_failure_maps_to_runtime_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _project(tmp_path)
+    runner = _runner(
+        tmp_path,
+        [_report(1, "tests.app::test_a", "tests.app::test_b"), _report(1, "tests.app::test_a")],
+        _patch_then_finish(),
+    )
+
+    def fail_update_best(self: object) -> None:
+        raise OSError("checkpoint unavailable")
+
+    monkeypatch.setattr("safefix.snapshot.SnapshotStore.update_best", fail_update_best)
+
+    result = runner.run()
+
+    assert result.stop_reason is StopReason.ERROR
+    assert result.exit_code == 3
+
 def test_guardrail_rejects_invalid_patch_without_runtime_error(tmp_path: Path) -> None:
     _project(tmp_path)
     runner = _runner(

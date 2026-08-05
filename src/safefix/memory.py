@@ -10,6 +10,7 @@ import re
 
 MAX_MEMORY_ENTRIES = 20
 MAX_MEMORY_ENTRY_CHARS = 500
+_FINGERPRINT_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
 class MemoryFormatError(ValueError):
@@ -36,17 +37,20 @@ class ProjectMemoryStore:
     ) -> None:
         previous = self._payload().get("recent_unsuccessful_patch_fingerprints", [])
         fingerprints = list(previous)
-        fingerprints.extend(
-            fingerprint[:MAX_MEMORY_ENTRY_CHARS]
-            for fingerprint in unsuccessful_patch_fingerprints
-        )
+        incoming = list(unsuccessful_patch_fingerprints)
+        if not all(
+            isinstance(item, str) and _FINGERPRINT_RE.fullmatch(item)
+            for item in incoming
+        ):
+            raise MemoryFormatError("patch fingerprints have an invalid format")
+        fingerprints.extend(incoming)
         fingerprints = fingerprints[-MAX_MEMORY_ENTRIES:]
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.path.write_text(
             json.dumps(
                 {
                     "project_id": self.project_id,
-                    "last_session_summary": _sanitize_summary(summary),
+                    "last_session_summary": sanitize_summary(summary),
                     "recent_unsuccessful_patch_fingerprints": fingerprints,
                     "updated_at": datetime.now(timezone.utc).isoformat(),
                 },
@@ -60,7 +64,10 @@ class ProjectMemoryStore:
         if not use_memory or not self.path.exists():
             return ()
         payload = self._payload()
-        summary = payload["last_session_summary"]
+        original_summary = payload["last_session_summary"]
+        summary = sanitize_summary(original_summary)
+        if summary != original_summary:
+            self.update(summary)
         return (summary,) if summary else ()
 
     def load_fingerprints(self, *, use_memory: bool = False) -> tuple[str, ...]:
@@ -85,18 +92,36 @@ class ProjectMemoryStore:
             or len(summary) > MAX_MEMORY_ENTRY_CHARS
             or not isinstance(fingerprints, list)
             or len(fingerprints) > MAX_MEMORY_ENTRIES
-            or not all(isinstance(item, str) for item in fingerprints)
+            or not all(
+                isinstance(item, str) and _FINGERPRINT_RE.fullmatch(item)
+                for item in fingerprints
+            )
             or not isinstance(updated_at, str)
         ):
             raise MemoryFormatError("project memory has an invalid schema")
         return payload
 
 
-def _sanitize_summary(summary: str) -> str:
+def sanitize_summary(summary: str) -> str:
     normalized = " ".join(summary.split())
     if "traceback" in normalized.lower():
         return "[redacted traceback]"
+    normalized = re.sub(r"(?i)\bsk-[A-Za-z0-9_-]{10,}", "sk-[redacted]", normalized)
     normalized = re.sub(r"(?i)bearer\s+\S+", "Bearer [redacted]", normalized)
+    normalized = re.sub(r"(?i)\bAIza[0-9A-Za-z_-]{20,}", "[redacted]", normalized)
+    normalized = re.sub(
+        r"\b(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{10,}\b",
+        "[redacted]",
+        normalized,
+    )
+    normalized = re.sub(
+        r"\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_]{20,}\b",
+        "[redacted]",
+        normalized,
+    )
+    normalized = re.sub(r"\bgithub_pat_[A-Za-z0-9_]{20,}\b", "[redacted]", normalized)
+    normalized = re.sub(r"\bxox[baprs]-[A-Za-z0-9-]{10,}\b", "[redacted]", normalized)
+    normalized = re.sub(r"\bAKIA[0-9A-Z]{16}\b", "[redacted]", normalized)
     if re.search(r"(?m)\b(def|class|import|from)\b|[{}]", normalized):
         return "[redacted source-like summary]"
     return re.sub(

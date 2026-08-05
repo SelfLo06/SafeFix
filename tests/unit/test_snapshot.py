@@ -106,6 +106,7 @@ def test_restore_failure_leaves_all_files_unchanged(tmp_path: Path):
             "src/second.py": "new second\n",
         })
 
+    assert replacements == 4
     assert first.read_text() == "first baseline\n"
     assert second.read_text() == "second baseline\n"
 

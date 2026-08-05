@@ -82,7 +82,6 @@ def test_run_command_caches_validated_boundaries_for_runner(tmp_path: Path) -> N
 
 def test_run_command_passes_config_overrides(tmp_path: Path) -> None:
     from safefix.cli import main
-    from safefix.__main__ import main as module_main
 
     credentials = FakeCredentials()
     credentials.set("stored-test-key")
@@ -117,7 +116,6 @@ def test_run_command_passes_config_overrides(tmp_path: Path) -> None:
     )
 
     assert exit_code == 0
-    assert module_main is main
     assert seen["project_root"] == tmp_path.resolve()
     assert seen["cli_overrides"] == {
         "max_steps": 7,

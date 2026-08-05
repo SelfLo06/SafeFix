@@ -4,7 +4,8 @@ import pytest
 
 from safefix.junit import TestCaseResult as _TestCaseResult
 from safefix.llm.mock import MockLLM
-from safefix.models import StopReason
+from safefix.models import GuardDecision, StopReason
+from safefix.runner import SessionRunner
 from safefix.testrunner import TestRunResult as _TestRunResult
 
 
@@ -120,3 +121,92 @@ def test_denied_patch_returns_feedback_without_round(tmp_path: Path) -> None:
     assert runner.state is not None
     assert runner.state.recent_guard_events[0][1].value == "deny"
     assert runner.state.recent_tool_events[-1][1].outcome == "denied"
+
+
+def test_phase_events_are_emitted_for_deny_and_stop(tmp_path: Path) -> None:
+    _project(tmp_path)
+    events: list[str] = []
+    runner = SessionRunner(
+        tmp_path,
+        credentials=FakeCredentials(),
+        llm_client=MockLLM([
+            '{"tool": "apply_patch", "changes": [{"path": "tests/test_app.py", "old_text": "pass", "new_text": "assert False"}]}',
+            '{"tool": "finish", "reason": "sk-proj-1234567890abcdef"}',
+        ]),
+        event_sink=events.append,
+        test_runner_factory=lambda project_root, pytest_args: FakeTestRunner(
+            _TestRunResult(
+                exit_code=1,
+                cases=(_TestCaseResult("tests.app::test_value", "tests.app", "test_value", "failed"),),
+                valid=True,
+            )
+        ),
+    )
+
+    result = runner.run()
+
+    assert result.stop_reason is StopReason.REQUESTED
+    assert any(event.startswith("deny ") for event in events)
+    assert "finish reason=[redacted]" in events
+    assert "sk-proj-1234567890abcdef" not in "\n".join(events)
+    assert any(event.startswith("stop ") for event in events)
+
+
+def test_phase_events_include_round_outcome(tmp_path: Path) -> None:
+    _project(tmp_path)
+    events: list[str] = []
+    baseline = _TestRunResult(
+        exit_code=1,
+        cases=(_TestCaseResult("tests.app::test_value", "tests.app", "test_value", "failed"),),
+        valid=True,
+    )
+    runner = SessionRunner(
+        tmp_path,
+        credentials=FakeCredentials(),
+        llm_client=MockLLM([
+            '{"tool": "apply_patch", "changes": [{"path": "src/app.py", "old_text": "value = 1", "new_text": "value = 2"}]}',
+            '{"tool": "finish"}',
+        ]),
+        event_sink=events.append,
+        test_runner_factory=lambda project_root, pytest_args: FakeTestRunner(baseline),
+    )
+
+    result = runner.run()
+
+    assert result.stop_reason is StopReason.REQUESTED
+    assert any(event.startswith("round outcome=same ") for event in events)
+
+
+def test_phase_events_include_approval_decision(tmp_path: Path) -> None:
+    _project(tmp_path)
+    events: list[str] = []
+
+    class ApprovalGuardrail:
+        def check(self, action: object) -> GuardDecision:
+            return GuardDecision.REQUIRE_APPROVAL
+
+    class AllowApproval:
+        def approve(self, action: object) -> bool:
+            return True
+
+    runner = SessionRunner(
+        tmp_path,
+        credentials=FakeCredentials(),
+        llm_client=MockLLM(['{"tool": "finish", "reason": "approved stop"}']),
+        guardrail=ApprovalGuardrail(),
+        approval=AllowApproval(),
+        event_sink=events.append,
+        test_runner_factory=lambda project_root, pytest_args: FakeTestRunner(
+            _TestRunResult(
+                exit_code=1,
+                cases=(_TestCaseResult("tests.app::test_value", "tests.app", "test_value", "failed"),),
+                valid=True,
+            )
+        ),
+    )
+
+    result = runner.run()
+
+    assert result.stop_reason is StopReason.REQUESTED
+    assert "approval tool=finish decision=requested" in events
+    assert "approval tool=finish decision=approved" in events

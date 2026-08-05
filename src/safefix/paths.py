@@ -1,10 +1,12 @@
 from pathlib import Path
+from pathlib import PurePosixPath, PureWindowsPath
+import posixpath
 
 
 _VIRTUAL_ENV_DIRS = {".venv", "venv", "env", "virtualenv", "virtualenvs"}
 _CACHE_DIRS = {"__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".tox", ".nox", "cache", ".cache"}
 _SECRET_SUFFIXES = {".pem", ".key", ".p12", ".pfx", ".crt"}
-_SECRET_NAMES = {".env", "credential", "credentials", "secret", "secrets", "id_rsa"}
+_SECRET_NAMES = {".env", "env.lock", "credential", "credentials", "secret", "secrets", "id_rsa"}
 
 
 def normalize_rel_path(project_root: Path, rel: str) -> Path:
@@ -39,6 +41,25 @@ def is_write_denied(project_root: Path, rel_path: str) -> bool:
     return _is_hard_denied(root, resolved) or _is_test_source(root, resolved)
 
 
+def is_write_denied_path(project_root: Path, resolved_path: Path) -> bool:
+    """Check write policy for a path already normalized at a trust boundary."""
+    root = project_root.resolve()
+    return _is_hard_denied(root, resolved_path) or _is_test_source(root, resolved_path)
+
+
+def is_read_path_obviously_denied(rel_path: str) -> bool:
+    """Reject lexical read-path hazards before filesystem resolution."""
+    if not isinstance(rel_path, str) or not rel_path:
+        return True
+    portable = rel_path.replace("\\", "/")
+    if PurePosixPath(portable).is_absolute() or PureWindowsPath(rel_path).is_absolute():
+        return True
+    normalized = posixpath.normpath(portable)
+    if normalized == ".." or normalized.startswith("../"):
+        return True
+    return _hard_denied_parts(PurePosixPath(normalized).parts)
+
+
 def compute_writable_py_files(
     project_root: Path,
     allowed_paths: list[str] | None,
@@ -48,10 +69,15 @@ def compute_writable_py_files(
     root = project_root.resolve()
     excluded = [normalize_rel_path(root, path) for path in excluded_paths]
 
-    if not allowed_paths:
+    if allowed_paths is None:
         search_roots = [root / "src"] if (root / "src").is_dir() else [root]
     else:
-        search_roots = [normalize_rel_path(root, path) for path in allowed_paths]
+        search_roots = []
+        for path in allowed_paths:
+            normalized = normalize_rel_path(root, path)
+            if _is_hard_denied(root, normalized) or _is_test_source(root, normalized):
+                raise ValueError("explicit path is write-denied")
+            search_roots.append(normalized)
 
     candidates: set[Path] = set()
     for search_root in search_roots:
@@ -73,6 +99,10 @@ def compute_writable_py_files(
 
 def _is_hard_denied(root: Path, path: Path) -> bool:
     relative_parts = path.relative_to(root).parts
+    return _hard_denied_parts(relative_parts)
+
+
+def _hard_denied_parts(relative_parts: tuple[str, ...]) -> bool:
     if ".git" in relative_parts:
         return True
     if any(part in _VIRTUAL_ENV_DIRS or part in _CACHE_DIRS for part in relative_parts):

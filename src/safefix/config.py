@@ -45,6 +45,11 @@ def load_config(
     _validate_keys(cli_overrides)
     cli_values = {key: value for key, value in cli_overrides.items() if value is not None}
     _validate_values(cli_values)
+    if "excluded_paths" in values and "excluded_paths" in cli_values:
+        cli_values["excluded_paths"] = [
+            *values["excluded_paths"],
+            *cli_values["excluded_paths"],
+        ]
     values.update(cli_values)
 
     if require_llm and (not values.get("base_url", "").strip() or not values.get("model", "").strip()):

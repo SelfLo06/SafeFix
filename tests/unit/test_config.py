@@ -105,6 +105,16 @@ def test_cli_values_take_precedence_for_all_fields(tmp_path: Path):
     assert config.base_url == "cli-url"
 
 
+def test_cli_excluded_paths_are_additive_to_toml(tmp_path: Path):
+    (tmp_path / "safefix.toml").write_text(
+        'excluded_paths = ["src/generated.py"]\n', encoding="utf-8"
+    )
+
+    config = load_config(tmp_path, {"excluded_paths": ["src/vendor.py"]})
+
+    assert config.excluded_paths == ["src/generated.py", "src/vendor.py"]
+
+
 @pytest.mark.parametrize(
     "arg", ["-k", "-m", "-x", "--maxfail=1", "--collect-only", "-r", "tests/test_app.py"]
 )

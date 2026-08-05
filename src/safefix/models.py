@@ -78,7 +78,7 @@ class Config:
     max_steps: int = 30
     max_rounds: int = 10
     max_no_progress_rounds: int = 3
-    allowed_paths: list[str] = field(default_factory=list)
+    allowed_paths: list[str] | None = None
     excluded_paths: list[str] = field(default_factory=list)
     pytest_args: list[str] = field(default_factory=list)
     base_url: str = ""

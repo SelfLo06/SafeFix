@@ -36,5 +36,5 @@ def dispatch(
         apply_patch(project_root, action.changes, snapshot_store)
         return None
     if action.tool is ToolName.FINISH:
-        return finish(action.reason)
+        return finish()
     raise ValueError(f"unsupported tool: {action.tool}")

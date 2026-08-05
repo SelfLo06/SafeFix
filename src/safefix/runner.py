@@ -58,6 +58,7 @@ class SessionRunner:
         llm_client: LLMClient | None = None,
         guardrail: Guardrail | None = None,
         approval: ApprovalProvider | None = None,
+        event_sink: Callable[[str], None] | None = None,
         use_memory: bool = False,
         memory_store: ProjectMemoryStore | None = None,
     ) -> None:
@@ -69,6 +70,7 @@ class SessionRunner:
         self._llm_client = llm_client
         self._guardrail = guardrail
         self._approval = approval or ApprovalProvider()
+        self._event_sink = event_sink
         self._use_memory = use_memory
         self._memory_store = memory_store or ProjectMemoryStore(self.project_root)
         self._context_builder = ContextBuilder(self._memory_store)
@@ -79,6 +81,8 @@ class SessionRunner:
 
     def initialize(self) -> SessionResult | None:
         """Run INIT and return an early stop, or prepare later phases."""
+        if not self.project_root.is_dir():
+            return SessionResult(stop_reason=StopReason.CONFIG_ERROR)
         try:
             self.config = self._config_loader(
                 self.project_root, self._cli_overrides, require_llm=True
@@ -161,11 +165,18 @@ class SessionRunner:
             state.record_guard_event(action, decision)
 
             if decision is GuardDecision.DENY:
+                self._emit(f"deny tool={action.tool.value}")
                 state.record_tool_event(action, Feedback("denied", "guardrail denied action"))
                 continue
-            if decision is GuardDecision.REQUIRE_APPROVAL and not self._approval.approve(action):
-                state.record_tool_event(action, Feedback("denied", "approval denied action"))
-                continue
+            if decision is GuardDecision.REQUIRE_APPROVAL:
+                self._emit(f"approval tool={action.tool.value} decision=requested")
+                approved = self._approval.approve(action)
+                self._emit(
+                    f"approval tool={action.tool.value} decision={'approved' if approved else 'denied'}"
+                )
+                if not approved:
+                    state.record_tool_event(action, Feedback("denied", "approval denied action"))
+                    continue
 
             if action.tool is ToolName.APPLY_PATCH:
                 try:
@@ -199,18 +210,31 @@ class SessionRunner:
                 state.last_evaluated = current
                 state.last_feedback = feedback
                 state.record_tool_event(action, feedback)
+                self._emit(f"round outcome={feedback.outcome} rounds={state.rounds}")
 
                 if feedback.outcome in {"better", "success"}:
-                    state.update_best_checkpoint(current)
-                    state.reset_no_progress()
                     assert self.snapshot_store is not None
-                    self.snapshot_store.update_best()
+                    try:
+                        state.update_best_checkpoint(current)
+                        state.reset_no_progress()
+                        self.snapshot_store.update_best()
+                    except OSError:
+                        state.record_tool_event(
+                            action, Feedback("error", "checkpoint update failed")
+                        )
+                        return self._finalize(StopReason.ERROR)
                     if feedback.outcome == "success":
                         return self._finalize(StopReason.SUCCESS)
                     continue
 
                 state.record_patch_fingerprint(self._patch_fingerprint(action))
-                self._restore_best()
+                try:
+                    self._restore_best()
+                except OSError:
+                    state.record_tool_event(
+                        action, Feedback("error", "checkpoint restore failed")
+                    )
+                    return self._finalize(StopReason.ERROR)
                 state.increment_no_progress()
                 continue
 
@@ -220,6 +244,9 @@ class SessionRunner:
                 state.record_tool_event(action, Feedback("error", "tool execution failed"))
                 continue
             if outcome is StopReason.REQUESTED:
+                self._emit(
+                    f"finish reason={'[redacted]' if action.reason else ''}"
+                )
                 return self._finalize(StopReason.REQUESTED)
             state.record_tool_event(
                 action,
@@ -276,30 +303,29 @@ class SessionRunner:
                     raise
 
     def _finalize(self, stop_reason: StopReason) -> SessionResult:
-        try:
-            if self.snapshot_store is not None:
+        final_reason = stop_reason
+        if self.snapshot_store is not None:
+            try:
                 self._restore_best()
-            result = ArtifactWriter(self.project_root / "safefix-session.json").write(
-                self.state,
-                self._result(stop_reason),
-            )
-        except (OSError, MemoryFormatError):
-            return self._result(StopReason.ERROR)
+            except OSError:
+                final_reason = StopReason.ERROR
         assert self.state is not None
         if self._use_memory:
             try:
                 self._memory_store.update(
-                    f"stop_reason={stop_reason.value}; unresolved={len(self.state.U_best.ids)}",
+                    f"stop_reason={final_reason.value}; unresolved={len(self.state.U_best.ids)}",
                     unsuccessful_patch_fingerprints=tuple(self.state.patch_fingerprints),
                 )
             except (OSError, MemoryFormatError):
-                error_result = self._result(StopReason.ERROR)
-                try:
-                    result = ArtifactWriter(
-                        self.project_root / "safefix-session.json"
-                    ).write(self.state, error_result)
-                except OSError:
-                    return error_result
+                final_reason = StopReason.ERROR
+        result = self._result(final_reason)
+        try:
+            result = ArtifactWriter(self.project_root / "safefix-session.json").write(
+                self.state, result
+            )
+        except OSError:
+            result = self._result(StopReason.ERROR)
+        self._emit(f"stop reason={result.stop_reason.value} exit_code={result.exit_code}")
         return result
 
     def _restore_best(self) -> None:
@@ -308,10 +334,16 @@ class SessionRunner:
         self.snapshot_store.restore()
         self.state.F = self.state.U_best
 
+    def _emit(self, event: str) -> None:
+        if self._event_sink is not None:
+            self._event_sink(event)
+
 
 def _tool_result_summary(outcome: object) -> str:
     if isinstance(outcome, str):
         rendered = outcome
+    elif isinstance(outcome, StopReason):
+        rendered = outcome.value
     else:
-        rendered = json.dumps(outcome, ensure_ascii=False, sort_keys=True, default=str)
+        rendered = json.dumps(outcome, ensure_ascii=False, sort_keys=True)
     return rendered[:MAX_TOOL_RESULT_CHARS]

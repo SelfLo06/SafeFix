@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from safefix.guardrail import Guardrail
 from safefix.models import Change, GuardDecision, ToolCall, ToolName
 
@@ -21,6 +23,29 @@ def test_unknown_or_stub_action_is_denied(tmp_path: Path):
 
     assert guardrail.check(object()) is GuardDecision.DENY
     assert guardrail.check(ToolCall(tool=ToolName.APPLY_PATCH)) is GuardDecision.DENY
+
+
+@pytest.mark.parametrize("path", ["../outside.py", ".git/config", "__pycache__/x.pyc"])
+def test_read_path_escape_and_hard_denies_are_permanently_denied(
+    tmp_path: Path, path: str
+):
+    guardrail = Guardrail(tmp_path)
+
+    assert guardrail.check(ToolCall(tool=ToolName.READ_FILE, path=path)) is GuardDecision.DENY
+
+
+def test_read_symlink_escape_is_permanently_denied(tmp_path: Path):
+    outside = tmp_path.parent / "outside-read-target.py"
+    outside.write_text("secret = True\n", encoding="utf-8")
+    link = tmp_path / "link.py"
+    try:
+        link.symlink_to(outside)
+    except OSError:
+        pytest.skip("symlinks unavailable")
+
+    guardrail = Guardrail(tmp_path)
+
+    assert guardrail.check(ToolCall(tool=ToolName.READ_FILE, path="link.py")) is GuardDecision.DENY
 
 
 def test_write_policy_denies_non_writable_path(tmp_path: Path):
@@ -71,11 +96,3 @@ def test_invalid_match_or_overlap_is_permanently_denied(tmp_path: Path):
             Change("src/app.py", "cdef", "two"),
         )
     ) is GuardDecision.DENY
-
-
-def test_read_path_escape_is_permanently_denied(tmp_path: Path):
-    guardrail = Guardrail(tmp_path)
-
-    action = ToolCall(tool=ToolName.READ_FILE, path="../outside.py")
-
-    assert guardrail.check(action) is GuardDecision.DENY

@@ -35,6 +35,7 @@ def test_project_root_escape_is_denied(tmp_path: Path, relative: str):
         "src/__pycache__/x.pyc",
         ".pytest_cache/state",
         ".env",
+        "env.lock",
         "credential",
         "credential.json",
         "credentials.json",
@@ -90,6 +91,14 @@ def test_explicit_allowed_paths_replace_default_derivation(tmp_path: Path):
     assert compute_writable_py_files(tmp_path, ["lib"], []) == {lib_path.resolve()}
 
 
+def test_explicit_empty_allowed_paths_disable_default_derivation(tmp_path: Path):
+    (tmp_path / "src").mkdir()
+    path = tmp_path / "src" / "module.py"
+    path.write_text("value = 1\n", encoding="utf-8")
+
+    assert compute_writable_py_files(tmp_path, [], []) == set()
+
+
 def test_excluded_paths_are_additive_to_hard_denies(tmp_path: Path):
     (tmp_path / "src").mkdir()
     keep = tmp_path / "src" / "keep.py"
@@ -112,3 +121,11 @@ def test_readable_source_is_not_writable_when_not_in_writable_set(tmp_path: Path
 def test_explicit_path_escape_is_rejected(tmp_path: Path):
     with pytest.raises(ValueError):
         compute_writable_py_files(tmp_path, ["../outside"], [])
+
+
+@pytest.mark.parametrize("allowed_path", ["env.lock", "tests"])
+def test_explicit_hard_denied_allowed_path_is_rejected(
+    tmp_path: Path, allowed_path: str
+):
+    with pytest.raises(ValueError, match="write-denied"):
+        compute_writable_py_files(tmp_path, [allowed_path], [])

@@ -80,4 +80,4 @@ def test_search_code_order_is_deterministic(tmp_path: Path):
 
 
 def test_finish_requests_stop():
-    assert finish("repair complete") is StopReason.REQUESTED
+    assert finish() is StopReason.REQUESTED

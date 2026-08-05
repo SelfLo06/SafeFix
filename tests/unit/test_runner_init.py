@@ -155,6 +155,70 @@ def test_baseline_runner_start_failure_stops_runtime_error(tmp_path: Path) -> No
     assert result.stop_reason is StopReason.ERROR
 
 
+@pytest.mark.parametrize("project_kind", ["missing", "file"])
+def test_invalid_project_path_stops_config_error_before_baseline(
+    tmp_path: Path, project_kind: str
+) -> None:
+    invalid_project = tmp_path / "invalid-project"
+    if project_kind == "file":
+        invalid_project.write_text("not a project directory\n", encoding="utf-8")
+    called = False
+
+    def baseline_factory(project_root: Path, pytest_args: list[str]) -> FakeTestRunner:
+        nonlocal called
+        called = True
+        return FakeTestRunner(_TestRunResult(exit_code=3, cases=(), valid=False))
+
+    from safefix.models import Config
+    from safefix.runner import SessionRunner
+
+    runner = SessionRunner(
+        invalid_project,
+        credentials=FakeCredentials(),
+        config_loader=lambda root, overrides, require_llm: Config(
+            base_url="https://example.invalid", model="test-model"
+        ),
+        test_runner_factory=baseline_factory,
+    )
+
+    result = runner.initialize()
+
+    assert result is not None
+    assert result.stop_reason is StopReason.CONFIG_ERROR
+    assert runner.state is None
+    assert called is False
+
+
+@pytest.mark.parametrize("allowed_path", ["env.lock", "tests"])
+def test_explicit_hard_denied_allowed_path_stops_config_error(
+    tmp_path: Path, allowed_path: str
+) -> None:
+    _project(tmp_path)
+    runner = _runner(
+        tmp_path,
+        _TestRunResult(exit_code=1, cases=(), valid=False),
+        allowed_paths=[allowed_path],
+    )
+
+    result = runner.initialize()
+
+    assert result is not None
+    assert result.stop_reason is StopReason.CONFIG_ERROR
+    assert runner.state is None
+
+
+def test_preinit_config_error_does_not_write_session_artifact(tmp_path: Path) -> None:
+    runner = _runner(
+        tmp_path,
+        _TestRunResult(exit_code=1, cases=(), valid=False),
+    )
+
+    result = runner.run()
+
+    assert result.stop_reason is StopReason.CONFIG_ERROR
+    assert not (tmp_path / "safefix-session.json").exists()
+
+
 def test_nonempty_f0_with_empty_writable_set_stops_config_error(tmp_path: Path) -> None:
     _project(tmp_path, source=False)
     baseline = _TestRunResult(

@@ -37,27 +37,6 @@ class FailingResponseLLM:
         raise LLMResponseError("invalid response")
 
 
-class MutatingFinishLLM:
-    def __init__(self, project_root: Path) -> None:
-        self._project_root = project_root
-        self._responses = iter(
-            [
-                '{"tool": "apply_patch", "changes": ['
-                '{"path": "src/app.py", "old_text": "value = 1", "new_text": "value = 2"}, '
-                '{"path": "src/helper.py", "old_text": "helper = 1", "new_text": "helper = 2"}'
-                ']}'
-            ]
-        )
-
-    def complete(self, prompt: str) -> str:
-        try:
-            return next(self._responses)
-        except StopIteration:
-            (self._project_root / "src" / "app.py").write_text("value = 99\n", encoding="utf-8")
-            (self._project_root / "src" / "helper.py").write_text("helper = 99\n", encoding="utf-8")
-            return '{"tool": "finish", "reason": "done"}'
-
-
 class CapturingFinishLLM:
     def __init__(self) -> None:
         self.prompt = ""
@@ -127,6 +106,48 @@ def test_parse_error_consumes_step_not_round(tmp_path: Path) -> None:
     assert (result.steps, result.rounds) == (2, 0)
     assert runner.state is not None
     assert runner.state.recent_tool_events[0][1].outcome == "parse_error"
+
+
+def test_stop_priority_is_max_steps_then_rounds_then_no_progress(tmp_path: Path) -> None:
+    _project(tmp_path)
+    runner = _runner(
+        tmp_path,
+        [
+            _report(1, "tests.app::test_value"),
+            _report(1, "tests.app::test_value"),
+        ],
+        MockLLM([
+            '{"tool": "apply_patch", "changes": [{"path": "src/app.py", "old_text": "value = 1", "new_text": "value = 1 # same"}]}',
+        ]),
+        max_steps=1,
+        max_rounds=1,
+        max_no_progress_rounds=1,
+    )
+
+    result = runner.run()
+
+    assert result.stop_reason is StopReason.MAX_STEPS
+
+
+def test_stop_priority_checks_max_rounds_before_no_progress(tmp_path: Path) -> None:
+    _project(tmp_path)
+    runner = _runner(
+        tmp_path,
+        [
+            _report(1, "tests.app::test_value"),
+            _report(1, "tests.app::test_value"),
+        ],
+        MockLLM([
+            '{"tool": "apply_patch", "changes": [{"path": "src/app.py", "old_text": "value = 1", "new_text": "value = 1 # same"}]}',
+        ]),
+        max_steps=2,
+        max_rounds=1,
+        max_no_progress_rounds=1,
+    )
+
+    result = runner.run()
+
+    assert result.stop_reason is StopReason.MAX_ROUNDS
 
 
 def test_read_tool_error_becomes_feedback_and_loop_continues(tmp_path: Path) -> None:
@@ -257,7 +278,10 @@ def test_stop_restores_all_touched_files_and_writes_artifact(tmp_path: Path) -> 
     runner = _runner(
         tmp_path,
         [_report(1, "tests.app::test_a", "tests.app::test_b"), _report(1, "tests.app::test_a")],
-        MutatingFinishLLM(tmp_path),
+        MockLLM([
+            '{"tool": "apply_patch", "changes": [{"path": "src/app.py", "old_text": "value = 1", "new_text": "value = 2"}, {"path": "src/helper.py", "old_text": "helper = 1", "new_text": "helper = 2"}]}',
+            '{"tool": "finish", "reason": "done"}',
+        ]),
     )
 
     result = runner.run()

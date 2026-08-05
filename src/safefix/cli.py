@@ -162,6 +162,7 @@ def _run_command(
         credentials=_CachedCredentials(api_key),
         config_loader=cached_config_loader,
         llm_client=client,
+        event_sink=print,
         use_memory=args.use_memory,
         approval=(
             ApprovalProvider(interactive=False)

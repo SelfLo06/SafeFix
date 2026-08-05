@@ -1,7 +1,6 @@
 from pathlib import Path
 import os
 
-from ..paths import is_read_denied
 from .read_file import _readable_path
 
 
@@ -35,9 +34,7 @@ def search_code(
             directories[:] = sorted(
                 name
                 for name in directories
-                if not is_read_denied(
-                    root, (current_path / name).relative_to(root).as_posix()
-                )
+                if _is_readable(root, (current_path / name).relative_to(root).as_posix())
             )
             files.extend(
                 (current_path / name, None)
@@ -51,9 +48,10 @@ def search_code(
             continue
         if relative is None:
             relative = file_path.relative_to(root).as_posix()
-            if is_read_denied(root, relative):
+            try:
+                readable = _readable_path(root, relative)
+            except ValueError:
                 continue
-            readable = _readable_path(root, relative)
         else:
             readable = file_path
         lines = readable.read_text(encoding="utf-8").splitlines()
@@ -67,3 +65,11 @@ def search_code(
 
 def _raise_walk_error(error: OSError) -> None:
     raise error
+
+
+def _is_readable(project_root: Path, relative: str) -> bool:
+    try:
+        _readable_path(project_root, relative)
+    except ValueError:
+        return False
+    return True
