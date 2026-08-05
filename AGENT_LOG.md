@@ -1026,3 +1026,17 @@
 - Final repository SPEC review is PASS; final code-quality review is PASS.
   Overall completion remains blocked solely by the external A6 hosted Release
   requirement (wheel/sdist hosting and a non-placeholder README URL).
+
+## Fresh verification after SPEC traceability repair
+
+- Date: 2026-08-05. Re-ran `test -s SPEC.md`: PASS; `SPEC.md` is 35,777
+  bytes.
+- Re-ran `python -m pytest tests -q`: PASS, `230 passed in 1.86s`.
+- Re-ran the exact required `python -m build --wheel --sdist`: PASS; both
+  `safefix-0.1.0-py3-none-any.whl` and `safefix-0.1.0.tar.gz` were built in
+  isolated environments.
+- The generated `build/`, `dist/`, `src/safefix.egg-info/`, and Python cache
+  directories are verification outputs and must be removed before the final
+  clean-state check. `env.lock` was not read, staged, or committed.
+- After cleanup, `git diff --check` passed, `git status --short` was empty, and
+  `test -s SPEC.md` still passed. `git ls-files env.lock` produced no output.
