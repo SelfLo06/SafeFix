@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 from pathlib import Path
 import subprocess
+import sys
+import tempfile
 from typing import Sequence
 
 from .junit import TestCaseResult, parse_junit_report
@@ -14,6 +17,7 @@ class TestRunResult:
     cases: tuple[TestCaseResult, ...]
     stdout: str = ""
     stderr: str = ""
+    valid: bool = False
 
     @property
     def failure_ids(self) -> frozenset[str]:
@@ -31,12 +35,15 @@ class TestRunner:
         self.pytest_args = tuple(pytest_args)
         if report_path == "":
             raise ValueError("report_path must not be empty")
-        selected_report = (
-            Path(".safefix-junit.xml")
-            if report_path is None
-            else Path(report_path)
-        )
-        selected_report = Path(selected_report)
+        if report_path is None:
+            descriptor, temporary_report = tempfile.mkstemp(
+                prefix="safefix-junit-", suffix=".xml"
+            )
+            os.close(descriptor)
+            selected_report = Path(temporary_report)
+            selected_report.unlink(missing_ok=True)
+        else:
+            selected_report = Path(report_path)
         self.report_path = (
             selected_report
             if selected_report.is_absolute()
@@ -44,24 +51,65 @@ class TestRunner:
         )
 
     def run(self) -> TestRunResult:
+        try:
+            self.report_path.unlink(missing_ok=True)
+        except OSError as exc:
+            return TestRunResult(
+                exit_code=3,
+                cases=(),
+                stderr=str(exc),
+                valid=False,
+            )
         command = [
-            "python",
+            sys.executable,
             "-m",
             "pytest",
             *self.pytest_args,
             f"--junitxml={self.report_path}",
         ]
-        completed = subprocess.run(
-            command,
-            cwd=self.project_root,
-            shell=False,
-            capture_output=True,
-            text=True,
-        )
-        cases = parse_junit_report(self.report_path)
+        try:
+            completed = subprocess.run(
+                command,
+                cwd=self.project_root,
+                shell=False,
+                capture_output=True,
+                text=True,
+            )
+        except OSError as exc:
+            return TestRunResult(
+                exit_code=3,
+                cases=(),
+                stderr=str(exc),
+                valid=False,
+            )
+        try:
+            cases = parse_junit_report(self.report_path)
+        except (OSError, ValueError) as exc:
+            self.report_path.unlink(missing_ok=True)
+            return TestRunResult(
+                exit_code=completed.returncode,
+                cases=(),
+                stdout=completed.stdout,
+                stderr=f"{completed.stderr}\n{exc}",
+                valid=False,
+            )
+        try:
+            self.report_path.unlink(missing_ok=True)
+        except OSError as exc:
+            return TestRunResult(
+                exit_code=3,
+                cases=(),
+                stdout=completed.stdout,
+                stderr=f"{completed.stderr}\n{exc}",
+                valid=False,
+            )
         return TestRunResult(
             exit_code=completed.returncode,
             cases=cases,
             stdout=completed.stdout,
             stderr=completed.stderr,
+            valid=bool(cases) and any(
+                not case.failure_id.startswith("collection_error::")
+                for case in cases
+            ),
         )

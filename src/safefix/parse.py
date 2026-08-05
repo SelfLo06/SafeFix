@@ -1,5 +1,7 @@
 import json
 from pathlib import Path
+from pathlib import PureWindowsPath
+import posixpath
 from typing import Any
 
 from .models import Change, ToolCall, ToolName
@@ -61,25 +63,32 @@ class ActionParser:
                     raise ParseError("each change must contain only path, old_text, and new_text")
                 if not all(isinstance(change[field], str) for field in ("path", "old_text", "new_text")):
                     raise ParseError("change fields must be strings")
-                self._path(change["path"])
+                normalized_path = self._path(change["path"])
                 parsed_changes.append(
-                    Change(change["path"], change["old_text"], change["new_text"])
+                    Change(normalized_path, change["old_text"], change["new_text"])
                 )
             return ToolCall(tool=tool, changes=tuple(parsed_changes))
 
-        self._require_fields(action, {"tool", "reason"})
-        if not isinstance(action["reason"], str):
+        if set(action) - {"tool", "reason"}:
+            raise ParseError("action contains missing or unknown fields")
+        reason = action.get("reason")
+        if reason is not None and not isinstance(reason, str):
             raise ParseError("reason must be a string")
-        return ToolCall(tool=ToolName.FINISH, reason=action["reason"])
+        return ToolCall(tool=ToolName.FINISH, reason=reason)
 
     def _path(self, value: Any) -> str:
         if not isinstance(value, str) or not value:
             raise ParseError("path must be a non-empty string")
+        if Path(value).is_absolute() or PureWindowsPath(value).is_absolute():
+            raise ParseError("path must be project-relative")
+        portable_value = value.replace("\\", "/")
         try:
-            normalize_rel_path(self._project_root, value)
+            normalized = normalize_rel_path(self._project_root, portable_value)
         except ValueError as exc:
-            raise ParseError("path must be project-relative and remain within the project") from exc
-        return value
+            if "escapes project root" in str(exc):
+                return posixpath.normpath(portable_value)
+            raise ParseError("path must be project-relative") from exc
+        return normalized.relative_to(self._project_root.resolve()).as_posix()
 
     @staticmethod
     def _require_fields(action: dict[str, Any], expected: set[str]) -> None:

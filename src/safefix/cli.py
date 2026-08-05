@@ -1,6 +1,7 @@
 """Command-line entrypoints for SafeFix."""
 
 import argparse
+import getpass
 import json
 from collections.abc import Callable
 from pathlib import Path
@@ -11,19 +12,12 @@ from .approval import ApprovalProvider
 from .config import ConfigError, load_config
 from .credentials import CredentialError, CredentialsResolver
 from .llm.openai_compatible import OpenAICompatibleClient
-from .models import Config, StopReason
+from .llm.base import LLMResponseError
+from .models import Config, StopReason, exit_code_for_stop_reason
 from .runner import SessionRunner
 
 
-EXIT_CODES = {
-    StopReason.SUCCESS: 0,
-    StopReason.REQUESTED: 0,
-    StopReason.MAX_STEPS: 1,
-    StopReason.MAX_ROUNDS: 1,
-    StopReason.NO_PROGRESS: 1,
-    StopReason.ERROR: 2,
-    StopReason.CONFIG_ERROR: 3,
-}
+EXIT_CODES = {reason: exit_code_for_stop_reason(reason) for reason in StopReason}
 
 
 class UrllibHTTPTransport:
@@ -38,8 +32,11 @@ class UrllibHTTPTransport:
             headers=headers,
             method="POST",
         )
-        with urlopen(request, timeout=timeout) as response:
-            return json.load(response)
+        try:
+            with urlopen(request, timeout=timeout) as response:
+                return json.load(response)
+        except ValueError as exc:
+            raise LLMResponseError("invalid JSON response") from exc
 
 
 class _CachedCredentials:
@@ -66,20 +63,21 @@ def build_parser() -> argparse.ArgumentParser:
     commands = parser.add_subparsers(dest="command", required=True)
 
     run = commands.add_parser("run")
-    run.add_argument("--project-root", type=Path, default=Path("."))
+    run.add_argument("project_path", type=Path)
     run.add_argument("--max-steps", type=int)
     run.add_argument("--max-rounds", type=int)
     run.add_argument("--max-no-progress-rounds", type=int)
     run.add_argument("--allowed-path", action="append")
     run.add_argument("--excluded-path", action="append")
-    run.add_argument("--pytest-arg", action="append")
+    run.add_argument("--pytest-args", action="append")
     run.add_argument("--base-url")
     run.add_argument("--model")
+    run.add_argument("--use-memory", action="store_true")
+    run.add_argument("--non-interactive", action="store_true")
 
     credentials = commands.add_parser("credentials")
     credential_commands = credentials.add_subparsers(dest="credentials_command", required=True)
     credential_set = credential_commands.add_parser("set")
-    credential_set.add_argument("value")
     credential_commands.add_parser("status")
     credential_commands.add_parser("clear")
     return parser
@@ -97,7 +95,12 @@ def main(
     args = build_parser().parse_args(argv)
     credentials = credentials_factory()
     if args.command == "credentials":
-        return _credentials_command(args, credentials)
+        try:
+            return _credentials_command(args, credentials)
+        except CredentialError as exc:
+            exit_code = EXIT_CODES[StopReason.CONFIG_ERROR]
+            print(f"SafeFix credential error: {exc} (exit code {exit_code})")
+            return exit_code
     return _run_command(
         args,
         credentials=credentials,
@@ -110,7 +113,11 @@ def main(
 
 def _credentials_command(args: argparse.Namespace, credentials: CredentialsResolver) -> int:
     if args.credentials_command == "set":
-        credentials.set(args.value)
+        try:
+            value = getpass.getpass("API key: ")
+        except (EOFError, OSError) as exc:
+            raise CredentialError("credential prompt failed") from exc
+        credentials.set(value)
         print("credential stored")
     elif args.credentials_command == "status":
         print("set" if credentials.status() else "not set")
@@ -129,7 +136,7 @@ def _run_command(
     client_factory: Callable[..., OpenAICompatibleClient],
     approval_factory: Callable[[], ApprovalProvider],
 ) -> int:
-    project_root = args.project_root.resolve()
+    project_root = args.project_path.resolve()
     overrides = _overrides(args)
     try:
         config = config_loader(project_root, overrides, require_llm=True)
@@ -139,8 +146,10 @@ def _run_command(
             model=config.model,
             api_key=api_key,
         )
-    except (ConfigError, CredentialError):
-        return EXIT_CODES[StopReason.CONFIG_ERROR]
+    except (ConfigError, CredentialError) as exc:
+        exit_code = EXIT_CODES[StopReason.CONFIG_ERROR]
+        print(f"SafeFix configuration error: {exc} (exit code {exit_code})")
+        return exit_code
 
     def cached_config_loader(
         _project_root: Path, _cli_overrides: dict, *, require_llm: bool = False
@@ -153,9 +162,16 @@ def _run_command(
         credentials=_CachedCredentials(api_key),
         config_loader=cached_config_loader,
         llm_client=client,
-        approval=approval_factory(),
+        use_memory=args.use_memory,
+        approval=(
+            ApprovalProvider(interactive=False)
+            if args.non_interactive
+            else approval_factory()
+        ),
     ).run()
-    return EXIT_CODES[result.stop_reason]
+    exit_code = EXIT_CODES[result.stop_reason]
+    print(f"SafeFix stopped: {result.stop_reason.value} (exit code {exit_code})")
+    return exit_code
 
 
 def _overrides(args: argparse.Namespace) -> dict[str, object]:
@@ -167,7 +183,7 @@ def _overrides(args: argparse.Namespace) -> dict[str, object]:
             "max_no_progress_rounds": args.max_no_progress_rounds,
             "allowed_paths": args.allowed_path,
             "excluded_paths": args.excluded_path,
-            "pytest_args": args.pytest_arg,
+            "pytest_args": args.pytest_args,
             "base_url": args.base_url,
             "model": args.model,
         }.items()

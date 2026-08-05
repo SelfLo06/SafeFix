@@ -8,6 +8,7 @@ from safefix.models import (
     Feedback,
     Config,
     SessionResult,
+    exit_code_for_stop_reason,
 )
 
 
@@ -48,3 +49,20 @@ def test_config_fields_exist():
     assert hasattr(config, "pytest_args")
     assert hasattr(config, "base_url")
     assert hasattr(config, "model")
+
+
+def test_stop_reason_exit_code_contract():
+    assert exit_code_for_stop_reason(StopReason.SUCCESS) == 0
+    for reason in (
+        StopReason.REQUESTED,
+        StopReason.MAX_STEPS,
+        StopReason.MAX_ROUNDS,
+        StopReason.NO_PROGRESS,
+    ):
+        assert exit_code_for_stop_reason(reason) == 1
+    assert exit_code_for_stop_reason(StopReason.CONFIG_ERROR) == 2
+    assert exit_code_for_stop_reason(StopReason.ERROR) == 3
+
+
+def test_session_result_derives_exit_code_from_stop_reason():
+    assert SessionResult(stop_reason=StopReason.ERROR).exit_code == 3

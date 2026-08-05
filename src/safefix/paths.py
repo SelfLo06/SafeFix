@@ -49,7 +49,7 @@ def compute_writable_py_files(
     excluded = [normalize_rel_path(root, path) for path in excluded_paths]
 
     if not allowed_paths:
-        search_roots = [root / "src"] if (root / "src").is_dir() else []
+        search_roots = [root / "src"] if (root / "src").is_dir() else [root]
     else:
         search_roots = [normalize_rel_path(root, path) for path in allowed_paths]
 

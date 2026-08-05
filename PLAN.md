@@ -47,6 +47,7 @@ src/safefix/
   config.py
   credentials.py
   models.py
+  patch_preflight.py
   paths.py
   llm/
     base.py
@@ -625,22 +626,25 @@ Dependencies: Tasks 6, 8, 10, and 13.
 
 ## Execution status
 
-All planned execution units are complete on the integrated `main` branch:
+The original task execution records remain historical evidence. The current
+main branch is under a SPEC recovery/traceability correction and must not be
+described as complete until the replacement reviews and final verification
+listed below pass.
 
 | Tasks | Status | Evidence |
 |-------|--------|----------|
-| 0–8 | complete | implementation and review records in `AGENT_LOG.md` |
-| 9–11 | complete | implementation and review records in `AGENT_LOG.md` |
-| 12a–12d | complete | `task-12-report.md` and `AGENT_LOG.md` |
-| 13a–13d | complete | `task-13-report.md` and `AGENT_LOG.md` |
-| 14 | complete | `task-14-report.md` and `AGENT_LOG.md` |
-| 15a–15c | complete | `task-15-report.md` and `AGENT_LOG.md` |
-| 16 | complete | `task-16-report.md` and final review reports |
+| 0–8 | historical implementation | superseded for final SPEC review |
+| 9–11 | historical implementation | superseded for final SPEC review |
+| 12a–12d | historical implementation | superseded for final SPEC review |
+| 13a–13d | historical implementation | superseded for final SPEC review |
+| 14 | historical implementation | superseded for final SPEC review |
+| 15a–15c | historical implementation | superseded for final SPEC review |
+| 16 | historical mechanism evidence | superseded for final SPEC review |
 
-Integration evidence: complete worktree branch `safefix-task-15` was merged
-into `main` as `15ee2f2` on 2026-08-05. The merged main branch passes
-`PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests -q` with 191
-tests passed. The root worktree has no uncommitted files.
+Integration evidence: branch `safefix-task-15` was merged into `main` as
+`15ee2f2` on 2026-08-05. That historical result is not final evidence because
+the merged tree was reviewed while `SPEC.md` was empty. The current repair has
+focused tests green; replacement full verification is pending.
 
 ## Spec coverage checklist (self-review)
 
@@ -687,3 +691,19 @@ execution unit, including 12a-12d, 13a-13d, and 15a-15c. Before each commit:
 
 Do not cold-start or repeat brainstorming. Task 0 is a non-implementation
 prerequisite; after its dedicated commit, begin Task 1.
+
+## SPEC recovery traceability repair (status-only record)
+
+- [x] Restore the final approved SPEC and SPEC_PROCESS artifacts from commit
+  `c3247dd` after confirming `eefdbf0` contained an empty SPEC.
+- [x] Record that prior empty-SPEC compliance reviews are superseded.
+- [x] Repair implementation contracts without adding product scope: exit-code
+  mapping, valid test reports, strict-subset feedback, first-touch snapshots,
+  deterministic path/CLI boundaries, bounded memory context, and runtime
+  error handling.
+- [x] Complete fresh specification-compliance review, code-quality review, and
+  final integration verification on main. Repository evidence is recorded in
+  `AGENT_LOG.md`; hosted Release evidence remains an external A6 blocker.
+
+This section is a traceability correction only; it does not redesign Tasks 1–16
+or reopen brainstorming.

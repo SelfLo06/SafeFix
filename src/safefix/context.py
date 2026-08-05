@@ -23,7 +23,12 @@ class ContextBuilder:
                 "failure_ids": best_failures,
             },
             "recent_tool_feedback": [
-                {"tool": call.tool.value, "outcome": feedback.outcome}
+                {
+                    "tool": call.tool.value,
+                    "outcome": feedback.outcome,
+                    "summary": feedback.summary,
+                    "labels": feedback.labels,
+                }
                 for call, feedback in state.recent_tool_events
             ],
             "recent_guard_feedback": [
@@ -33,4 +38,7 @@ class ContextBuilder:
         }
         if use_memory:
             context["project_memory"] = list(self._memory_store.load(use_memory=True))
+            context["project_memory_fingerprints"] = list(
+                self._memory_store.load_fingerprints(use_memory=True)
+            )
         return context

@@ -50,6 +50,21 @@ def test_apply_patch_replaces_an_exact_match(tmp_path: Path):
     assert first.read_text() == "updated first\n"
 
 
+def test_apply_patch_rejects_non_python_and_test_sources(tmp_path: Path):
+    source = tmp_path / "src"
+    source.mkdir()
+    readme = source / "README.md"
+    readme.write_text("old\n")
+    tests = tmp_path / "tests"
+    tests.mkdir()
+    test_file = tests / "test_app.py"
+    test_file.write_text("old\n")
+
+    for path in ("src/README.md", "tests/test_app.py"):
+        with pytest.raises(ValueError, match="write denied"):
+            apply_patch(tmp_path, [Change(path, "old", "new")])
+
+
 def test_apply_patch_rejects_overlapping_changes_before_writing(tmp_path: Path):
     first, _ = _project_with_files(tmp_path)
     first.write_text("abcdef\n")

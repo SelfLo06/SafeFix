@@ -31,22 +31,51 @@ def test_write_policy_denies_non_writable_path(tmp_path: Path):
 
 
 def test_three_files_and_eighty_changed_lines_are_allowed(tmp_path: Path):
+    (tmp_path / "src").mkdir()
+    for name in "abc":
+        (tmp_path / "src" / f"{name}.py").write_text("old\n")
     guardrail = Guardrail(tmp_path, writable_paths={"src/a.py", "src/b.py", "src/c.py"})
-    changes = tuple(Change(path, "", "x\n" * count) for path, count in (
-        ("src/a.py", 20), ("src/b.py", 30), ("src/c.py", 30)
+    changes = tuple(Change(path, "old", "x\n" * count) for path, count in (
+        ("src/a.py", 19), ("src/b.py", 29), ("src/c.py", 29)
     ))
 
     assert guardrail.check(patch_call(*changes)) is GuardDecision.ALLOW
 
 
 def test_more_than_three_files_or_eighty_lines_requires_approval(tmp_path: Path):
+    (tmp_path / "src").mkdir()
+    for name in "abcd":
+        (tmp_path / "src" / f"{name}.py").write_text("old\n")
     guardrail = Guardrail(
         tmp_path,
         writable_paths={f"src/{name}.py" for name in "abcd"},
     )
 
-    four_files = patch_call(*(Change(f"src/{name}.py", "", "x") for name in "abcd"))
-    eighty_one_lines = patch_call(Change("src/a.py", "", "x\n" * 81))
+    four_files = patch_call(*(Change(f"src/{name}.py", "old", "x") for name in "abcd"))
+    eighty_one_lines = patch_call(Change("src/a.py", "old", "x\n" * 81))
 
     assert guardrail.check(four_files) is GuardDecision.REQUIRE_APPROVAL
     assert guardrail.check(eighty_one_lines) is GuardDecision.REQUIRE_APPROVAL
+
+
+def test_invalid_match_or_overlap_is_permanently_denied(tmp_path: Path):
+    source = tmp_path / "src"
+    source.mkdir()
+    (source / "app.py").write_text("abcdef\n")
+    guardrail = Guardrail(tmp_path, writable_paths={"src/app.py"})
+
+    assert guardrail.check(patch_call(Change("src/app.py", "missing", "x"))) is GuardDecision.DENY
+    assert guardrail.check(
+        patch_call(
+            Change("src/app.py", "abcdef", "one"),
+            Change("src/app.py", "cdef", "two"),
+        )
+    ) is GuardDecision.DENY
+
+
+def test_read_path_escape_is_permanently_denied(tmp_path: Path):
+    guardrail = Guardrail(tmp_path)
+
+    action = ToolCall(tool=ToolName.READ_FILE, path="../outside.py")
+
+    assert guardrail.check(action) is GuardDecision.DENY

@@ -38,6 +38,7 @@ def _runner(tmp_path: Path, responses: list[str]):
     baseline = _TestRunResult(
         exit_code=1,
         cases=(_TestCaseResult("tests.app::test_value", "tests.app", "test_value", "failed"),),
+        valid=True,
     )
     return SessionRunner(
         tmp_path,
@@ -65,6 +66,7 @@ def test_read_tool_returns_to_ready(tmp_path: Path) -> None:
     assert [feedback.outcome for _, feedback in runner.state.recent_tool_events] == [
         "completed"
     ]
+    assert "value = 1" in runner.state.recent_tool_events[0][1].summary
 
 
 @pytest.mark.parametrize(

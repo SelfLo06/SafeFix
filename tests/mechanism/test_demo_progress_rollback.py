@@ -28,7 +28,7 @@ def project(tmp_path: Path) -> Path:
 def test_better_same_worse_and_no_progress_are_deterministic(project: Path) -> None:
     runner = SessionRunner(
         project,
-        cli_overrides={"max_no_progress_rounds": 2},
+        cli_overrides={"max_no_progress_rounds": 3},
         credentials=FakeCredentials(),
         llm_client=MockLLM(
             [
@@ -43,7 +43,7 @@ def test_better_same_worse_and_no_progress_are_deterministic(project: Path) -> N
     result = runner.run()
 
     assert result.stop_reason is StopReason.NO_PROGRESS
-    assert (result.rounds, result.no_progress) == (4, 2)
+    assert (result.rounds, result.no_progress) == (4, 3)
     assert runner.state is not None
     assert [feedback.outcome for _, feedback in runner.state.recent_tool_events] == [
         "better",

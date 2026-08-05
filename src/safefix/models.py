@@ -10,6 +10,21 @@ class StopReason(Enum):
     CONFIG_ERROR = "config_error"
 
 
+def exit_code_for_stop_reason(reason: StopReason) -> int:
+    if reason is StopReason.SUCCESS:
+        return 0
+    if reason in {
+        StopReason.REQUESTED,
+        StopReason.MAX_STEPS,
+        StopReason.MAX_ROUNDS,
+        StopReason.NO_PROGRESS,
+    }:
+        return 1
+    if reason is StopReason.CONFIG_ERROR:
+        return 2
+    return 3
+
+
 class GuardDecision(Enum):
     ALLOW = "allow"
     DENY = "deny"
@@ -77,4 +92,9 @@ class SessionResult:
     rounds: int = 0
     no_progress: int = 0
     artifact_path: str | None = None
-    exit_code: int = 0
+    exit_code: int = field(init=False)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "exit_code", exit_code_for_stop_reason(self.stop_reason)
+        )

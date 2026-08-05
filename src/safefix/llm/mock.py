@@ -1,7 +1,9 @@
 from collections.abc import Iterable
 
+from .base import LLMResponseError
 
-class ScriptExhaustedError(RuntimeError):
+
+class ScriptExhaustedError(LLMResponseError):
     """Raised when a scripted MockLLM has no response left."""
 
 

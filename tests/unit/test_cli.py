@@ -65,7 +65,7 @@ def test_run_command_caches_validated_boundaries_for_runner(tmp_path: Path) -> N
         return FakeRunner(SessionResult(stop_reason=StopReason.SUCCESS))
 
     assert main(
-        ["run", "--project-root", str(tmp_path)],
+        ["run", str(tmp_path)],
         credentials_factory=lambda: credentials,
         config_loader=config_loader,
         runner_factory=runner_factory,
@@ -101,11 +101,10 @@ def test_run_command_passes_config_overrides(tmp_path: Path) -> None:
     exit_code = main(
         [
             "run",
-            "--project-root",
             str(tmp_path),
             "--max-steps",
             "7",
-            "--pytest-arg=-q",
+            "--pytest-args=-q",
             "--base-url",
             "https://llm.example/v1",
             "--model",
@@ -135,14 +134,17 @@ def test_run_command_passes_config_overrides(tmp_path: Path) -> None:
     }
 
 
-def test_credentials_set_status_clear(capsys: pytest.CaptureFixture[str]) -> None:
+def test_credentials_set_status_clear(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
     from safefix.cli import main
 
     credentials = FakeCredentials()
 
     assert main(["credentials", "status"], credentials_factory=lambda: credentials) == 0
     assert capsys.readouterr().out == "not set\n"
-    assert main(["credentials", "set", "stored-test-key"], credentials_factory=lambda: credentials) == 0
+    monkeypatch.setattr("getpass.getpass", lambda _: "stored-test-key")
+    assert main(["credentials", "set"], credentials_factory=lambda: credentials) == 0
     assert capsys.readouterr().out == "credential stored\n"
     assert main(["credentials", "status"], credentials_factory=lambda: credentials) == 0
     assert capsys.readouterr().out == "set\n"
@@ -163,12 +165,12 @@ def test_noninteractive_approval_denies(tmp_path: Path) -> None:
         return FakeRunner(SessionResult(stop_reason=StopReason.REQUESTED))
 
     assert main(
-        ["run", "--project-root", str(tmp_path)],
+        ["run", str(tmp_path)],
         credentials_factory=lambda: credentials,
         config_loader=lambda root, overrides, require_llm: config,
         runner_factory=runner_factory,
         client_factory=lambda **kwargs: object(),
-    ) == 0
+    ) == 1
     assert isinstance(seen["approval"], ApprovalProvider)
     assert seen["approval"].approve(object()) is False
 
@@ -181,17 +183,17 @@ def test_exit_code_mapping_for_all_stop_reasons(tmp_path: Path) -> None:
     config = Config(base_url="https://llm.example/v1", model="repair-model")
     expected = {
         StopReason.SUCCESS: 0,
-        StopReason.REQUESTED: 0,
+        StopReason.REQUESTED: 1,
         StopReason.MAX_STEPS: 1,
         StopReason.MAX_ROUNDS: 1,
         StopReason.NO_PROGRESS: 1,
-        StopReason.ERROR: 2,
-        StopReason.CONFIG_ERROR: 3,
+        StopReason.ERROR: 3,
+        StopReason.CONFIG_ERROR: 2,
     }
 
     for reason, exit_code in expected.items():
         assert main(
-            ["run", "--project-root", str(tmp_path)],
+            ["run", str(tmp_path)],
             credentials_factory=lambda: credentials,
             config_loader=lambda root, overrides, require_llm: config,
             runner_factory=lambda root, **kwargs: FakeRunner(

@@ -19,27 +19,26 @@ def _project_with_files(tmp_path: Path) -> tuple[Path, Path]:
     return first, second
 
 
-def test_baseline_contents_capture_initial_files(tmp_path: Path):
+def test_baseline_contents_capture_first_touched_files(tmp_path: Path):
     _project_with_files(tmp_path)
 
     store = SnapshotStore(tmp_path, ["src/first.py", "src/second.py"])
+    assert store.baseline_contents == {}
+
+    store.snapshot_before_apply(["src/first.py"])
+    (tmp_path / "src/first.py").write_text("first changed after snapshot\n")
 
     assert store.baseline_contents == {
         "src/first.py": "first baseline\n",
-        "src/second.py": "second baseline\n",
     }
 
 
-def test_best_contents_start_as_a_copy_of_baseline(tmp_path: Path):
+def test_best_contents_start_empty(tmp_path: Path):
     _project_with_files(tmp_path)
 
     store = SnapshotStore(tmp_path, ["src/first.py", "src/second.py"])
-    (tmp_path / "src/first.py").write_text("changed\n")
 
-    assert store.best_contents == {
-        "src/first.py": "first baseline\n",
-        "src/second.py": "second baseline\n",
-    }
+    assert store.best_contents == {}
 
 
 def test_restore_writes_requested_contents(tmp_path: Path):
@@ -68,6 +67,20 @@ def test_snapshot_before_apply_captures_current_contents(tmp_path: Path):
         "src/second.py": "second baseline\n",
     }
     assert store.pre_apply_contents == captured
+
+
+def test_default_restore_only_touches_files_seen_by_snapshot(tmp_path: Path):
+    first, second = _project_with_files(tmp_path)
+    store = SnapshotStore(tmp_path, ["src/first.py", "src/second.py"])
+
+    store.snapshot_before_apply(["src/first.py"])
+    first.write_text("patched first\n")
+    second.write_text("unrelated external change\n")
+
+    store.restore()
+
+    assert first.read_text() == "first baseline\n"
+    assert second.read_text() == "unrelated external change\n"
 
 
 def test_restore_failure_leaves_all_files_unchanged(tmp_path: Path):

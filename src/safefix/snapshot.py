@@ -24,8 +24,8 @@ class SnapshotStore:
         self._project_root = project_root.resolve()
         self._paths = tuple(dict.fromkeys(self._relative_path(path) for path in paths))
         self._replace = replace or os.replace
-        self.baseline_contents = self._read_contents(self._paths)
-        self.best_contents = dict(self.baseline_contents)
+        self.baseline_contents: dict[str, str] = {}
+        self.best_contents: dict[str, str] = {}
         self.pre_apply_contents: dict[str, str] | None = None
 
     def snapshot_before_apply(
@@ -33,12 +33,33 @@ class SnapshotStore:
         paths: Iterable[str | Path] | None = None,
     ) -> dict[str, str]:
         selected = self._selected_paths(paths)
+        first_touched = tuple(
+            relative_path
+            for relative_path in selected
+            if relative_path not in self.baseline_contents
+        )
+        self.baseline_contents.update(self._read_contents(first_touched))
         self.pre_apply_contents = self._read_contents(selected)
         return dict(self.pre_apply_contents)
 
+    def update_best(self) -> None:
+        """Record only touched files whose current contents differ from baseline."""
+        current = self._read_contents(self.baseline_contents)
+        self.best_contents = {
+            relative_path: content
+            for relative_path, content in current.items()
+            if content != self.baseline_contents[relative_path]
+        }
+
     def restore(self, contents: Mapping[str, str] | None = None) -> None:
         target_contents: dict[str, str] = {}
-        source_contents = self.best_contents if contents is None else contents
+        if contents is None:
+            source_contents = {
+                relative_path: self.best_contents.get(relative_path, baseline)
+                for relative_path, baseline in self.baseline_contents.items()
+            }
+        else:
+            source_contents = contents
         for path, content in source_contents.items():
             relative_path = self._relative_path(path)
             if relative_path in target_contents:

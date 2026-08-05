@@ -42,3 +42,33 @@ def test_parses_finish_action(tmp_path):
     assert ActionParser(tmp_path).parse(
         '{"tool":"finish","reason":"all done"}'
     ) == ToolCall(tool=ToolName.FINISH, reason="all done")
+
+
+def test_finish_reason_is_optional(tmp_path):
+    assert ActionParser(tmp_path).parse('{"tool":"finish"}') == ToolCall(
+        tool=ToolName.FINISH
+    )
+
+
+def test_parser_returns_normalized_project_relative_path(tmp_path):
+    result = ActionParser(tmp_path).parse(
+        '{"tool":"read_file","path":"./src/../src/app.py"}'
+    )
+
+    assert result.path == "src/app.py"
+
+
+def test_parser_leaves_root_escape_for_guardrail_denial(tmp_path):
+    result = ActionParser(tmp_path).parse(
+        '{"tool":"read_file","path":"../outside.py"}'
+    )
+
+    assert result.path == "../outside.py"
+
+
+def test_parser_normalizes_backslash_separators(tmp_path):
+    result = ActionParser(tmp_path).parse(
+        '{"tool":"read_file","path":"src\\\\app.py"}'
+    )
+
+    assert result.path == "src/app.py"

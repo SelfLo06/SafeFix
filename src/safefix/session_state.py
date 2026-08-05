@@ -16,6 +16,8 @@ class SessionState:
     steps: int = 0
     rounds: int = 0
     no_progress_rounds: int = 0
+    last_evaluated: FailureSet | None = field(default=None, init=False)
+    last_feedback: Feedback | None = field(default=None, init=False)
     _recent_tool_events: tuple[tuple[ToolCall, Feedback], ...] = field(
         default_factory=tuple, init=False, repr=False
     )

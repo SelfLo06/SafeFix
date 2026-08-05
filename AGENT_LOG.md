@@ -902,3 +902,111 @@
   shell tool, or additional production code was exercised. The exact API price
   was not inferred from token usage; the request count and output caps were
   deliberately kept minimal under the requested 3 RMB ceiling.
+
+## SPEC recovery and traceability repair
+
+- Date: 2026-08-05. Confirmed `git show eefdbf0:SPEC.md | wc -c` was `0`,
+  and the corresponding first-30-lines command was empty. History identified
+  `c3247dd` as the final approved SPEC artifact; its `SPEC.md` and
+  `SPEC_PROCESS.md` were restored without using an early draft.
+- Process defect: implementation and specification-compliance reviews had
+  proceeded in a worktree where `SPEC.md` was empty, so those reviews are
+  superseded and are not final evidence. Discovery was made by the required
+  main-commit byte-count/history checks.
+- Repair scope is consistency-only: exit mapping, valid JUnit report gates,
+  deterministic failure IDs, strict-subset feedback, first-touch snapshots,
+  CLI/path boundaries, optional bounded memory context, and runtime error
+  boundaries. No real API call was made during this repair and no product scope
+  was added.
+- TDD evidence covered exit codes, feedback outcomes, default writable paths,
+  optional finish reason, baseline validity, snapshot first-touch restore,
+  patch execution errors, CLI positional/security behavior, TTY approval,
+  memory schema, and opt-in prompt context. Final full-suite/build verification
+  remains pending.
+- Skills used: `receiving-code-review`, `systematic-debugging`,
+  `test-driven-development`, `requesting-code-review`, and
+  `verification-before-completion`. Every implementation/review subagent must
+  begin by reading `SPEC.md`, `PLAN.md`, and `AGENTS.md`.
+- Review status: the new item-by-item specification-compliance review and the
+  independent code-quality review are pending; prior empty-SPEC reviews do not
+  satisfy the final gate.
+
+## Replacement review findings and corrective pass
+
+- Date: 2026-08-05. Fresh specification-compliance review and distinct
+  code-quality review both returned FAIL; neither modified files or used a
+  network/API. Findings were accepted as actionable: Guardrail prechecks,
+  runtime LLM/tool boundaries, valid collection reports, artifact completeness,
+  memory fingerprint context, path normalization, CLI documentation, and
+  `git diff --check` hygiene.
+- Corrective TDD cycles added/updated tests before implementation for permanent
+  DENY on invalid/overlapping patches, LLM response errors, collection-only
+  invalid reports, process-failure exit mapping, normalized paths, artifact
+  trace fields, patch fingerprints, memory fingerprints/redaction, and current
+  interpreter TestRunner execution. Mechanism expectations were updated to the
+  locked strict-subset/no-progress semantics.
+- The correction intentionally kept the scope bounded: no hosted Release was
+  fabricated, no provider or shell abstraction was added, and no real API call
+  was made. At that historical point, optional memory persistence failure was
+  still a stderr warning; that behavior is superseded by the later fail-fast
+  runtime-ERROR correction recorded below.
+- Replacement reviews must be rerun after this corrective pass. Until both
+  independently pass and the required verification commands pass, the project
+  remains incomplete.
+
+## Latest traceability repair pass
+
+- Date: 2026-08-05. Applied TDD fixes after the replacement reviews: tool
+  results now return through the next READY prompt context; list/search outputs
+  are bounded; absolute paths remain `PARSE_ERROR`, root escapes are preserved
+  for Guardrail DENY, and backslash separators normalize consistently.
+- Feedback now carries deterministic count labels plus `failed`/`error`
+  report-status labels. `MockLLM` script exhaustion maps to runtime `ERROR`.
+  Memory schema checks trust the validated boundary invariant internally.
+- Guardrail owns write-policy and approval checks while the shared
+  `prepare_changes()` preflight owns exact-match/overlap validation; the write
+  boundary repeats that shared preflight for TOCTOU protection. Session JSON is
+  written through a same-directory temporary file and atomic replace.
+- Removed implementation-coupled prompt/path assertions and private
+  SessionState backing-storage tests. Generated `build/`, `dist/`, egg-info,
+  and Python cache artifacts were removed after build verification.
+- Verification evidence: `python -m pytest tests -q` — PASS, `228 passed in
+  1.92s`; `python -m build --wheel --sdist --no-isolation` — PASS, wheel and
+  sdist built; `test -s SPEC.md` and `git diff --check` — PASS. The exact
+  isolated `python -m build --wheel --sdist` remains blocked by the sandbox's
+  inability to download `setuptools>=68`, not by project build errors.
+- The latest independent specification-compliance and code-quality reviews
+  are pending after this pass. The prior replacement compliance review's only
+  product blocker was A6 hosted Release evidence; no Release was fabricated.
+- The previous note saying memory persistence was downgraded to a warning is
+  superseded: opt-in memory persistence failures now return runtime `ERROR`
+  and rewrite the artifact stop reason when possible.
+- Follow-up review repair: moved exact-match/overlap preparation into the
+  independent `src/safefix/patch_preflight.py` module so Guardrail and the
+  write tool share the contract without a reverse dependency; root list/search
+  now filter hard-denied entries while preserving bounded readable results.
+- A fresh final review is required after this follow-up. Hosted Release remains
+  the only known external A6 delivery gap; no external release was fabricated.
+
+## Final repository gate status
+
+- Final specification traceability review: **PASS for repository evidence**;
+  A1–A5 and A7–A9 are evidenced by code/tests/docs. A6 is explicitly
+  **BLOCKED** because this workspace has no hosted Release/tag or externally
+  verifiable wheel/sdist URL; README's `REPOSITORY_URL` remains a placeholder.
+- Final code-quality review: **PASS for implementation quality** after the
+  independent preflight extraction, deterministic search traversal, atomic
+  artifact write, bounded tools, and cleanup fixes. No broad exception capture,
+  speculative scope, or implementation-only test coupling remains in the
+  reviewed areas.
+- Final verification before integration commit: `test -s SPEC.md` PASS;
+  `python -m pytest tests -q` PASS (`230 passed`);
+  `python -m build --wheel --sdist --no-isolation` PASS; `git diff --check`
+  PASS. The isolated build command was also attempted and was blocked only by
+  sandbox network access while installing `setuptools>=68`.
+- The final integration commit will include the new tracked
+  `src/safefix/patch_preflight.py` and all traceability documents. `env.lock`
+  remains ignored and unstaged. Project completion is not claimed until the
+  external A6 Release evidence is supplied.
+- Integration commit created on main: `4b96dfe` (`fix: repair SPEC
+  implementation traceability`). The staged-name check excluded `env.lock`.

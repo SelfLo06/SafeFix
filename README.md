@@ -78,9 +78,9 @@ Store the provider credential in the OS keyring, check its status, run the
 repair, and clear it when it is no longer needed:
 
 ```bash
-safefix credentials set 'paste-your-provider-key-here'
+safefix credentials set    # prompts without echo
 safefix credentials status
-safefix run --project-root .
+safefix run .
 safefix credentials clear
 ```
 
@@ -95,7 +95,7 @@ non-writable. `--allowed-path` and `--excluded-path` also accept only
 project-relative paths.
 
 Only these pytest arguments are allowed through `pytest_args` or repeated
-`--pytest-arg`: `-q`, `-v`, `--tb=short`, `--tb=line`, `--tb=no`,
+`--pytest-args`: `-q`, `-v`, `--tb=short`, `--tb=line`, `--tb=no`,
 `--disable-warnings`, and `-r` report forms such as `-rA`. Selection and
 execution-changing arguments such as `-k`, `-m`, `-x`, and `--collect-only`
 are rejected.
@@ -104,9 +104,10 @@ The repair-loop defaults are `max_steps = 30`, `max_rounds = 10`, and
 `max_no_progress_rounds = 3`. HITL approval is required for changes affecting
 `>3 files` or `>80 lines`.
 
-Approval is fail-closed: in non-interactive mode SafeFix must deny an action
-requiring approval, and it never auto-approves it. The CLI does not enable an
-interactive approval prompt.
+Approval is fail-closed: in a TTY SafeFix prompts for approval; in
+non-interactive mode (or with `--non-interactive`) it denies an action requiring
+approval, and it never auto-approves it. The default non-interactive policy is
+deny; non-interactive mode SafeFix must deny approval-required actions.
 
 Project memory is bounded and opt-in. Library callers must explicitly request
 `use_memory=True`; the default context and `safefix run` do not load project

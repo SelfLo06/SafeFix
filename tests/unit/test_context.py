@@ -27,9 +27,7 @@ def test_context_with_memory_includes_capped_slice(tmp_path):
         SessionState(failures("case-a")), use_memory=True
     )
 
-    assert context["project_memory"] == [
-        f"summary-{index}" for index in range(1, MAX_MEMORY_ENTRIES + 1)
-    ]
+    assert context["project_memory"] == [f"summary-{MAX_MEMORY_ENTRIES}"]
 
 
 def test_context_contains_failure_and_tool_feedback(tmp_path):
@@ -46,7 +44,12 @@ def test_context_contains_failure_and_tool_feedback(tmp_path):
     assert context["current_failures"] == ["case-a"]
     assert context["best_summary"] == {"failure_count": 1, "failure_ids": ["case-a"]}
     assert context["recent_tool_feedback"] == [
-        {"tool": "read_file", "outcome": "tool"}
+        {
+            "tool": "read_file",
+            "outcome": "tool",
+            "summary": "read app",
+            "labels": {},
+        }
     ]
     assert context["recent_guard_feedback"] == [
         {"tool": "read_file", "decision": "deny"}

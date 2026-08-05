@@ -26,3 +26,10 @@ def test_input_failure_fails_closed():
     provider = ApprovalProvider(interactive=True, input_fn=fail)
 
     assert provider.approve(object()) is False
+
+
+def test_default_interactive_mode_follows_stdin_tty(monkeypatch):
+    monkeypatch.setattr("safefix.approval.sys.stdin.isatty", lambda: True)
+    provider = ApprovalProvider(input_fn=lambda _: "yes")
+
+    assert provider.approve(object()) is True

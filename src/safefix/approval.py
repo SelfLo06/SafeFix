@@ -1,4 +1,5 @@
 from collections.abc import Callable
+import sys
 
 
 class ApprovalProvider:
@@ -7,10 +8,10 @@ class ApprovalProvider:
     def __init__(
         self,
         *,
-        interactive: bool = False,
+        interactive: bool | None = None,
         input_fn: Callable[[str], str] = input,
     ) -> None:
-        self._interactive = interactive
+        self._interactive = sys.stdin.isatty() if interactive is None else interactive
         self._input = input_fn
 
     def approve(self, action: object) -> bool:

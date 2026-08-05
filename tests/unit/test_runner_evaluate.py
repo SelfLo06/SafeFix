@@ -26,7 +26,13 @@ def _report(exit_code: int, *failure_ids: str) -> _TestRunResult:
         _TestCaseResult(failure_id, *failure_id.rsplit("::", 1), "failed")
         for failure_id in failure_ids
     )
-    return _TestRunResult(exit_code=exit_code, cases=cases)
+    if not cases:
+        cases = (_TestCaseResult("tests.app::test_passed", "tests.app", "test_passed", "passed"),)
+    return _TestRunResult(exit_code=exit_code, cases=cases, valid=True)
+
+
+def _invalid_report(exit_code: int) -> _TestRunResult:
+    return _TestRunResult(exit_code=exit_code, cases=(), valid=False)
 
 
 def _project(tmp_path: Path) -> None:
@@ -75,6 +81,8 @@ def test_better_patch_updates_best(tmp_path: Path) -> None:
     assert (tmp_path / "src" / "app.py").read_text(encoding="utf-8") == "value = 2\n"
     assert runner.state is not None
     assert runner.state.U_best.ids == frozenset({"tests.app::test_a"})
+    assert runner.state.recent_tool_events[0][1].labels["failed"] == "1"
+    assert runner.state.recent_tool_events[0][1].labels["error"] == "0"
     assert runner.snapshot_store is not None
     assert runner.snapshot_store.best_contents["src/app.py"] == "value = 2\n"
 
@@ -95,6 +103,7 @@ def test_same_patch_restores_best_and_increments_no_progress(tmp_path: Path) -> 
     assert (tmp_path / "src" / "app.py").read_text(encoding="utf-8") == "value = 1\n"
     assert runner.state is not None
     assert runner.state.F == runner.state.U_best == runner.state.F0
+    assert len(runner.state.patch_fingerprints) == 1
 
 
 @pytest.mark.parametrize(
@@ -145,7 +154,7 @@ def test_post_patch_infra_error_restores_and_stops_error(tmp_path: Path) -> None
     _project(tmp_path)
     runner = _runner(
         tmp_path,
-        [_report(1, "tests.app::test_a"), _report(2)],
+        [_report(1, "tests.app::test_a"), _invalid_report(2)],
         _patch_then_finish(),
     )
 
@@ -156,3 +165,20 @@ def test_post_patch_infra_error_restores_and_stops_error(tmp_path: Path) -> None
     assert (tmp_path / "src" / "app.py").read_text(encoding="utf-8") == "value = 1\n"
     assert runner.state is not None
     assert runner.state.F == runner.state.U_best == runner.state.F0
+
+def test_guardrail_rejects_invalid_patch_without_runtime_error(tmp_path: Path) -> None:
+    _project(tmp_path)
+    runner = _runner(
+        tmp_path,
+        [_report(1, "tests.app::test_a")],
+        [
+            '{"tool": "apply_patch", "changes": [{"path": "src/app.py", '
+            '"old_text": "not present", "new_text": "value = 2"}]}',
+            '{"tool": "finish"}',
+        ],
+    )
+
+    result = runner.run()
+
+    assert result.stop_reason is StopReason.REQUESTED
+    assert (tmp_path / "src" / "app.py").read_text(encoding="utf-8") == "value = 1\n"
