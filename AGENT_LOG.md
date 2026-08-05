@@ -1112,3 +1112,14 @@
   main and `v0.1.0` resolve on origin, `256 passed`, and
   `python -m build --wheel --sdist` succeeds. Generated build artifacts are
   removed before the final clean-state check. No real LLM API was called.
+
+## Final hosted-release integration verification
+
+- Final main commit before this record: `1172d6a`; `origin/main` resolves to
+  the same commit after the README, PLAN, and log publication updates.
+- Final required commands passed: `test -s SPEC.md`; `python -m pytest
+  tests -q` — `256 passed in 1.90s`; `python -m build --wheel --sdist` —
+  wheel and sdist built successfully; and `git diff --check`.
+- Build and test artifacts were removed. Final `git status --short
+  --untracked-files=all` was empty, and `git ls-files env.lock` produced no
+  output. The hosted Release remains non-draft with both uploaded assets.
