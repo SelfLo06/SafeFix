@@ -1085,3 +1085,30 @@
 - The generated build, distribution, egg-info, Python cache, and pytest cache
   artifacts were removed after verification. `env.lock` was not read,
   staged, or committed; `git ls-files env.lock` remains empty.
+
+## Hosted Release publication
+
+- Date: 2026-08-05. The user explicitly authorized publication to
+  `https://github.com/SelfLo06/SafeFix.git`. Pre-publish checks confirmed a
+  clean main worktree, non-empty SPEC, `256 passed`, clean diff, no tracked
+  `env.lock` path in current or reachable Git objects, and no private-key or
+  real credential content in tracked HEAD files. The only credential-shaped
+  matches were intentional test examples.
+- Added `origin` and pushed main. The implementation commit
+  `4fc3d6b` is available at `origin/main` before the documentation-only
+  follow-up commits `33457fe` and `0bf006d`.
+- Built `safefix-0.1.0-py3-none-any.whl` and
+  `safefix-0.1.0.tar.gz`. Published annotated tag `v0.1.0` and the hosted
+  Release: https://github.com/SelfLo06/SafeFix/releases/tag/v0.1.0.
+  Both assets report GitHub upload state `uploaded`:
+  https://github.com/SelfLo06/SafeFix/releases/download/v0.1.0/safefix-0.1.0-py3-none-any.whl
+  and
+  https://github.com/SelfLo06/SafeFix/releases/download/v0.1.0/safefix-0.1.0.tar.gz.
+- README now contains the real repository clone URL and direct hosted asset
+  links. The release was created from the verified implementation commit;
+  subsequent main-only documentation commits make the repository and release
+  links explicit without changing product code.
+- Post-publication verification: release is non-draft and non-prerelease,
+  main and `v0.1.0` resolve on origin, `256 passed`, and
+  `python -m build --wheel --sdist` succeeds. Generated build artifacts are
+  removed before the final clean-state check. No real LLM API was called.

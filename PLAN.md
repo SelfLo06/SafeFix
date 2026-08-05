@@ -703,7 +703,8 @@ prerequisite; after its dedicated commit, begin Task 1.
   error handling.
 - [x] Complete fresh specification-compliance review, code-quality review, and
   final integration verification on main. Repository evidence is recorded in
-  `AGENT_LOG.md`; hosted Release evidence remains an external A6 blocker.
+  `AGENT_LOG.md`; hosted Release evidence is now provided by the published
+  `v0.1.0` wheel/sdist Release and README links.
 
 This section is a traceability correction only; it does not redesign Tasks 1–16
 or reopen brainstorming.
