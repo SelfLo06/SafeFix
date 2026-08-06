@@ -2525,3 +2525,42 @@
 - Implementation commit: `f318299` (`fix: redact nested source key names`).
 - Fix report: `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/
   task-9-fix-round-3-report.md`.
+
+### v0.2 Task 10 — setup integration, freeze, and formal baseline
+
+- Scope: added `src/safefix/session_setup.py`, updated `src/safefix/runner.py`,
+  and added Task 10 setup/runner tests and the mixed fixture. The existing
+  `testrunner.py` manifest target/empty-run seam from Task 4 was already
+  sufficient, so it was not redundantly edited.
+- Skills: `using-superpowers`, `using-git-worktrees`,
+  `subagent-driven-development`, `test-driven-development`,
+  `receiving-code-review`, `requesting-code-review`, and
+  `verification-before-completion`. No callable subagent-dispatch capability
+  was exposed, so coordinator implementer/specification/code-quality passes
+  were recorded in the Task 10 report. `finishing-a-development-branch` is
+  deferred because this user-specified linked worktree is externally managed.
+- TDD red: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest
+  tests/unit/test_session_setup.py tests/unit/test_runner_init.py -q` — 5
+  failed as expected because `safefix.session_setup` was absent.
+- TDD green/refactor: focused Task 10 plus runner dispatch/evaluation — 37
+  passed. Related manifest/TestRunner/preparation tests — 52 passed.
+- Full verification: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m
+  pytest tests -q` — 525 passed; compileall passed; `git diff --check`
+  passed; deleted-file check was empty.
+- Specification-compliance review: PASS. Existing discovery precedes
+  preparation; generated-only with collectible existing tests is rejected;
+  existing/mixed entries are retained; formal manifest is non-empty, verified,
+  and frozen; formal baseline alone creates F0; empty valid baseline returns
+  SUCCESS with `repair_required=false`; post-freeze evaluation verifies and
+  runs the frozen manifest; no Test Model, Review/Repair baseline authority,
+  dynamic tests, or new SUCCESS authority was added.
+- Code-quality review: PASS. SessionSetup owns orchestration, SessionRunner
+  consumes typed setup output, catches are boundary-specific, manifest hashing
+  reuses the existing helper, and no speculative fallback/abstraction or
+  implementation-coupled assertions were added.
+- Immutable `v0.1.0^{}` remained
+  `4fc3d6bfd61ad6b4057de66abcf13605af3c2b9c`.
+- Implementer report:
+  `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/
+  task-10-implementer-report.md`.
+- Implementation commit: pending final commit.

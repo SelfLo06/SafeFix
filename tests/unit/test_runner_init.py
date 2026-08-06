@@ -234,3 +234,55 @@ def test_nonempty_f0_with_empty_writable_set_stops_config_error(tmp_path: Path) 
     assert result.stop_reason is StopReason.CONFIG_ERROR
     assert runner.state is not None
     assert runner.state.F0.ids == frozenset({"tests.app::test_value"})
+
+
+def test_runner_accepts_v02_setup_factory_and_freezes_formal_f0(tmp_path: Path) -> None:
+    from safefix.models import BaselineSource, Config
+    from safefix.session_setup import manifest_from_entries
+    from safefix.test_manifest import ManifestEntry
+    from safefix.testprep.service import PreparationResult, PreparationSummary
+    from safefix.runner import SessionRunner
+
+    _project(tmp_path)
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "test_existing.py").write_text(
+        "def test_existing():\n    assert False\n", encoding="utf-8"
+    )
+    baseline = _TestRunResult(
+        exit_code=1,
+        cases=(_TestCaseResult("tests.test_existing::test_existing", "tests.test_existing", "test_existing", "failed"),),
+        valid=True,
+    )
+    formal_calls = 0
+
+    class Runner:
+        def run(self):
+            nonlocal formal_calls
+            formal_calls += 1
+            return baseline
+
+        def collect_test_paths(self):
+            return ("tests/test_existing.py",)
+
+    def preparation_factory(request):
+        return PreparationResult(
+            (ManifestEntry("tests/test_existing.py", "0" * 64, BaselineSource.EXISTING),),
+            PreparationSummary(BaselineSource.EXISTING, existing_test_count=1),
+        )
+
+    runner = SessionRunner(
+        tmp_path,
+        credentials=FakeCredentials(),
+        test_runner_factory=lambda *_args: Runner(),
+        config_loader=lambda *_args, **_kwargs: Config(
+            base_url="https://example.invalid", model="test-model"
+        ),
+        preparation_factory=preparation_factory,
+        manifest_factory=manifest_from_entries,
+    )
+
+    assert runner.initialize() is None
+    assert formal_calls == 2
+    assert runner.state is not None
+    assert runner.state.F0.ids == frozenset({"tests.test_existing::test_existing"})
+    assert runner.state.repair_required is True

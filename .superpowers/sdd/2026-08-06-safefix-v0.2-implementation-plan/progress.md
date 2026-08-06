@@ -17,6 +17,7 @@
 - Task 6: complete (commits a35cbe8..ebcdd9a; three fix rounds addressed symlink/ownership, pristine runs, execution boundary, finite stability count, and evaluation-time lifecycle validation; final scoped re-review specification-compliance PASS and code-quality PASS)
 - Task 7: complete (commits ebcdd9a..9299768; one fix round addressed effective endpoint identity aliases and Review parser exception-chain redaction; scoped re-review specification-compliance PASS and code-quality PASS)
 - Task 8: complete (commits 9299768..39b1a03; four fix rounds addressed discovery retention, execution isolation, signatures, generation disablement, invalid paths, and dynamic-wrapper escapes; final scoped re-review specification-compliance PASS and code-quality PASS)
+- Task 9: complete (commits 39b1a03..9f37df4; three fix rounds addressed redaction, positional compatibility, typed metadata, confirmation immutability, scalar/key sanitization, and atomic artifacts; final scoped re-review specification-compliance PASS and code-quality PASS)
 - Task 1: complete — `6fea91a7068a8c53a7a97853473dedcd4e4cbf61`.
   Implementer report: `task-1-implementer-report.md`.
 - Task 2: complete — `6dd8781`; report:
@@ -115,3 +116,5 @@
   specification-compliance and code-quality reviews PASS. Report:
   `task-9-fix-round-1-report.md`.
 - Task 9: complete (commits `1e64748..eed23ad`, review clean).
+- Task 10: implementation and coordinator specification/code-quality reviews
+  complete; final commit/report hash closure pending.

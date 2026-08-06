@@ -30,6 +30,8 @@ from .parse import ActionParser, ParseError
 from .paths import compute_writable_py_files
 from .session_state import SessionState
 from .snapshot import SnapshotStore
+from .session_setup import SessionSetup, manifest_from_entries
+from .testprep.service import TestPreparationService
 from .testrunner import TestRunResult, TestRunner
 from .tools.dispatch import dispatch
 
@@ -61,6 +63,8 @@ class SessionRunner:
         event_sink: Callable[[str], None] | None = None,
         use_memory: bool = False,
         memory_store: ProjectMemoryStore | None = None,
+        preparation_factory: object | None = None,
+        manifest_factory: object | None = None,
     ) -> None:
         self.project_root = Path(project_root).resolve()
         self._cli_overrides = {} if cli_overrides is None else cli_overrides
@@ -74,15 +78,61 @@ class SessionRunner:
         self._use_memory = use_memory
         self._memory_store = memory_store or ProjectMemoryStore(self.project_root)
         self._context_builder = ContextBuilder(self._memory_store)
+        self._preparation_factory = preparation_factory
+        self._manifest_factory = manifest_factory
         self.config: Config | None = None
         self.writable_paths: set[Path] = set()
         self.state: SessionState | None = None
         self.snapshot_store: SnapshotStore | None = None
+        self.manifest = None
 
     def initialize(self) -> SessionResult | None:
         """Run INIT and return an early stop, or prepare later phases."""
         if not self.project_root.is_dir():
             return SessionResult(stop_reason=StopReason.CONFIG_ERROR)
+        if (
+            self._test_runner_factory is TestRunner
+            or self._preparation_factory is not None
+            or self._manifest_factory is not None
+        ):
+            return self._initialize_with_setup()
+        return self._initialize_legacy()
+
+    def _initialize_with_setup(self) -> SessionResult | None:
+        setup = SessionSetup(
+            self.project_root,
+            lambda root, _overrides, **kwargs: self._config_loader(
+                root, self._cli_overrides, **kwargs
+            ),
+            self._credentials,
+            self._test_runner_factory,
+            self._preparation_factory or TestPreparationService,
+            self._manifest_factory or manifest_from_entries,
+        )
+        result = setup.prepare()
+        self.config = result.config
+        self.writable_paths = set(result.writable_paths)
+        self.manifest = result.manifest
+        if result.baseline is not None and result.config is not None:
+            self.state = SessionState(
+                FailureSet(result.baseline.failure_ids),
+                acceptance_mode=result.config.acceptance_mode,
+                repair_required=bool(result.baseline.failure_ids),
+            )
+            if result.manifest is not None and result.preparation_summary is not None:
+                self.state.set_preparation(result.preparation_summary, result.manifest)
+        if result.early_stop is not None:
+            return result.early_stop
+        if self.state is None or self.config is None or self.manifest is None:
+            return SessionResult(stop_reason=StopReason.ERROR)
+        if not self.state.F0.ids:
+            return SessionResult(stop_reason=StopReason.SUCCESS)
+        if not self.writable_paths:
+            return SessionResult(stop_reason=StopReason.CONFIG_ERROR)
+        self.snapshot_store = SnapshotStore(self.project_root, self.writable_paths)
+        return None
+
+    def _initialize_legacy(self) -> SessionResult | None:
         try:
             self.config = self._config_loader(
                 self.project_root, self._cli_overrides, require_llm=True
@@ -185,9 +235,9 @@ class SessionRunner:
                     state.record_tool_event(action, Feedback("error", "patch execution failed"))
                     return self._finalize(StopReason.ERROR)
                 try:
-                    evaluation = self._test_runner_factory(
-                        self.project_root, self.config.pytest_args
-                    ).run()
+                    if self.manifest is not None:
+                        self.manifest.verify(self.project_root)
+                    evaluation = self._evaluation_runner().run()
                 except (OSError, ValueError):
                     state.record_tool_event(action, Feedback("error", "test run failed"))
                     return self._finalize(StopReason.ERROR)
@@ -262,6 +312,16 @@ class SessionRunner:
             "Return exactly one SafeFix ToolCall JSON object.\n"
             + json.dumps(context, sort_keys=True)
         )
+
+    def _evaluation_runner(self) -> BaselineRunner:
+        assert self.config is not None
+        if self.manifest is not None and self._test_runner_factory is TestRunner:
+            return TestRunner(
+                self.project_root,
+                self.config.pytest_args,
+                target_paths=tuple(entry.path for entry in self.manifest.entries),
+            )
+        return self._test_runner_factory(self.project_root, self.config.pytest_args)
 
     @staticmethod
     def _patch_fingerprint(action: ToolCall) -> str:
