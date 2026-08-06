@@ -2121,3 +2121,44 @@
   acceptance and review parsing`.
 - Fix report: `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/
   task-7-fix-round-1-report.md`.
+
+## v0.2 Task 8 — isolated Test Preparation orchestration
+
+- Implemented only `src/safefix/testprep/service.py`, the testprep exports,
+  the Task 8 service tests, and the required existing-tests fixture. The
+  service retains existing tests, stages and statically filters Test Model
+  candidates, classifies stability, applies review/standard/high-risk policy,
+  gates manual approval, requires explicit high-risk confirmation, promotes
+  only accepted candidates, emits safe preparation events, and closes the Test
+  Model after generated preparation. It never creates formal baseline/F0 or
+  invokes Repair Model; existing tests are never written or removed.
+- Finalized source rule: generated-only with `collected_count > 0` returns
+  `StopReason.CONFIG_ERROR` with no manifest; generated-only is allowed only
+  with no collected existing tests; mixed retains existing entries and adds
+  accepted generated entries.
+- TDD red commands: initial focused collection failed because the service
+  exports were absent; follow-up red regressions exposed malformed-response
+  accounting, close-failure mapping, missing real-discovery paths, and missing
+  event emission. Green focused/related command passed 62 tests.
+- Verification: full `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m
+  pytest tests -q` passed 442 tests; `compileall -q src`, `git diff --check`,
+  and immutable `v0.1.0` tag verification passed.
+- Specification-compliance review: PASS. Existing tests remain in the source
+  manifest, generated tests enter only after acceptance, modes and explicit
+  high-risk confirmation are enforced, and preparation has no baseline/F0 or
+  Repair Model authority.
+- Code-quality review: PASS. Orchestration delegates boundary validation and
+  classification, adds no dependencies or speculative fallback, and uses
+  broad catches only at the deliberate infrastructure-to-stop boundary.
+- Skills: `using-superpowers`, `brainstorming` (approved design already
+  supplied), `using-git-worktrees` (verified supplied linked worktree),
+  `subagent-driven-development`, `test-driven-development`,
+  `receiving-code-review`, `requesting-code-review`, and
+  `verification-before-completion`. No callable subagent-dispatch capability
+  was exposed, so implementer and separate review passes were coordinator
+  passes; this deviation is recorded. `finishing-a-development-branch` is
+  deferred because this is an externally managed in-progress worktree.
+- Implementation commit: pending final intentional commit with subject
+  `feat: add isolated test preparation service`.
+- Full report: `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/
+  task-8-implementer-report.md`.
