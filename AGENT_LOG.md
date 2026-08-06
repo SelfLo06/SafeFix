@@ -1187,3 +1187,41 @@
   preparation, setup, CLI, and mechanism tasks. No unresolved plan markers
   remain and the no-index whitespace check is clean.
 - Plan commit: `ae17133` (`docs: add SafeFix v0.2 implementation plan`).
+
+## v0.2 Task 1 — domain types and validated configuration
+
+- Date: 2026-08-06. Worktree: `.worktrees/safefix-v0.2` on branch
+  `safefix-v0.2`; the `v0.1.0` tag was preserved and not rewritten.
+- Scope: modified only `src/safefix/models.py`, `src/safefix/config.py`,
+  `tests/unit/test_models.py`, and `tests/unit/test_config.py` for the
+  implementation commit. Added the required Task 1 report separately.
+- Skills used: `using-superpowers`, `brainstorming` (the approved design and
+  plan supplied the completed design gate), `using-git-worktrees` (verified
+  the requested linked worktree), `subagent-driven-development`,
+  `test-driven-development`, `requesting-code-review`,
+  `receiving-code-review`, and `verification-before-completion`.
+- Deviation: no subagent-dispatch capability was available in this session;
+  the specification-compliance and code-quality reviews were therefore run as
+  separate coordinator review checklists against the committed diff. No
+  product-scope deviation was made.
+- TDD red: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest
+  tests/unit/test_models.py tests/unit/test_config.py -q` — expected
+  collection failure because the new v0.2 model symbols were absent.
+- TDD green: the same focused command — `54 passed`; related CLI command
+  `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest
+  tests/unit/test_models.py tests/unit/test_config.py tests/unit/test_cli.py
+  -q` — `59 passed`.
+- Regression: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest -q`
+  — `270 passed`; `git diff --check` — passed.
+- Specification-compliance review: PASS. Added the requested enums, stop
+  reasons and exit mappings, frozen role config/fingerprint, Config fields and
+  defaults, legacy Repair aliases, duplicate endpoint/model rejection, TOML
+  unknown-key rejection, CLI-over-TOML precedence, numeric validation, and
+  the existing pytest allowlist. Generated-only conflict detection remains at
+  test discovery because ConfigLoader cannot know collectible-test state.
+- Code-quality review: PASS. Validation is confined to the config boundary;
+  no credentials are read, no preparation orchestration was added, and no
+  broad exception handling, speculative fallback, duplicate downstream
+  validation, dead code, or unrelated scope expansion was found.
+- Commit: `6fea91a7068a8c53a7a97853473dedcd4e4cbf61` — `feat: add v0.2
+  domain and configuration types`.
