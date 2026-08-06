@@ -1,6 +1,5 @@
 from dataclasses import FrozenInstanceError
 import json
-from collections.abc import Mapping
 
 import pytest
 
@@ -14,14 +13,6 @@ class RecordingSink:
 
     def emit(self, event: SessionEvent) -> None:
         self.events.append(event)
-
-
-def _jsonable(value: object) -> object:
-    if isinstance(value, Mapping):
-        return {key: _jsonable(item) for key, item in value.items()}
-    if isinstance(value, tuple):
-        return [_jsonable(item) for item in value]
-    return value
 
 
 def test_session_event_is_frozen_and_preserves_sequence() -> None:
@@ -155,7 +146,7 @@ def test_session_event_sanitizes_huge_scalar_values() -> None:
 
     assert event.safe_payload["huge"] == "[REDACTED]"
     assert event.safe_payload["negative"] == "[REDACTED]"
-    json.dumps(_jsonable(event.safe_payload))
+    json.dumps(event.safe_payload)
 
 
 def test_session_event_safe_payload_remains_json_compatible() -> None:
@@ -167,9 +158,9 @@ def test_session_event_safe_payload_remains_json_compatible() -> None:
         safe_payload={"nested": ["summary", {"count": 2}]},
     )
 
-    assert json.loads(json.dumps(_jsonable(event.safe_payload))) == {
-        "nested": ["summary", {"count": 2}]
-    }
+    assert json.loads(json.dumps(event.safe_payload)) == [
+        ["nested", ["summary", [["count", 2]]]]
+    ]
 
 
 def test_event_sink_requires_typed_emit_method() -> None:

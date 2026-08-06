@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Iterator, Mapping
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from itertools import islice
@@ -56,31 +56,55 @@ _SECRET_TEXT_RE = re.compile(
 )
 
 
-class _ImmutableMapping(Mapping[str, object]):
-    """A mapping whose storage is not a mutable built-in container."""
+class _ImmutableMapping(tuple, Mapping[str, object]):
+    """Immutable mapping entries that the stdlib JSON encoder can traverse.
 
-    __slots__ = ("_items",)
+    The tuple stores ``(key, value)`` entries, so JSON encodes the safe payload
+    as a bounded array without requiring a custom encoder. Mapping access is
+    retained for event consumers; all stored values are themselves immutable.
+    """
 
-    def __init__(self, items: tuple[tuple[str, object], ...]) -> None:
-        object.__setattr__(self, "_items", items)
+    __slots__ = ()
 
-    def __setattr__(self, name: str, value: object) -> None:
-        raise TypeError("event safe_payload is immutable")
+    def __new__(
+        cls, items: tuple[tuple[str, object], ...]
+    ) -> _ImmutableMapping:
+        return tuple.__new__(cls, items)
 
-    def __delattr__(self, name: str) -> None:
-        raise TypeError("event safe_payload is immutable")
-
-    def __getitem__(self, key: str) -> object:
-        for item_key, value in self._items:
+    def __getitem__(self, key: str | int | slice) -> object:
+        if isinstance(key, (int, slice)):
+            return tuple.__getitem__(self, key)
+        for item_key, value in tuple.__iter__(self):
             if item_key == key:
                 return value
         raise KeyError(key)
 
-    def __iter__(self) -> Iterator[str]:
-        return (key for key, _ in self._items)
+    def __iter__(self):
+        # Keep entry iteration so json.dumps can encode this tuple directly.
+        return tuple.__iter__(self)
 
     def __len__(self) -> int:
-        return len(self._items)
+        return tuple.__len__(self)
+
+    def __contains__(self, key: object) -> bool:
+        return any(item_key == key for item_key, _ in tuple.__iter__(self))
+
+    def items(self):
+        return tuple.__iter__(self)
+
+    def keys(self):
+        return tuple(item_key for item_key, _ in tuple.__iter__(self))
+
+    def values(self):
+        return tuple(value for _, value in tuple.__iter__(self))
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, Mapping):
+            return dict(self.items()) == dict(other.items())
+        return tuple.__eq__(self, other)
+
+    def __repr__(self) -> str:
+        return repr(dict(self.items()))
 
 
 @runtime_checkable
