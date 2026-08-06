@@ -139,7 +139,7 @@ def _validate_role_pairs(values: dict) -> None:
         model = values.get(model_key, "")
         if not base_url.strip() or not model.strip():
             continue
-        pair = (base_url, model)
+        pair = (base_url.rstrip("/"), model)
         previous = configured.get(pair)
         if previous is not None:
             raise ConfigError(

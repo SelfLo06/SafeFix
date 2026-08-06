@@ -4,7 +4,7 @@ import json
 from typing import Any
 from urllib.request import Request, urlopen
 
-from ..credentials import CredentialsResolver
+from ..credentials import CredentialsResolver, role_service_name
 from ..models import ModelRoleConfig
 from .base import HTTPTransport, LLMClient, LLMResponseError
 from .openai_compatible import OpenAICompatibleClient
@@ -38,7 +38,7 @@ class ModelClientFactory:
 
     def create(self, role_config: ModelRoleConfig, keyring: Any) -> LLMClient:
         api_key = CredentialsResolver(
-            keyring, service_name=role_config.keyring_service
+            keyring, service_name=role_service_name(role_config.role)
         ).get()
         return OpenAICompatibleClient(
             base_url=role_config.base_url,

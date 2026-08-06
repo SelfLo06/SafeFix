@@ -95,3 +95,25 @@ def test_model_client_factory_reads_only_requested_role_credential():
 
     assert client.complete("prompt") == "ok"
     assert transport.requests[0][1]["Authorization"] == "Bearer test-key"
+
+
+def test_model_client_factory_uses_role_service_when_config_service_is_mismatched():
+    keyring = FakeKeyring()
+    keyring.set_password("safefix-test", "api_key", "test-key")
+    keyring.set_password("safefix-repair", "api_key", "repair-key")
+    transport = FakeTransport(
+        response={"choices": [{"message": {"content": "ok"}}]}
+    )
+
+    client = ModelClientFactory(transport=transport).create(
+        ModelRoleConfig(
+            role=ModelRole.TEST,
+            base_url="https://test.example/v1",
+            model="test-model",
+            keyring_service="safefix-repair",
+        ),
+        keyring,
+    )
+
+    assert client.complete("prompt") == "ok"
+    assert transport.requests[0][1]["Authorization"] == "Bearer test-key"
