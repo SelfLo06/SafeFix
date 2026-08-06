@@ -1165,3 +1165,4 @@
 - Self-review: marker scan passed; after removing one Markdown date-spacing
   artifact and one extra EOF blank line, the no-index whitespace check passed.
 - No production code, implementation plan, dependency, or v0.1 tag changed.
+- Decision-record commit: `d68c4df` (`docs: preserve v0.2 decision record`).
