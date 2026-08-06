@@ -98,9 +98,9 @@ def test_session_event_safe_payload_cannot_be_mutated_after_construction() -> No
         safe_payload={"summary": "safe"},
     )
 
-    with pytest.raises(TypeError):
-        event.safe_payload["raw_response"] = "sk-raw-secret-injected-later"  # type: ignore[index]
+    event.safe_payload["raw_response"] = "sk-raw-secret-injected-later"
 
+    assert "raw_response" not in event.safe_payload
     assert "sk-raw-secret-injected-later" not in repr(event)
 
 
@@ -113,10 +113,11 @@ def test_session_event_nested_safe_payload_cannot_be_mutated() -> None:
         safe_payload={"nested": {"items": [{"summary": "safe"}]}},
     )
 
-    with pytest.raises(TypeError):
-        event.safe_payload["nested"]["raw_response"] = "secret"  # type: ignore[index]
-    with pytest.raises(TypeError):
-        event.safe_payload["nested"]["items"][0]["raw_response"] = "secret"  # type: ignore[index]
+    event.safe_payload["nested"]["raw_response"] = "secret"
+    event.safe_payload["nested"]["items"][0]["raw_response"] = "secret"
+
+    assert "raw_response" not in event.safe_payload["nested"]
+    assert "raw_response" not in event.safe_payload["nested"]["items"][0]
 
 
 def test_session_event_safe_payload_rejects_dict_mutation_bypass() -> None:
@@ -128,10 +129,11 @@ def test_session_event_safe_payload_rejects_dict_mutation_bypass() -> None:
         safe_payload={"nested": {"summary": "safe"}},
     )
 
-    with pytest.raises(TypeError):
-        dict.__setitem__(event.safe_payload, "raw_response", "secret")  # type: ignore[arg-type]
-    with pytest.raises(TypeError):
-        dict.__setitem__(event.safe_payload["nested"], "raw_response", "secret")  # type: ignore[arg-type]
+    dict.__setitem__(event.safe_payload, "raw_response", "secret")
+    dict.__setitem__(event.safe_payload["nested"], "raw_response", "secret")
+
+    assert "raw_response" not in event.safe_payload
+    assert "raw_response" not in event.safe_payload["nested"]
     assert "secret" not in repr(event)
 
 
@@ -158,9 +160,42 @@ def test_session_event_safe_payload_remains_json_compatible() -> None:
         safe_payload={"nested": ["summary", {"count": 2}]},
     )
 
-    assert json.loads(json.dumps(event.safe_payload)) == [
-        ["nested", ["summary", [["count", 2]]]]
-    ]
+    assert json.loads(json.dumps(event.safe_payload)) == {
+        "nested": ["summary", {"count": 2}]
+    }
+
+
+def test_session_event_safe_payload_is_a_plain_dict_with_normal_key_iteration() -> None:
+    event = SessionEvent(
+        sequence=9,
+        timestamp="2026-08-06T12:00:00Z",
+        phase=Phase.READY,
+        kind="control",
+        safe_payload={"first": 1, "second": 2},
+    )
+
+    assert isinstance(event.safe_payload, dict)
+    assert list(event.safe_payload) == ["first", "second"]
+
+
+def test_session_event_safe_payload_mutations_are_isolated_from_event_snapshot() -> None:
+    event = SessionEvent(
+        sequence=10,
+        timestamp="2026-08-06T12:00:00Z",
+        phase=Phase.READY,
+        kind="control",
+        safe_payload={"nested": {"items": [{"summary": "safe"}]}},
+    )
+
+    returned_payload = event.safe_payload
+    returned_payload["new"] = "sk-injected-secret"
+    returned_payload["nested"]["items"][0]["summary"] = "changed"
+    returned_payload["nested"]["items"].append({"raw_response": "secret"})
+
+    assert event.safe_payload == {"nested": {"items": [{"summary": "safe"}]}}
+    assert "sk-injected-secret" not in repr(event)
+    assert "changed" not in repr(event)
+    assert "secret" not in repr(event)
 
 
 def test_event_sink_requires_typed_emit_method() -> None:

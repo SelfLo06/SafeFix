@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from itertools import islice
 from math import isfinite
@@ -57,11 +57,10 @@ _SECRET_TEXT_RE = re.compile(
 
 
 class _ImmutableMapping(tuple, Mapping[str, object]):
-    """Immutable mapping entries that the stdlib JSON encoder can traverse.
+    """Immutable mapping snapshot used behind the public payload property.
 
-    The tuple stores ``(key, value)`` entries, so JSON encodes the safe payload
-    as a bounded array without requiring a custom encoder. Mapping access is
-    retained for event consumers; all stored values are themselves immutable.
+    The tuple stores ``(key, value)`` entries. It is never exposed directly;
+    event consumers receive a fresh ordinary dictionary instead.
     """
 
     __slots__ = ()
@@ -139,23 +138,51 @@ class SessionEvent:
     timestamp: str
     phase: Phase
     kind: str
-    safe_payload: Mapping[str, object]
+    _safe_payload_snapshot: _ImmutableMapping = field(
+        init=False, repr=False, compare=False
+    )
 
-    def __post_init__(self) -> None:
-        if isinstance(self.sequence, bool) or not isinstance(self.sequence, int):
+    def __init__(
+        self,
+        sequence: int,
+        timestamp: str,
+        phase: Phase,
+        kind: str,
+        safe_payload: Mapping[str, object],
+    ) -> None:
+        if isinstance(sequence, bool) or not isinstance(sequence, int):
             raise TypeError("event sequence must be an integer")
-        if self.sequence < 0:
+        if sequence < 0:
             raise ValueError("event sequence must not be negative")
-        if not isinstance(self.phase, Phase):
+        if not isinstance(phase, Phase):
             raise TypeError("event phase must be a Phase")
-        if self.kind not in EVENT_KINDS:
-            raise ValueError(f"unsupported event kind: {self.kind}")
-        if not isinstance(self.safe_payload, Mapping):
+        if kind not in EVENT_KINDS:
+            raise ValueError(f"unsupported event kind: {kind}")
+        if not isinstance(safe_payload, Mapping):
             raise TypeError("event safe_payload must be a mapping")
         object.__setattr__(
             self,
-            "safe_payload",
-            _sanitize_mapping(self.safe_payload),
+            "sequence",
+            sequence,
+        )
+        object.__setattr__(self, "timestamp", timestamp)
+        object.__setattr__(self, "phase", phase)
+        object.__setattr__(self, "kind", kind)
+        object.__setattr__(self, "_safe_payload_snapshot", _sanitize_mapping(safe_payload))
+
+    @property
+    def safe_payload(self) -> dict[str, object]:
+        """Return a fresh JSON-compatible copy of the sanitized payload."""
+        return _materialize_mapping(self._safe_payload_snapshot)
+
+    def __repr__(self) -> str:
+        return (
+            "SessionEvent("
+            f"sequence={self.sequence!r}, "
+            f"timestamp={self.timestamp!r}, "
+            f"phase={self.phase!r}, "
+            f"kind={self.kind!r}, "
+            f"safe_payload={self.safe_payload!r})"
         )
 
 
@@ -185,6 +212,21 @@ def _sanitize_mapping(
         else:
             sanitized[safe_key] = _sanitize_value(value, depth + 1)
     return _ImmutableMapping(tuple(sanitized.items()))
+
+
+def _materialize_mapping(payload: _ImmutableMapping) -> dict[str, object]:
+    return {
+        key: _materialize_value(value)
+        for key, value in tuple.__iter__(payload)
+    }
+
+
+def _materialize_value(value: object) -> object:
+    if isinstance(value, _ImmutableMapping):
+        return _materialize_mapping(value)
+    if isinstance(value, tuple):
+        return [_materialize_value(item) for item in value]
+    return value
 
 
 def _sanitize_key(key: object) -> str:
