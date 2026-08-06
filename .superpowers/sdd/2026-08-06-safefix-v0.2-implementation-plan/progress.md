@@ -102,3 +102,10 @@
   workspace runner override; focused 87, related 173, and full 463 tests pass;
   specification-compliance PASS and code-quality PASS. Report:
   `task-8-fix-round-2-report.md`.
+- Task 8: fix round 3/5 complete in `2dabdd5`; static candidate syntax closure
+  now rejects OS/process/filesystem mutation and process-control APIs, pathlib
+  probes and aliases, absolute literals, and dynamic path bypasses before
+  stability; the default runner and no-override boundary remain unchanged;
+  focused 111, related 196, and full 487 tests pass; specification-compliance
+  PASS and code-quality PASS. Report:
+  `task-8-fix-round-3-report.md`.

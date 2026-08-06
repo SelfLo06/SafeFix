@@ -2257,3 +2257,52 @@
   candidate execution boundary`.
 - Fix report: `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/
   task-8-fix-round-2-report.md`.
+
+### v0.2 Task 8 — fix round 3/5
+
+- Date: 2026-08-06. Closed the residual HIGH protected-execution finding from
+  `task-8-re-review-round-2.md` at the static candidate trust boundary.
+  Deterministic AST rules now reject OS/process/filesystem API calls including
+  `os.fork`, `os.posix_spawn`, `os.mkdir`, `os.chmod`, and `os.truncate`,
+  canonical module/attribute aliases, pathlib filesystem/path probes and
+  aliases, absolute path literals, and dynamic absolute-path construction
+  forms before staging or stability. Existing mutation rules remain intact;
+  simple public behavior tests and required in-memory string/list operations
+  remain allowed.
+- The default Harness-owned snapshot runner and no-workspace-override rule
+  remain unchanged. The end-to-end regression uses the default runner with an
+  absolute original-root `os.truncate`, asserts no stability-run event and no
+  staged candidate, and verifies production and existing-test bytes are
+  unchanged. No dependency, baseline/F0, Repair Model, unrelated scope, or
+  v0.1.0 tag change was introduced.
+- Skills: `using-superpowers`, `systematic-debugging`,
+  `using-git-worktrees` (verified supplied linked worktree),
+  `subagent-driven-development`, `test-driven-development`,
+  `receiving-code-review`, `requesting-code-review`, and
+  `verification-before-completion`. No callable subagent-dispatch capability
+  is exposed, so fresh-implementer and separate specification/code-quality
+  review passes were coordinator passes; this workflow deviation is recorded.
+  `finishing-a-development-branch` remains deferred because the user-specified
+  linked worktree is externally managed.
+- TDD red: the initial focused service/rules command failed **16 tests** for
+  the uncovered OS/path/absolute-literal forms and absolute-root truncation;
+  subsequent alias-closure slices failed **4** and **3** tests before their
+  minimal fixes. Green focused service/rules command passed **111 tests**;
+  related Task 8/manifest/runner/JUnit command passed **196 tests**.
+- Specification-compliance review: PASS. The requested API families and
+  aliases are rejected before stability, no candidate execution occurs for
+  unsafe inputs, the no-override runner boundary is preserved, and simple
+  candidates/in-memory operations remain covered.
+- Code-quality review: PASS. Rule messages/codes are deterministic; checks
+  are local AST/path-boundary validation with no broad catches, fallback
+  execution, duplicated service validation, dead code, dependency, or scope
+  expansion.
+- Verification: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest
+  tests -q` — **487 passed**; `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src
+  python -m compileall -q src` — passed; `git diff --check` — passed; immutable
+  tag check passed with `v0.1.0^{}` equal to
+  `4fc3d6bfd61ad6b4057de66abcf13605af3c2b9c`.
+- Implementation commit: `2dabdd5a1081f5e22216e619a4b89254ae821302` —
+  `fix: close Task 8 static candidate boundary`.
+- Fix report: `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/
+  task-8-fix-round-3-report.md`.
