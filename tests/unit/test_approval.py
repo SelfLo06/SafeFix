@@ -33,3 +33,14 @@ def test_default_interactive_mode_follows_stdin_tty(monkeypatch):
     provider = ApprovalProvider(input_fn=lambda _: "yes")
 
     assert provider.approve(object()) is True
+
+
+def test_pending_approval_can_be_resolved_without_interactive_prompt():
+    provider = ApprovalProvider(interactive=False)
+
+    provider.request("patch")
+
+    assert provider.pending is True
+    assert provider.approve_pending() is True
+    assert provider.pending is False
+    assert provider.deny_pending() is False

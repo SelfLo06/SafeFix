@@ -24,6 +24,10 @@ class ContextBuilder:
             for failure_id in sorted(state.U_best.ids)[:MAX_CONTEXT_FAILURES]
         ]
         context: dict[str, object] = {
+            "baseline_failures": [
+                safe_summary(failure_id)
+                for failure_id in sorted(state.F0.ids)[:MAX_CONTEXT_FAILURES]
+            ],
             "current_failures": current_failures,
             "best_summary": {
                 "failure_count": len(state.U_best.ids),
@@ -46,6 +50,8 @@ class ContextBuilder:
                 safe_summary(summary) for summary in state.guidance_event_summaries
             ],
         }
+        if state.manifest_hash is not None:
+            context["frozen_manifest_hash"] = safe_summary(state.manifest_hash)
         if state.review_result is not None:
             review = state.review_result
             context["review_summary"] = {

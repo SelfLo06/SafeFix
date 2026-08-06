@@ -88,12 +88,14 @@ class OperatorCommandQueue:
         self,
         *,
         pending_approval: bool = False,
+        include_ignored_approval: bool = False,
     ) -> tuple[OperatorCommand, ...]:
         commands: list[OperatorCommand] = []
         while self._commands:
             command = self._commands.popleft()
             if command.kind in {"approve", "deny"} and not pending_approval:
-                continue
+                if not include_ignored_approval:
+                    continue
             commands.append(command)
         return tuple(commands)
 

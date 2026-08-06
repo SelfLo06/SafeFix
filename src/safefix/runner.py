@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import replace
+from datetime import datetime, timezone
 import hashlib
 import json
 from pathlib import Path
+import threading
 from typing import Protocol
 
 from .approval import ApprovalProvider
@@ -12,6 +14,7 @@ from .artifacts import ArtifactWriter
 from .config import ConfigError, load_config
 from .context import ContextBuilder
 from .credentials import CredentialError, CredentialsResolver
+from .events import EventSink, SessionEvent
 from .feedback import FeedbackEngine
 from .guardrail import Guardrail
 from .llm.base import LLMClient, LLMResponseError, LLMTransportError
@@ -20,6 +23,7 @@ from .models import (
     FailureSet,
     Feedback,
     GuardDecision,
+    Phase,
     SessionResult,
     StopReason,
     ToolCall,
@@ -27,6 +31,7 @@ from .models import (
 )
 from .memory import MemoryFormatError, ProjectMemoryStore
 from .parse import ActionParser, ParseError
+from .operator import OperatorCommandQueue
 from .paths import compute_writable_py_files
 from .session_state import SessionState
 from .snapshot import SnapshotStore
@@ -60,7 +65,8 @@ class SessionRunner:
         llm_client: LLMClient | None = None,
         guardrail: Guardrail | None = None,
         approval: ApprovalProvider | None = None,
-        event_sink: Callable[[str], None] | None = None,
+        event_sink: Callable[[str], None] | EventSink | None = None,
+        operator_queue: OperatorCommandQueue | None = None,
         use_memory: bool = False,
         memory_store: ProjectMemoryStore | None = None,
         preparation_factory: object | None = None,
@@ -75,6 +81,11 @@ class SessionRunner:
         self._guardrail = guardrail
         self._approval = approval or ApprovalProvider()
         self._event_sink = event_sink
+        self._operator_queue = operator_queue
+        self._pending_action: ToolCall | None = None
+        self._pending_resolution: bool | None = None
+        self._pending_event = threading.Event()
+        self._event_sequence = 1
         self._use_memory = use_memory
         self._memory_store = memory_store or ProjectMemoryStore(self.project_root)
         self._context_builder = ContextBuilder(self._memory_store)
@@ -195,25 +206,38 @@ class SessionRunner:
             if stop_reason is not None:
                 return self._finalize(stop_reason)
 
-            state.increment_step()
-            try:
-                response = self._complete()
-            except (LLMResponseError, LLMTransportError, MemoryFormatError):
-                return self._finalize(StopReason.ERROR)
-            try:
-                action = parser.parse(response)
-            except ParseError:
-                state.record_tool_event(
-                    ToolCall(tool=ToolName.FINISH, reason="parse error"),
-                    Feedback("parse_error", "invalid tool call"),
-                )
-                continue
-            try:
-                decision = guardrail.check(action)
-            except (OSError, ValueError):
-                state.record_tool_event(action, Feedback("error", "guardrail check failed"))
-                return self._finalize(StopReason.ERROR)
-            state.record_guard_event(action, decision)
+            if self._pending_action is not None:
+                action = self._pending_action
+                if self._pending_resolution is False:
+                    self._clear_pending_action()
+                    state.record_tool_event(
+                        action, Feedback("denied", "approval denied action")
+                    )
+                    continue
+                self._clear_pending_action()
+                decision = GuardDecision.ALLOW
+            else:
+                state.increment_step()
+                try:
+                    response = self._complete()
+                except (LLMResponseError, LLMTransportError, MemoryFormatError):
+                    return self._finalize(StopReason.ERROR)
+                try:
+                    action = parser.parse(response)
+                except ParseError:
+                    state.record_tool_event(
+                        ToolCall(tool=ToolName.FINISH, reason="parse error"),
+                        Feedback("parse_error", "invalid tool call"),
+                    )
+                    continue
+                try:
+                    decision = guardrail.check(action)
+                except (OSError, ValueError):
+                    state.record_tool_event(
+                        action, Feedback("error", "guardrail check failed")
+                    )
+                    return self._finalize(StopReason.ERROR)
+                state.record_guard_event(action, decision)
 
             if decision is GuardDecision.DENY:
                 self._emit(f"deny tool={action.tool.value}")
@@ -221,6 +245,18 @@ class SessionRunner:
                 continue
             if decision is GuardDecision.REQUIRE_APPROVAL:
                 self._emit(f"approval tool={action.tool.value} decision=requested")
+                if self._operator_queue is not None and self._pending_action is None:
+                    self._pending_action = action
+                    self._pending_resolution = None
+                    self._pending_event.clear()
+                    request = getattr(self._approval, "request", None)
+                    if callable(request):
+                        request(action)
+                    self._emit_control(
+                        "approval",
+                        {"status": "pending", "tool": action.tool.value},
+                    )
+                    continue
                 approved = self._approval.approve(action)
                 self._emit(
                     f"approval tool={action.tool.value} decision={'approved' if approved else 'denied'}"
@@ -353,7 +389,67 @@ class SessionRunner:
             return StopReason.MAX_ROUNDS
         if self.state.no_progress_rounds >= self.config.max_no_progress_rounds:
             return StopReason.NO_PROGRESS
+        stop_reason = self._consume_ready_commands(include_guidance=True)
+        if stop_reason is not None:
+            return stop_reason
+        while self._pending_action is not None and self._pending_resolution is None:
+            stop_reason = self._consume_ready_commands(include_guidance=False)
+            if stop_reason is not None:
+                return stop_reason
+            self._pending_event.wait(0.05)
         return None
+
+    def approve_pending(self) -> bool:
+        if self._pending_action is None:
+            return False
+        self._pending_resolution = True
+        self._pending_event.set()
+        resolve = getattr(self._approval, "approve_pending", None)
+        return True if not callable(resolve) else resolve()
+
+    def deny_pending(self) -> bool:
+        if self._pending_action is None:
+            return False
+        self._pending_resolution = False
+        self._pending_event.set()
+        resolve = getattr(self._approval, "deny_pending", None)
+        return True if not callable(resolve) else resolve()
+
+    def _consume_ready_commands(self, *, include_guidance: bool) -> StopReason | None:
+        if self._operator_queue is None:
+            return None
+        commands = self._operator_queue.drain_ready_commands(
+            pending_approval=self._pending_action is not None,
+            include_ignored_approval=True,
+        )
+        for command in commands:
+            if command.kind == "stop":
+                self._emit_control("stop", {"status": "accepted"})
+                return StopReason.OPERATOR_STOP
+            if command.kind == "approve":
+                if self._pending_action is None:
+                    self._emit_control("approve", {"status": "ignored"})
+                else:
+                    self._emit_control("approve", {"status": "accepted"})
+                    self.approve_pending()
+            elif command.kind == "deny":
+                if self._pending_action is None:
+                    self._emit_control("deny", {"status": "ignored"})
+                else:
+                    self._emit_control("deny", {"status": "accepted"})
+                    self.deny_pending()
+            elif command.kind in {"pause", "resume", "status"}:
+                self._emit_control(command.kind, {"status": "observed"})
+        if include_guidance:
+            for summary in self._operator_queue.drain_ready_guidance():
+                self.state.record_guidance(summary)  # type: ignore[union-attr]
+                self._emit_control("guidance", {"summary": summary})
+        return None
+
+    def _clear_pending_action(self) -> None:
+        self._pending_action = None
+        self._pending_resolution = None
+        self._pending_event.clear()
 
     def _complete(self) -> str:
         assert self._llm_client is not None
@@ -396,9 +492,32 @@ class SessionRunner:
         self.snapshot_store.restore()
         self.state.F = self.state.U_best
 
-    def _emit(self, event: str) -> None:
-        if self._event_sink is not None:
+    def _emit(self, event: str, *, payload: dict[str, object] | None = None) -> None:
+        if self._event_sink is None:
+            return
+        emit = getattr(self._event_sink, "emit", None)
+        if callable(emit):
+            emit(
+                SessionEvent(
+                    sequence=self._event_sequence,
+                    timestamp=datetime.now(timezone.utc).isoformat().replace(
+                        "+00:00", "Z"
+                    ),
+                    phase=Phase.READY,
+                    kind="control",
+                    safe_payload=payload or {"summary": event},
+                )
+            )
+            self._event_sequence += 1
+            return
+        if callable(self._event_sink):
             self._event_sink(event)
+
+    def _emit_control(self, command: str, payload: dict[str, object]) -> None:
+        self._emit(
+            f"control command={command} status={payload.get('status', '')}",
+            payload={"command": command, **payload},
+        )
 
 
 def _tool_result_summary(outcome: object) -> str:
