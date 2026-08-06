@@ -2076,3 +2076,48 @@
   `4fc3d6bfd61ad6b4057de66abcf13605af3c2b9c`.
 - Implementation commit: `5cd2870` — `feat: enforce generated-test
   acceptance modes`.
+
+### v0.2 Task 7 — fix round 1/5
+
+- Date: 2026-08-06. Applied only the two findings from
+  `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/task-7-review.md`:
+  high-risk Test/Review identity comparison now canonicalizes `base_url` with
+  the same trailing-slash removal used by ConfigLoader and
+  OpenAICompatibleClient; ReviewParser now raises bounded parse errors after
+  leaving JSON/validation exception scopes, so raw responses and secrets are
+  absent from `__cause__`, `__context__`, and public error text.
+- TDD red: added the effective-endpoint alias and malformed-secret regressions;
+  focused Task 7 command failed with exactly 2 expected assertion failures
+  (29 total tests, 27 passed), exposing automatic acceptance for aliases and a
+  retained `JSONDecodeError` cause.
+- TDD green: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest
+  tests/unit/test_review.py tests/unit/test_testprep_acceptance.py -q` — **29
+  passed**.
+- Specification-compliance review: PASS. The two review findings are
+  addressed without changing acceptance modes, authority, repair Guardrail or
+  HITL, parser bounds/messages, artifact behavior, dependencies, or scope.
+- Code-quality review: PASS. The changes are local and pure; no broad catches,
+  fallback behavior, duplicated boundary validation, dead code, or speculative
+  abstractions were added. The regression tests assert observable policy and
+  exception-chain behavior.
+- Related verification: the Task 7 plus models/config command passed with
+  **84 tests**; full `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m
+  pytest -q` passed with **428 tests** and the same pre-existing
+  `PytestCollectionWarning`.
+- Additional verification: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python
+  -m compileall -q src`, `git diff --check`, and immutable tag check passed;
+  `v0.1.0^{}` remains
+  `4fc3d6bfd61ad6b4057de66abcf13605af3c2b9c`.
+- Skill usage: `using-superpowers`, `using-git-worktrees` (verified the
+  supplied linked worktree), `subagent-driven-development`,
+  `test-driven-development`, `receiving-code-review`,
+  `requesting-code-review`, and `verification-before-completion`. No callable
+  subagent-dispatch capability is exposed, so the fresh-implementer and
+  separate specification/code-quality reviews were coordinator passes; this
+  is recorded as the workflow deviation. `finishing-a-development-branch`
+  remains deferred because the user-specified v0.2 worktree is externally
+  managed.
+- Fix commit: `3544bb59613b27472d5f367e50d406f86f1d527f` — `fix: harden Task 7
+  acceptance and review parsing`.
+- Fix report: `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/
+  task-7-fix-round-1-report.md`.
