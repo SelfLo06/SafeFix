@@ -129,6 +129,7 @@ def test_rule_reasons_are_deterministic_and_ordered(project):
         "import os\n\ndef test_write():\n    getattr(os, 'system')('touch src/app.py')\n",
         "import os\n\ndef test_write():\n    operation = getattr(os, 'system')\n    operation('touch src/app.py')\n",
         "import importlib\n\ndef test_write():\n    operating_system = importlib.import_module('os')\n    operating_system.system('touch src/app.py')\n",
+        "import importlib\n\ndef test_write():\n    importlib.import_module('shutil').copyfile('src/app.py', 'tests/test_existing.py')\n",
     ],
 )
 def test_rejects_aliased_and_indirect_filesystem_writes(project, source):

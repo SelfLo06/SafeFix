@@ -374,6 +374,12 @@ def _canonical_callable_name(
             return module_aliases[node.id]
         return callable_aliases.get(node.id, node.id)
     if isinstance(node, ast.Attribute):
+        if isinstance(node.value, ast.Call):
+            base_name = _canonical_callable_name(
+                node.value, module_aliases, callable_aliases
+            )
+            if base_name:
+                return f"{base_name}.{node.attr}"
         parts = _dotted_name_parts(node)
         if parts and parts[0] in module_aliases:
             parts = module_aliases[parts[0]].split(".") + parts[1:]
@@ -386,7 +392,14 @@ def _canonical_callable_name(
         )
         if dynamic_name:
             return dynamic_name
-        return _canonical_callable_name(node.func, module_aliases, callable_aliases)
+        callable_name = _canonical_callable_name(
+            node.func, module_aliases, callable_aliases
+        )
+        if callable_name in {"__import__", "import_module", "importlib.import_module"}:
+            if node.args and isinstance(node.args[0], ast.Constant):
+                if isinstance(node.args[0].value, str):
+                    return node.args[0].value
+        return callable_name
     return ""
 
 
