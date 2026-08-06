@@ -2440,3 +2440,52 @@
   (`fix: close Task 9 metadata safety boundary`).
 - Fix report: `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/
   task-9-fix-round-1-report.md`.
+
+### v0.2 Task 9 — fix round 2/5
+
+- Date: 2026-08-06. Scope is limited to the remaining Task 9 sanitizer and
+  high-risk confirmation findings plus the Task 9 report whitespace evidence.
+  No dependency, runner/TUI, v0.1 artifact-key, atomic-write, or v0.1.0 tag
+  changes were introduced.
+- Skills used: `using-superpowers`, `using-git-worktrees`,
+  `subagent-driven-development`, `test-driven-development`,
+  `receiving-code-review`, `requesting-code-review`, and
+  `verification-before-completion`. No callable subagent-dispatch capability
+  was exposed, so implementer and separate specification/code-quality review
+  passes were coordinator passes; this workflow deviation is recorded.
+  `finishing-a-development-branch` remains deferred because this linked
+  worktree is user-specified and externally managed.
+- TDD red: the new adversarial slice initially failed **3 tests** for
+  confirmation deletion and unkeyed/scalar sanitizer bypasses. The focused
+  `last_feedback` boundary test then failed **1 test** before state-side
+  Feedback sanitization. A related/full regression also exposed one benign
+  multiline read summary compatibility failure before newline normalization.
+- TDD green: focused Task 9 plus read-tool compatibility command passed
+  **43 tests**; related command passed **174 tests**; full
+  `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests -q` passed
+  **518 tests**.
+- Security fixes: one shared conservative recursive sanitizer now covers
+  unmarked token/secret/API/bearer/password strings, source-like
+  `def`/`class`/`import`/`print` values, traceback/exception/raw-response
+  text, nested sensitive mappings, Feedback/outcomes, patch fingerprints,
+  manifest hashes, guidance, Review fields, context projections, artifacts,
+  and unkeyed event values. Safe booleans/counts and safe role fingerprints
+  remain available. High-risk confirmation is recursively immutable in its
+  backing storage; normal deletion/reassignment and second-set attempts are
+  rejected while getters return fresh copies.
+- Specification-compliance review: PASS. The scoped re-review findings for
+  scalar context/artifact bypasses, unkeyed event values, exact adversarial
+  strings, confirmation reset/deletion, v0.1 positional construction, v0.1
+  artifact keys, and atomic writes are covered and addressed.
+- Code-quality review: PASS. Sanitization is centralized at the shared event
+  boundary and reused by state/context/artifact projections; no broad catches,
+  speculative fallback, duplicated metadata defaults, dead code, dependency,
+  or unrelated scope expansion were found.
+- Verification: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m compileall
+  -q src` passed; `git diff --check 6a640f3` passed; no deleted files were
+  introduced; immutable `v0.1.0^{}` remains
+  `4fc3d6bfd61ad6b4057de66abcf13605af3c2b9c`.
+- Implementation commit: `0a08d44` (`fix: close Task 9 sanitizer and
+  confirmation boundary`).
+- Fix report: `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/
+  task-9-fix-round-2-report.md`.
