@@ -2022,3 +2022,53 @@
   `fix: revalidate candidate workspace ownership at evaluation`.
 - Fix report: `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/
   task-6-fix-round-3-report.md`.
+
+## v0.2 Task 7 — Review Model verdicts and candidate acceptance policy
+
+- Date: 2026-08-06. Implemented only bounded structured Review parsing and the
+  pure generated-candidate acceptance policy in `src/safefix/review.py` and
+  `src/safefix/testprep/acceptance.py`, with focused contract tests. Review
+  parsing rejects duplicate/unknown/missing fields, invalid types, non-finite
+  JSON, and oversized responses, then returns typed PASS/WARN/
+  REVIEW_REQUIRED/NOT_CONFIGURED results. `ReviewModelClient` composes the
+  role-scoped completion client without adding credentials or model calls to
+  policy code.
+- The policy rejects ERROR/FLAKY before Review approval; review mode requires
+  manual approval; standard and high-risk stable PASS are automatic; standard
+  stable FAIL is manual; high-risk stable FAIL is automatic only with PASS
+  Review approval, supported non-invented basis, low risk, simple/local
+  behavior, no existing-test surface, distinct Test/Review identities, and an
+  available cap. Every failed high-risk gate returns an explicit manual
+  downgrade reason. Static candidate validation and existing-test write
+  exclusion remain upstream preconditions; no policy branch writes files,
+  runs pytest, mutates baseline/F0, calls a model, changes Repair Guardrail or
+  HITL, or declares SUCCESS.
+- Scope: only the two Task 7 modules, their tests, this log, and the requested
+  implementer report. No dependencies, orchestration, v0.1.0 tag changes, or
+  unrelated files were added.
+- Skills: `using-superpowers`, `using-git-worktrees` (verified the supplied
+  linked worktree), `subagent-driven-development`,
+  `test-driven-development`, `receiving-code-review`,
+  `requesting-code-review`, and `verification-before-completion`. No callable
+  subagent-dispatch capability is exposed, so the fresh-implementer work and
+  separate specification-compliance/code-quality reviews were performed as
+  coordinator passes and this deviation is recorded. `finishing-a-development-branch`
+  remains deferred because this is a user-specified in-progress worktree.
+- TDD red: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest
+  tests/unit/test_review.py tests/unit/test_testprep_acceptance.py -q` —
+  collection failed with missing `safefix.review`.
+- TDD green: the focused command passed with **27 tests**; the related Task 7
+  plus model/config command passed with **82 tests**; full regression passed
+  with **426 tests** and one pre-existing collection warning. `compileall -q
+  src` and `git diff --check` passed.
+- Specification-compliance review: PASS. The implementation matches the
+  approved verdicts and acceptance matrix, rejects ERROR/FLAKY before model
+  approval, enforces independent identities and the cap, and downgrades every
+  ineligible high-risk FAIL to manual approval without granting SUCCESS
+  authority.
+- Code-quality review: PASS. The implementation is small and deterministic,
+  has no broad exception handling, speculative fallback, duplicate boundary
+  validation, dead code, dependency, or scope expansion; tests assert public
+  behavior and policy purity.
+- Immutable `v0.1.0` tag check remains required at final verification. Commit
+  hash is recorded after the intentional Task 7 commit.
