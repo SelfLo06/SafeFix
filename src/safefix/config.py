@@ -10,6 +10,9 @@ class ConfigError(ValueError):
     """Raised when project or CLI configuration is invalid."""
 
 
+MAX_STABILITY_RUNS = 10
+
+
 _FIELDS = {
     "max_steps",
     "max_rounds",
@@ -99,6 +102,10 @@ def _validate_values(values: dict) -> None:
         if key in _INTEGER_FIELDS:
             if isinstance(value, bool) or not isinstance(value, int) or value < 1:
                 raise ConfigError(f"{key} must be a positive integer")
+            if key == "stability_runs" and value > MAX_STABILITY_RUNS:
+                raise ConfigError(
+                    f"stability_runs must be at most {MAX_STABILITY_RUNS}"
+                )
         elif key in _LIST_FIELDS:
             if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
                 raise ConfigError(f"{key} must be a list of strings")

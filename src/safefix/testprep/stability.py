@@ -2,10 +2,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import shutil
+import tempfile
 from typing import Callable
 
+from ..config import MAX_STABILITY_RUNS
 from ..models import CandidateStatus
 from ..testrunner import TestRunResult
+from .workspace import _assert_no_symlink_components
 
 
 @dataclass(frozen=True)
@@ -37,18 +41,24 @@ class StabilityRunner:
         self,
         run_candidate: Callable[[Path], TestRunResult],
         stability_runs: int,
+        candidate_root: str | Path,
     ) -> None:
         if isinstance(stability_runs, bool) or not isinstance(stability_runs, int):
             raise ValueError("stability_runs must be a positive integer")
-        if stability_runs < 1:
-            raise ValueError("stability_runs must be a positive integer")
+        if not 1 <= stability_runs <= MAX_STABILITY_RUNS:
+            raise ValueError(
+                f"stability_runs must be between 1 and {MAX_STABILITY_RUNS}"
+            )
         self._run_candidate = run_candidate
         self.stability_runs = stability_runs
+        self._candidate_root = Path(candidate_root).absolute()
+        self._validate_candidate_root()
 
     def evaluate(self, candidate: str | Path) -> CandidateEvaluation:
-        candidate_path = Path(candidate)
+        candidate_path = self._validate_candidate(candidate)
+        original_contents = candidate_path.read_bytes()
         runs = tuple(
-            self._run(candidate_path, run_index)
+            self._run_isolated(candidate_path, original_contents, run_index)
             for run_index in range(self.stability_runs)
         )
         results = tuple(run.result for run in runs)
@@ -89,9 +99,20 @@ class StabilityRunner:
             reason="valid stability runs disagree in outcome or failure identity",
         )
 
-    def _run(self, candidate: Path, run_index: int) -> CandidateRun:
+    def _run_isolated(
+        self, candidate: Path, original_contents: bytes, run_index: int
+    ) -> CandidateRun:
+        if candidate.is_symlink():
+            raise ValueError("candidate path contains a symlink")
+        if candidate.read_bytes() != original_contents:
+            candidate.write_bytes(original_contents)
+        run_root = Path(
+            tempfile.mkdtemp(prefix=f".stability-{run_index}-", dir=self._candidate_root)
+        )
+        run_candidate = run_root / candidate.name
+        run_candidate.write_bytes(original_contents)
         try:
-            result = self._run_candidate(candidate)
+            result = self._run_candidate(run_candidate)
         except Exception as exc:
             result = TestRunResult(
                 exit_code=3,
@@ -99,7 +120,31 @@ class StabilityRunner:
                 stderr=f"{type(exc).__name__}: {exc}",
                 valid=False,
             )
+        finally:
+            shutil.rmtree(run_root)
         return CandidateRun(candidate.stem, run_index, result)
+
+    def _validate_candidate_root(self) -> None:
+        if not self._candidate_root.is_dir():
+            raise ValueError("candidate root must be an existing session directory")
+        _assert_no_symlink_components(self._candidate_root, "candidate root")
+        marker = self._candidate_root / ".session-owner"
+        if marker.is_symlink() or not marker.is_file():
+            raise ValueError("candidate root is not session-owned")
+
+    def _validate_candidate(self, candidate: str | Path) -> Path:
+        candidate_path = Path(candidate)
+        if not candidate_path.is_absolute():
+            candidate_path = self._candidate_root / candidate_path
+        _assert_no_symlink_components(candidate_path, "candidate")
+        try:
+            resolved = candidate_path.resolve()
+            resolved.relative_to(self._candidate_root.resolve())
+        except ValueError as exc:
+            raise ValueError("candidate path escapes the session-owned candidate root") from exc
+        if not candidate_path.is_file():
+            raise ValueError("candidate path must be an existing file")
+        return candidate_path
 
 
 def _is_valid(result: TestRunResult) -> bool:
