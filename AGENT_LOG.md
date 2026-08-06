@@ -1225,3 +1225,6 @@
   validation, dead code, or unrelated scope expansion was found.
 - Commit: `6fea91a7068a8c53a7a97853473dedcd4e4cbf61` — `feat: add v0.2
   domain and configuration types`.
+- Finishing workflow: final verification completed; the requested isolated
+  branch/worktree is preserved for external integration, with no merge, push,
+  or cleanup performed.
