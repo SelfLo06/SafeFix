@@ -33,7 +33,7 @@ from .memory import MemoryFormatError, ProjectMemoryStore
 from .parse import ActionParser, ParseError
 from .operator import OperatorCommandQueue
 from .paths import compute_writable_py_files
-from .session_state import SessionState
+from .session_state import SessionState, safe_summary
 from .snapshot import SnapshotStore
 from .session_setup import SessionSetup, manifest_from_entries, runner_for
 from .testprep.service import TestPreparationService
@@ -49,6 +49,7 @@ class BaselineRunner(Protocol):
 TestRunnerFactory = Callable[[Path, list[str]], BaselineRunner]
 TRANSPORT_ATTEMPTS = 3
 MAX_TOOL_RESULT_CHARS = 4000
+MAX_STATUS_FAILURES = 20
 
 
 class SessionRunner:
@@ -85,6 +86,7 @@ class SessionRunner:
         self._pending_action: ToolCall | None = None
         self._pending_resolution: bool | None = None
         self._pending_event = threading.Event()
+        self._phase = Phase.READY
         self._event_sequence = 1
         self._use_memory = use_memory
         self._memory_store = memory_store or ProjectMemoryStore(self.project_root)
@@ -101,6 +103,17 @@ class SessionRunner:
         self.state: SessionState | None = None
         self.snapshot_store: SnapshotStore | None = None
         self.manifest = None
+
+    @property
+    def phase(self) -> Phase:
+        return self._phase
+
+    @property
+    def pending_approval(self) -> bool:
+        return (
+            self._pending_action is not None
+            and self._pending_resolution is None
+        )
 
     def initialize(self) -> SessionResult | None:
         """Run INIT and return an early stop, or prepare later phases."""
@@ -383,6 +396,10 @@ class SessionRunner:
     def _ready_stop_reason(self) -> StopReason | None:
         assert self.config is not None
         assert self.state is not None
+
+        if self._phase is Phase.PAUSED:
+            return self._wait_while_paused()
+
         if self.state.steps >= self.config.max_steps:
             return StopReason.MAX_STEPS
         if self.state.rounds >= self.config.max_rounds:
@@ -392,15 +409,31 @@ class SessionRunner:
         stop_reason = self._consume_ready_commands(include_guidance=True)
         if stop_reason is not None:
             return stop_reason
+        if self._phase is Phase.PAUSED:
+            return self._wait_while_paused()
         while self._pending_action is not None and self._pending_resolution is None:
             stop_reason = self._consume_ready_commands(include_guidance=False)
             if stop_reason is not None:
                 return stop_reason
+            if self._phase is Phase.PAUSED:
+                return self._wait_while_paused()
             self._pending_event.wait(0.05)
         return None
 
+    def _wait_while_paused(self) -> StopReason | None:
+        self._pending_event.clear()
+        while self._phase is Phase.PAUSED:
+            stop_reason = self._consume_ready_commands(include_guidance=False)
+            if stop_reason is not None:
+                return stop_reason
+            if self._phase is not Phase.PAUSED:
+                break
+            self._pending_event.wait(0.05)
+            self._pending_event.clear()
+        return None
+
     def approve_pending(self) -> bool:
-        if self._pending_action is None:
+        if not self.pending_approval:
             return False
         self._pending_resolution = True
         self._pending_event.set()
@@ -408,7 +441,7 @@ class SessionRunner:
         return True if not callable(resolve) else resolve()
 
     def deny_pending(self) -> bool:
-        if self._pending_action is None:
+        if not self.pending_approval:
             return False
         self._pending_resolution = False
         self._pending_event.set()
@@ -419,7 +452,7 @@ class SessionRunner:
         if self._operator_queue is None:
             return None
         commands = self._operator_queue.drain_ready_commands(
-            pending_approval=self._pending_action is not None,
+            pending_approval=self.pending_approval,
             include_ignored_approval=True,
         )
         for command in commands:
@@ -427,24 +460,69 @@ class SessionRunner:
                 self._emit_control("stop", {"status": "accepted"})
                 return StopReason.OPERATOR_STOP
             if command.kind == "approve":
-                if self._pending_action is None:
+                if not self.pending_approval:
                     self._emit_control("approve", {"status": "ignored"})
                 else:
                     self._emit_control("approve", {"status": "accepted"})
                     self.approve_pending()
             elif command.kind == "deny":
-                if self._pending_action is None:
+                if not self.pending_approval:
                     self._emit_control("deny", {"status": "ignored"})
                 else:
                     self._emit_control("deny", {"status": "accepted"})
                     self.deny_pending()
-            elif command.kind in {"pause", "resume", "status"}:
-                self._emit_control(command.kind, {"status": "observed"})
+            elif command.kind == "pause":
+                if self._phase is Phase.PAUSED:
+                    self._emit_control("pause", {"status": "ignored"})
+                else:
+                    self._phase = Phase.PAUSED
+                    self._pending_event.set()
+                    self._emit_control("pause", {"status": "accepted"})
+            elif command.kind == "resume":
+                if self._phase is not Phase.PAUSED:
+                    self._emit_control("resume", {"status": "ignored"})
+                else:
+                    self._phase = Phase.READY
+                    self._pending_event.set()
+                    self._emit_control("resume", {"status": "accepted"})
+            elif command.kind == "status":
+                self._emit_control("status", self._status_payload())
         if include_guidance:
             for summary in self._operator_queue.drain_ready_guidance():
                 self.state.record_guidance(summary)  # type: ignore[union-attr]
                 self._emit_control("guidance", {"summary": summary})
         return None
+
+    def _status_payload(self) -> dict[str, object]:
+        assert self.state is not None
+        current_failures = sorted(self.state.F.ids)
+        best_failures = sorted(self.state.U_best.ids)
+        pending_tool = None
+        if self.pending_approval:
+            assert self._pending_action is not None
+            pending_tool = self._pending_action.tool.value
+        return {
+            "status": "snapshot",
+            "phase": self._phase.value,
+            "step": self.state.steps,
+            "round": self.state.rounds,
+            "no_progress": self.state.no_progress_rounds,
+            "unresolved_failures": [
+                safe_summary(failure_id)
+                for failure_id in current_failures[:MAX_STATUS_FAILURES]
+            ],
+            "best_checkpoint": {
+                "unresolved_count": len(self.state.U_best.ids),
+                "failure_ids": [
+                    safe_summary(failure_id)
+                    for failure_id in best_failures[:MAX_STATUS_FAILURES]
+                ],
+            },
+            "pending_approval": {
+                "pending": self.pending_approval,
+                "tool": pending_tool,
+            },
+        }
 
     def _clear_pending_action(self) -> None:
         self._pending_action = None
@@ -461,6 +539,7 @@ class SessionRunner:
                     raise
 
     def _finalize(self, stop_reason: StopReason) -> SessionResult:
+        self._phase = Phase.STOP
         final_reason = stop_reason
         if self.snapshot_store is not None:
             try:
@@ -503,7 +582,7 @@ class SessionRunner:
                     timestamp=datetime.now(timezone.utc).isoformat().replace(
                         "+00:00", "Z"
                     ),
-                    phase=Phase.READY,
+                    phase=self._phase,
                     kind="control",
                     safe_payload=payload or {"summary": event},
                 )
