@@ -1436,3 +1436,42 @@
 - Implementation commit: `be2cb39a9590c13d43725a8e5ef44dcdb68b407c` —
   `fix: secure typed event payloads`; full report:
   `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/task-3-fix-round-1-report.md`.
+
+## v0.2 Task 3 — fix round 2
+
+- Date: 2026-08-06. Scope: address only the remaining HIGH/load-bearing
+  `safe_payload` issue from the scoped re-review. The callable adapter,
+  operator command semantics, runner authority, dependencies, and immutable
+  `v0.1.0` tag were preserved.
+- Skills: `using-superpowers`, `using-git-worktrees` (verified the supplied
+  linked worktree), `subagent-driven-development`, `receiving-code-review`,
+  `test-driven-development`, `requesting-code-review`, and
+  `verification-before-completion`. No subagent-dispatch capability is
+  exposed in this session; specification-compliance and code-quality reviews
+  were completed as separate documented checklist passes. The finishing
+  workflow remains deferred because the approved v0.2 branch is still in
+  progress and this worktree is preserved for external integration.
+- TDD red: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest
+  -p no:cacheprovider tests/unit/test_events.py -q` — `2 failed, 8 passed`;
+  failures were the base-class dict mutation bypass and huge integer retention.
+- TDD green/related: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m
+  pytest -p no:cacheprovider tests/unit/test_events.py
+  tests/unit/test_operator.py tests/unit/test_session_state.py
+  tests/unit/test_runner_dispatch.py -q` — `29 passed`.
+- Full verification: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m
+  pytest -p no:cacheprovider tests -q` — `296 passed`; compileall passed;
+  `git diff --check` passed. Direct runtime probing rejected top-level and
+  nested `dict.__setitem__` mutation and sanitized huge integers.
+- Implementation: replaced the false `_FrozenDict(dict)` with a tuple-backed
+  immutable Mapping, recursively immutable tuple sequences/mappings, and
+  bounded scalar numeric sanitization. Updated regression tests for nested
+  mutation, dict bypass, and huge scalars. No product-scope deviation.
+- Specification-compliance review: PASS. The public payload cannot be altered
+  by ordinary or base-class dict mutation, sanitized values remain bounded,
+  and the existing adapter/operator/authority behavior is unchanged.
+- Code-quality review: PASS. No unnecessary abstraction, duplicated boundary
+  validation, broad exception handling, speculative fallback, dead code, or
+  scope expansion was introduced.
+- Implementation commit: `8071beb` — `fix: harden typed event payload
+  immutability`; report:
+  `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/task-3-fix-round-2-report.md`.
