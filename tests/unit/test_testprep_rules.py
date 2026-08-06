@@ -350,6 +350,48 @@ def test_rejects_dynamic_execution_and_process_boundaries(project, source):
     assert "unsafe_execution" in codes(make_candidate(source), project)
 
 
+@pytest.mark.parametrize(
+    "source",
+    [
+        "import os\n\ndef test_import():\n    assert True\n",
+        "import pathlib as paths\n\ndef test_import():\n    assert True\n",
+        "from subprocess import run as launch\n\ndef test_import():\n    assert True\n",
+        "import shutil as file_ops\n\ndef test_import():\n    assert True\n",
+        "import multiprocessing as workers\n\ndef test_import():\n    assert True\n",
+        "import socket as network\n\ndef test_import():\n    assert True\n",
+        "import importlib as loader\n\ndef test_import():\n    assert True\n",
+        "from builtins import open as fopen\n\ndef test_import():\n    assert True\n",
+        "import io as streams\n\ndef test_import():\n    assert True\n",
+    ],
+)
+def test_rejects_dangerous_imports_before_any_call_site(project, source):
+    assert "unsafe_execution" in codes(make_candidate(source), project)
+
+
+def test_rejects_dangerous_callable_returned_by_helper(project):
+    source = (
+        "import os\n\n"
+        "def get_operation():\n"
+        "    return os.truncate\n\n"
+        "def test_dynamic_wrapper():\n"
+        "    get_operation()('src/app.py', 0)\n"
+    )
+
+    assert "unsafe_execution" in codes(make_candidate(source), project)
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "import operator\n\ndef test_dynamic_attribute():\n    operator.attrgetter('truncate')(object())\n",
+        "from operator import methodcaller\n\ndef test_dynamic_method():\n    methodcaller('read_text')(object())\n",
+        "import inspect\n\ndef test_dynamic_lookup():\n    inspect.getattr_static(object(), 'truncate')\n",
+    ],
+)
+def test_rejects_dynamic_callable_resolution(project, source):
+    assert "unsafe_execution" in codes(make_candidate(source), project)
+
+
 def test_rejects_absolute_path_access_before_candidate_execution(project):
     absolute_path = str(project / "src" / "app.py")
     source = (

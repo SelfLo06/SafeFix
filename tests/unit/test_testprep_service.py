@@ -406,7 +406,9 @@ def test_workspace_runner_override_is_not_used_at_service_boundary(tmp_path: Pat
     assert result.summary.generated_pass_accepted == 1
 
 
-def test_absolute_original_root_truncate_is_rejected_before_stability(tmp_path: Path) -> None:
+def test_dynamic_wrapper_absolute_original_root_is_rejected_before_stability(
+    tmp_path: Path,
+) -> None:
     request, client, workspace, _ = _request(
         tmp_path,
         source=BaselineSource.GENERATED,
@@ -417,9 +419,15 @@ def test_absolute_original_root_truncate_is_rejected_before_stability(tmp_path: 
     original_app = app.read_bytes()
     original_test = existing_test.read_bytes()
     source = (
-        "import os\n\n"
-        "def test_absolute_original_root_truncate():\n"
-        f"    os.truncate({str(app)!r}, 0)\n"
+        "import os\n"
+        "\n"
+        "def get_operation():\n"
+        "    return os.truncate\n"
+        "\n"
+        "def test_dynamic_wrapper():\n"
+        "    sep = chr(47)\n"
+        "    original = sep.join((os.environ[\"SAFEFIX_ORIGINAL_ROOT\"], \"src\", \"app.py\"))\n"
+        "    get_operation()(original, 0)\n"
         "    assert True\n"
     )
     response = json.dumps(

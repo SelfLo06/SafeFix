@@ -165,6 +165,9 @@ _UNSAFE_EXECUTION_CALLS = {
     "globals",
     "locals",
     "vars",
+    "inspect.getattr_static",
+    "operator.attrgetter",
+    "operator.methodcaller",
 }
 _UNSAFE_PROCESS_PREFIXES = (
     "importlib.",
@@ -182,6 +185,29 @@ _UNSAFE_FILESYSTEM_PREFIXES = (
     "shutil.",
     "tempfile.",
 )
+_UNSAFE_IMPORT_ROOTS = {
+    "builtins",
+    "codecs",
+    "ctypes",
+    "fcntl",
+    "glob",
+    "importlib",
+    "io",
+    "mmap",
+    "multiprocessing",
+    "msvcrt",
+    "os",
+    "pathlib",
+    "pty",
+    "resource",
+    "shutil",
+    "signal",
+    "socket",
+    "subprocess",
+    "sys",
+    "tempfile",
+    "winreg",
+}
 _UNSAFE_API_MESSAGE = "candidate must not use OS, process, or filesystem APIs"
 _UNSAFE_PATH_MESSAGE = "candidate must not use absolute or dynamic filesystem paths"
 
@@ -237,9 +263,15 @@ def validate_candidate(
         add("excessive_mocking", "candidate uses more than two mock operations")
     if _has_absolute_path_literal(tree):
         add("unsafe_execution", _UNSAFE_PATH_MESSAGE)
+    has_source_write = _has_source_write(tree)
+    if (
+        _has_unsafe_import(tree)
+        and not has_source_write
+        and not _has_nondeterministic_call(tree)
+    ):
+        add("unsafe_execution", _UNSAFE_API_MESSAGE)
     for module in _undeclared_imports(tree, root):
         add("undeclared_import", f"candidate imports undeclared dependency: {module}")
-    has_source_write = _has_source_write(tree)
     if has_source_write:
         add("non_test_source_edit", "candidate must not write production or existing test files")
     elif _has_unsafe_file_path(tree):
@@ -323,6 +355,10 @@ def _import_roots(tree: ast.AST) -> set[str]:
 def _has_nondeterminism(tree: ast.AST) -> bool:
     if _import_roots(tree) & _NONDETERMINISTIC_IMPORTS:
         return True
+    return _has_nondeterministic_call(tree)
+
+
+def _has_nondeterministic_call(tree: ast.AST) -> bool:
     module_aliases, callable_aliases = _import_bindings(tree)
     module_aliases = _with_assigned_module_aliases(
         tree, module_aliases, callable_aliases
@@ -344,6 +380,21 @@ def _has_nondeterminism(tree: ast.AST) -> bool:
                 if root in _NONDETERMINISTIC_IMPORTS:
                     return True
     return False
+
+
+def _has_unsafe_import(tree: ast.AST) -> bool:
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            if any(_unsafe_import_name(alias.name) for alias in node.names):
+                return True
+        elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
+            if _unsafe_import_name(node.module):
+                return True
+    return False
+
+
+def _unsafe_import_name(name: str) -> bool:
+    return name.split(".", 1)[0] in _UNSAFE_IMPORT_ROOTS
 
 
 def _has_performance_threshold(tree: ast.AST) -> bool:
@@ -505,6 +556,8 @@ def _has_unsafe_execution(tree: ast.AST) -> bool:
         tree, module_aliases, callable_aliases, path_names
     )
     string_names = _string_variable_names(tree)
+    if _has_unsafe_callable_reference(tree, module_aliases, callable_aliases):
+        return True
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
@@ -526,15 +579,7 @@ def _has_unsafe_execution(tree: ast.AST) -> bool:
             return True
         if callable_name in {"os.urandom", "os.getrandom"}:
             continue
-        if any(
-            callable_name == prefix[:-1] or callable_name.startswith(prefix)
-            for prefix in _UNSAFE_PROCESS_PREFIXES
-        ):
-            return True
-        if any(
-            callable_name == prefix or callable_name.startswith(prefix)
-            for prefix in _UNSAFE_FILESYSTEM_PREFIXES
-        ):
+        if _is_unsafe_callable_name(callable_name):
             return True
         if callable_name in {"getattr", "builtins.getattr"}:
             member = _getattr_member(node)
@@ -546,6 +591,46 @@ def _has_unsafe_execution(tree: ast.AST) -> bool:
                 continue
             return True
     return False
+
+
+def _has_unsafe_callable_reference(
+    tree: ast.AST,
+    module_aliases: dict[str, str],
+    callable_aliases: dict[str, str],
+) -> bool:
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Attribute):
+            value = node
+        elif isinstance(node, ast.Return) and isinstance(
+            node.value, (ast.Attribute, ast.Name)
+        ):
+            value = node.value
+        elif isinstance(node, ast.Name) and node.id in callable_aliases:
+            value = node
+        else:
+            continue
+        callable_name = _canonical_callable_name(
+            value, module_aliases, callable_aliases
+        )
+        if callable_name in _NONDETERMINISTIC_CALLS:
+            continue
+        if _is_unsafe_callable_name(callable_name):
+            return True
+    return False
+
+
+def _is_unsafe_callable_name(callable_name: str) -> bool:
+    if callable_name in _UNSAFE_EXECUTION_CALLS:
+        return True
+    if any(
+        callable_name == prefix[:-1] or callable_name.startswith(prefix)
+        for prefix in _UNSAFE_PROCESS_PREFIXES
+    ):
+        return True
+    return any(
+        callable_name == prefix or callable_name.startswith(prefix)
+        for prefix in _UNSAFE_FILESYSTEM_PREFIXES
+    )
 
 
 def _has_absolute_path_literal(tree: ast.AST) -> bool:
