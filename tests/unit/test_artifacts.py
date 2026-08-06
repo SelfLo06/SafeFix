@@ -2,16 +2,21 @@ import json
 
 from safefix.artifacts import ArtifactWriter
 from safefix.models import (
+    BaselineSource,
     Change,
     FailureSet,
     Feedback,
     GuardDecision,
     SessionResult,
+    ReviewVerdict,
     StopReason,
     ToolCall,
     ToolName,
 )
+from safefix.review import ReviewResult
 from safefix.session_state import SessionState
+from safefix.test_manifest import FrozenTestManifest, ManifestEntry
+from safefix.testprep import PreparationSummary
 
 
 def failures(*ids: str) -> FailureSet:
@@ -115,3 +120,67 @@ def test_artifact_preserves_last_evaluation_after_best_restore(tmp_path):
     artifact = json.loads((tmp_path / "artifact.json").read_text())
     assert artifact["failure_sets"]["current"] == ["baseline", "new-failure"]
     assert artifact["new_failures"] == ["new-failure"]
+
+
+def test_v2_artifact_contains_preparation_metadata_without_raw_values(tmp_path):
+    state = SessionState(
+        failures("case-a"),
+        test_model_identity="test:https://test.example:test-model",
+        repair_model_identity="repair:https://repair.example:repair-model",
+        review_model_identity="review:https://review.example:review-model",
+    )
+    state.set_preparation(
+        PreparationSummary(
+            baseline_source=BaselineSource.MIXED,
+            existing_test_count=3,
+            generated_candidate_count=2,
+            generated_accepted_count=1,
+            generated_pass_accepted=1,
+            generated_fail_accepted_manual=0,
+            generated_fail_accepted_automatic=0,
+            rejected_count=1,
+            error_count=0,
+            flaky_count=0,
+        ),
+        FrozenTestManifest(
+            session_id="session-1",
+            baseline_source=BaselineSource.MIXED,
+            entries=(ManifestEntry("tests/test_app.py", "hash", BaselineSource.EXISTING),),
+            stability_runs=3,
+            manifest_hash="manifest-hash",
+        ),
+    )
+    state.record_guidance("Authorization: Bearer artifact-secret")
+    state.set_high_risk_confirmation(
+        {"confirmed": True, "source": "tui", "api_key": "artifact-secret"}
+    )
+    state.set_review(
+        ReviewResult(
+            verdict=ReviewVerdict.PASS,
+            basis_supported=True,
+            invented_behavior=False,
+            implementation_coupling=False,
+            risk="low",
+            summary="full source response Authorization: Bearer artifact-secret",
+        )
+    )
+
+    ArtifactWriter(tmp_path / "session.json").write(
+        state, SessionResult(stop_reason=StopReason.SUCCESS)
+    )
+    payload = json.loads((tmp_path / "session.json").read_text())
+    rendered = json.dumps(payload)
+
+    assert payload["baseline_source"] == "mixed"
+    assert payload["existing_test_count"] == 3
+    assert payload["generated_candidate_count"] == 2
+    assert payload["generated_pass_accepted"] == 1
+    assert payload["baseline_manifest_hash"] == "manifest-hash"
+    assert payload["stability_runs"] == 3
+    assert payload["test_model_identity"] == "test:https://test.example:test-model"
+    assert payload["review_verdict"] == "pass"
+    assert payload["guidance_event_summaries"] == ["[REDACTED] [REDACTED]"]
+    assert "Authorization" not in rendered
+    assert payload["high_risk_confirmation"]["api_key"] == "[REDACTED]"
+    assert "artifact-secret" not in rendered
+    assert "full source response" not in rendered

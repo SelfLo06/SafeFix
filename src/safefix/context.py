@@ -1,7 +1,7 @@
 """Bounded, source-free repair context."""
 
 from .memory import ProjectMemoryStore
-from .session_state import SessionState
+from .session_state import SessionState, safe_summary
 
 
 MAX_CONTEXT_FAILURES = 20
@@ -14,7 +14,7 @@ class ContextBuilder:
         self._memory_store = memory_store
 
     def build(self, state: SessionState, *, use_memory: bool = False) -> dict[str, object]:
-        current_failures = sorted(state.F.ids)[:MAX_CONTEXT_FAILURES]
+        current_failures = sorted(state.F.ids & state.F0.ids)[:MAX_CONTEXT_FAILURES]
         best_failures = sorted(state.U_best.ids)[:MAX_CONTEXT_FAILURES]
         context: dict[str, object] = {
             "current_failures": current_failures,
@@ -26,8 +26,11 @@ class ContextBuilder:
                 {
                     "tool": call.tool.value,
                     "outcome": feedback.outcome,
-                    "summary": feedback.summary,
-                    "labels": feedback.labels,
+                    "summary": safe_summary(feedback.summary),
+                    "labels": {
+                        safe_summary(key): safe_summary(value)
+                        for key, value in feedback.labels.items()
+                    },
                 }
                 for call, feedback in state.recent_tool_events
             ],
@@ -35,7 +38,15 @@ class ContextBuilder:
                 {"tool": call.tool.value, "decision": decision.value}
                 for call, decision in state.recent_guard_events
             ],
+            "guidance_event_summaries": list(state.guidance_event_summaries),
         }
+        if state.review_result is not None:
+            review = state.review_result
+            context["review_summary"] = {
+                "verdict": getattr(review.verdict, "value", review.verdict),
+                "risk": safe_summary(review.risk),
+                "summary": safe_summary(review.summary),
+            }
         if use_memory:
             context["project_memory"] = list(self._memory_store.load(use_memory=True))
             context["project_memory_fingerprints"] = list(

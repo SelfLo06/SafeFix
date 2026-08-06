@@ -2358,3 +2358,50 @@
   boundary`.
 - Fix report: `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/
   task-8-fix-round-4-report.md`.
+### v0.2 Task 9 — session state, context, and artifact metadata
+
+- Date: 2026-08-06. Scope is limited to the Task 9 contract: immutable
+  preparation metadata, manifest/source/stability fields, role fingerprints,
+  bounded guidance and event state, high-risk confirmation records, Review
+  metadata, and atomic redacted v0.2 artifact fields. Existing v0.1 artifact
+  keys remain present. No runner, setup, final gate, TUI, dependency, or
+  v0.1.0 tag change was introduced.
+- Skills: `using-superpowers`, `using-git-worktrees` (verified the requested
+  linked worktree), `subagent-driven-development`,
+  `test-driven-development`, `receiving-code-review`,
+  `requesting-code-review`, and `verification-before-completion`.
+  No callable subagent-dispatch capability was exposed, so implementer and
+  separate specification/code-quality review passes were coordinator passes;
+  this workflow deviation is recorded. `finishing-a-development-branch` is
+  deferred because this user-specified worktree is externally managed.
+- TDD red: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest
+  tests/unit/test_session_state.py tests/unit/test_context.py
+  tests/unit/test_artifacts.py -q` — **4 failed, 12 passed**, with the new
+  state/context/artifact API absent. The nested confirmation mutation test
+  later failed once (**1 failed**) before the defensive-copy fix.
+- TDD green/refactor: focused command passed **17 tests**; related models,
+  config, Review, preparation-service, and runner command passed **119
+  tests**; full `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest
+  tests -q` passed **505 tests**.
+- Implementation details: `SessionState` now records capped sanitized events
+  and guidance, freezes preparation summary/manifest metadata and Review
+  result at their session boundaries, keeps F0 immutable, and exposes safe
+  identity/confirmation projections. `ContextBuilder` uses only frozen
+  failure IDs plus bounded legacy feedback, guidance, and role-safe Review
+  summaries. `ArtifactWriter` adds the required v0.2 counters, manifest,
+  identities, acceptance mode, stability, Review, guidance, confirmation,
+  repair-required, stop, and exit metadata while retaining atomic replacement
+  and excluding patch bodies, model responses, source content, and secrets.
+- Specification-compliance review: PASS. Required fields and methods are
+  represented, F0 and preparation metadata are immutable, v0.1 artifact keys
+  remain compatible, redaction covers credential/response/source markers, and
+  scope is limited to Task 9.
+- Code-quality review: PASS. Sanitization is centralized for new summaries,
+  nested confirmation state is defensively copied, validation occurs at the
+  typed session boundary, no broad exception handling/fallback/extension
+  framework was added, and tests assert observable contracts.
+- Verification: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m compileall
+  -q src` passed; `git diff --check` passed; peeled immutable `v0.1.0`
+  verification passed with commit
+  `4fc3d6bfd61ad6b4057de66abcf13605af3c2b9c`.
+- Implementation commit: recorded after commit creation.

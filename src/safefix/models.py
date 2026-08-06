@@ -34,6 +34,15 @@ class ReviewVerdict(str, Enum):
     NOT_CONFIGURED = "not_configured"
 
 
+@dataclass(frozen=True)
+class HighRiskConfirmation:
+    """Safe operator record for an explicit high-risk opt-in."""
+
+    confirmed: bool
+    source: str = "operator"
+    summary: str = ""
+
+
 class Phase(str, Enum):
     PROJECT_INTAKE = "project_intake"
     EXISTING_TEST_DISCOVERY = "existing_test_discovery"

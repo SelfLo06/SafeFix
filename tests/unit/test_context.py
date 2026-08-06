@@ -1,6 +1,16 @@
 from safefix.context import ContextBuilder
+from safefix.events import SessionEvent
 from safefix.memory import MAX_MEMORY_ENTRIES, ProjectMemoryStore
-from safefix.models import Feedback, FailureSet, GuardDecision, ToolCall, ToolName
+from safefix.models import (
+    Feedback,
+    FailureSet,
+    GuardDecision,
+    Phase,
+    ReviewVerdict,
+    ToolCall,
+    ToolName,
+)
+from safefix.review import ReviewResult
 from safefix.session_state import SessionState
 
 
@@ -54,3 +64,39 @@ def test_context_contains_failure_and_tool_feedback(tmp_path):
     assert context["recent_guard_feedback"] == [
         {"tool": "read_file", "decision": "deny"}
     ]
+
+
+def test_context_contains_bounded_guidance_and_safe_review_summary(tmp_path):
+    state = SessionState(failures("case-a"))
+    state.record_guidance("Authorization: Bearer context-secret " + "x" * 600)
+    state.record_event(
+        SessionEvent(
+            sequence=1,
+            timestamp="2026-08-06T00:00:00Z",
+            phase=Phase.READY,
+            kind="review",
+            safe_payload={"summary": "complete source response"},
+        )
+    )
+    state.set_review(
+        ReviewResult(
+            verdict=ReviewVerdict.WARN,
+            basis_supported=True,
+            invented_behavior=False,
+            implementation_coupling=False,
+            risk="medium",
+            summary="Authorization: Bearer review-secret",
+        )
+    )
+
+    context = ContextBuilder(
+        ProjectMemoryStore(tmp_path / "project", data_dir=tmp_path / "data")
+    ).build(state)
+    rendered = str(context)
+
+    assert len(context["guidance_event_summaries"][0]) <= 512
+    assert "review_summary" in context
+    assert context["review_summary"]["verdict"] == "warn"
+    assert "context-secret" not in rendered
+    assert "review-secret" not in rendered
+    assert "complete source response" not in rendered

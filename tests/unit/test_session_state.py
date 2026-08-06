@@ -1,7 +1,20 @@
 import pytest
 
-from safefix.models import Feedback, FailureSet, GuardDecision, ToolCall, ToolName
+from safefix.events import SessionEvent
+from safefix.models import (
+    BaselineSource,
+    Feedback,
+    FailureSet,
+    GuardDecision,
+    Phase,
+    ReviewVerdict,
+    ToolCall,
+    ToolName,
+)
+from safefix.review import ReviewResult
 from safefix.session_state import RECENT_EVENT_LIMIT, SessionState
+from safefix.test_manifest import FrozenTestManifest, ManifestEntry
+from safefix.testprep import PreparationSummary
 
 
 def failures(*ids: str) -> FailureSet:
@@ -92,3 +105,85 @@ def test_session_state_updates_best_checkpoint():
     assert state.F == failures("case-a")
     assert state.U_best == failures("case-a")
     assert state.patch_fingerprints == frozenset({"first-patch"})
+
+
+def test_preparation_metadata_is_frozen_without_replacing_f0():
+    state = SessionState(
+        failures("case-a"),
+        test_model_identity="test:https://test.example:test-model",
+        repair_model_identity="repair:https://repair.example:repair-model",
+        review_model_identity="review:https://review.example:review-model",
+    )
+    summary = PreparationSummary(
+        baseline_source=BaselineSource.MIXED,
+        existing_test_count=4,
+        generated_candidate_count=2,
+        generated_accepted_count=1,
+        generated_pass_accepted=1,
+        rejected_count=1,
+    )
+    manifest = FrozenTestManifest(
+        session_id="session-1",
+        baseline_source=BaselineSource.MIXED,
+        entries=(ManifestEntry("tests/test_app.py", "hash", BaselineSource.EXISTING),),
+        stability_runs=3,
+        manifest_hash="manifest-hash",
+    )
+
+    state.set_preparation(summary, manifest)
+
+    assert state.preparation_summary is summary
+    assert state.baseline_source is BaselineSource.MIXED
+    assert state.manifest_hash == "manifest-hash"
+    assert state.stability_runs == 3
+    with pytest.raises(AttributeError, match="preparation"):
+        state.set_preparation(summary, manifest)
+    with pytest.raises(AttributeError, match="F0"):
+        state.F0 = failures("replacement")
+
+
+def test_session_state_records_bounded_safe_events_guidance_and_review():
+    state = SessionState(failures("case-a"))
+    event = SessionEvent(
+        sequence=1,
+        timestamp="2026-08-06T00:00:00Z",
+        phase=Phase.READY,
+        kind="guidance",
+        safe_payload={"summary": "Authorization: Bearer secret-token"},
+    )
+    for _ in range(RECENT_EVENT_LIMIT + 1):
+        state.record_event(event)
+    state.record_guidance("Authorization: Bearer secret-token " + "x" * 600)
+    review = ReviewResult(
+        verdict=ReviewVerdict.PASS,
+        basis_supported=True,
+        invented_behavior=False,
+        implementation_coupling=False,
+        risk="low",
+        summary="Authorization: Bearer review-secret",
+    )
+    state.set_review(review)
+    state.set_high_risk_confirmation(
+        {"confirmed": True, "source": "tui", "api_key": "secret-token"}
+    )
+
+    assert len(state.recent_events) == RECENT_EVENT_LIMIT
+    assert "secret-token" not in state.guidance_event_summaries[0]
+    assert state.review_result is review
+    assert state.high_risk_confirmation["confirmed"] is True
+    assert state.high_risk_confirmation["api_key"] == "[REDACTED]"
+
+
+def test_high_risk_confirmation_is_not_mutable_through_nested_values():
+    state = SessionState(failures("case-a"))
+    state.set_high_risk_confirmation(
+        {"confirmed": True, "details": {"operator": "human"}}
+    )
+
+    exposed = state.high_risk_confirmation
+    exposed["details"]["operator"] = "changed"
+
+    assert state.high_risk_confirmation == {
+        "confirmed": True,
+        "details": {"operator": "human"},
+    }

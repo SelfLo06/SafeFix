@@ -7,7 +7,7 @@ from pathlib import Path
 import tempfile
 
 from .models import SessionResult
-from .session_state import SessionState
+from .session_state import SessionState, safe_summary
 
 
 class ArtifactWriter:
@@ -41,6 +41,8 @@ class ArtifactWriter:
     @staticmethod
     def _payload(state: SessionState, result: SessionResult) -> dict[str, object]:
         current = state.last_evaluated or state.F
+        preparation = state.preparation_summary
+        review = state.review_result
         return {
             "counters": {
                 "steps": state.steps,
@@ -73,4 +75,71 @@ class ArtifactWriter:
             "patch_fingerprints": sorted(state.patch_fingerprints),
             "stop_reason": result.stop_reason.value,
             "exit_code": result.exit_code,
+            "baseline_source": _enum_value(state.baseline_source),
+            "existing_test_count": _preparation_value(
+                preparation, "existing_test_count", 0
+            ),
+            "generated_candidate_count": _preparation_value(
+                preparation, "generated_candidate_count", 0
+            ),
+            "generated_accepted_count": _preparation_value(
+                preparation, "generated_accepted_count", 0
+            ),
+            "generated_pass_accepted": _preparation_value(
+                preparation, "generated_pass_accepted", 0
+            ),
+            "generated_fail_accepted_manual": _preparation_value(
+                preparation, "generated_fail_accepted_manual", 0
+            ),
+            "generated_fail_accepted_automatic": _preparation_value(
+                preparation, "generated_fail_accepted_automatic", 0
+            ),
+            "rejected_count": _preparation_value(preparation, "rejected_count", 0),
+            "error_count": _preparation_value(preparation, "error_count", 0),
+            "flaky_count": _preparation_value(preparation, "flaky_count", 0),
+            "acceptance_mode": _enum_value(state.acceptance_mode),
+            "stability_runs": state.stability_runs,
+            "test_model_identity": _safe_identity(state.test_model_identity),
+            "repair_model_identity": _safe_identity(state.repair_model_identity),
+            "review_model_identity": _safe_identity(state.review_model_identity),
+            "review_verdict": _enum_value(review.verdict) if review else None,
+            "review_summary": safe_summary(review.summary) if review else None,
+            "review": _review_payload(review),
+            "guidance_event_summaries": list(state.guidance_event_summaries),
+            "high_risk_confirmation": state.high_risk_confirmation,
+            "baseline_manifest_hash": state.manifest_hash,
+            "repair_required": (
+                state.repair_required
+                if state.repair_required is not None
+                else bool(state.F0.ids)
+            ),
         }
+
+
+def _preparation_value(preparation: object | None, name: str, default: object) -> object:
+    return getattr(preparation, name, default) if preparation is not None else default
+
+
+def _enum_value(value: object | None) -> str | None:
+    if value is None:
+        return None
+    return getattr(value, "value", value)
+
+
+def _safe_identity(value: object) -> str | None:
+    if value is None:
+        return None
+    return safe_summary(value)
+
+
+def _review_payload(review: object | None) -> dict[str, object] | None:
+    if review is None:
+        return None
+    return {
+        "verdict": _enum_value(review.verdict),
+        "basis_supported": review.basis_supported,
+        "invented_behavior": review.invented_behavior,
+        "implementation_coupling": review.implementation_coupling,
+        "risk": safe_summary(review.risk),
+        "summary": safe_summary(review.summary),
+    }
