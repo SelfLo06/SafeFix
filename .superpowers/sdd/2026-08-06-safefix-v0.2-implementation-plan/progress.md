@@ -16,6 +16,7 @@
 - Task 5: complete (commits 3d2fed7..a35cbe8; three fix rounds addressed write APIs/aliases, deep JSON errors, forbidden-rule aliases, and false positives; final scoped re-review specification-compliance PASS and code-quality PASS)
 - Task 6: complete (commits a35cbe8..ebcdd9a; three fix rounds addressed symlink/ownership, pristine runs, execution boundary, finite stability count, and evaluation-time lifecycle validation; final scoped re-review specification-compliance PASS and code-quality PASS)
 - Task 7: complete (commits ebcdd9a..9299768; one fix round addressed effective endpoint identity aliases and Review parser exception-chain redaction; scoped re-review specification-compliance PASS and code-quality PASS)
+- Task 8: complete (commits 9299768..39b1a03; four fix rounds addressed discovery retention, execution isolation, signatures, generation disablement, invalid paths, and dynamic-wrapper escapes; final scoped re-review specification-compliance PASS and code-quality PASS)
 - Task 1: complete — `6fea91a7068a8c53a7a97853473dedcd4e4cbf61`.
   Implementer report: `task-1-implementer-report.md`.
 - Task 2: complete — `6dd8781`; report:
@@ -109,3 +110,8 @@
   focused 111, related 196, and full 487 tests pass; specification-compliance
   PASS and code-quality PASS. Report:
   `task-8-fix-round-3-report.md`.
+- Task 9: fix round 1/5 complete in `eed23ad`; all four blocking review
+  findings addressed; focused 51, related 162, and full 513 tests pass;
+  specification-compliance and code-quality reviews PASS. Report:
+  `task-9-fix-round-1-report.md`.
+- Task 9: complete (commits `1e64748..eed23ad`, review clean).

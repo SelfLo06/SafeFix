@@ -2405,3 +2405,38 @@
   verification passed with commit
   `4fc3d6bfd61ad6b4057de66abcf13605af3c2b9c`.
 - Implementation commit: `1e64748` (`feat: record v0.2 session preparation metadata`).
+
+### v0.2 Task 9 — fix round 1/5
+
+- Date: 2026-08-06. Addressed all four blocking findings from
+  `task-9-review.md` without runner/TUI integration, dependency, artifact-key,
+  atomic-write, or v0.1.0 tag scope changes.
+- Skills used: `using-superpowers`, `brainstorming` against the approved design,
+  `using-git-worktrees`, `subagent-driven-development`,
+  `test-driven-development`, `receiving-code-review`,
+  `requesting-code-review`, and `verification-before-completion`.
+  No callable subagent-dispatch capability was exposed, so implementer and
+  separate specification/code-quality reviews were coordinator passes.
+  `finishing-a-development-branch` remains deferred because this linked
+  worktree is user-specified and externally managed.
+- TDD red: the adversarial focused slice initially reported **6 failed, 30
+  passed** after collection issues were corrected. Green focused slice passed
+  **51 tests**; related passed **162 tests**; full suite passed **513 tests**.
+- Security fixes: conservative shared summary sanitization rejects multiline
+  and code-like material, secret markers, query/userinfo forms, and URLs;
+  model identities retain only role/provider-origin/model; event timestamps,
+  nested sensitive keys/values, high-risk mappings, ReviewResult storage,
+  context memory, artifact projections, and SessionState repr are bounded or
+  redacted. Review results are copied before storage.
+- Compatibility/typing fixes: `SessionState(F0, steps, rounds,
+  no_progress_rounds)` remains positional-compatible; metadata is setter-only,
+  typed, immutable after set, and malformed state raises
+  `SessionStateBoundaryError`; artifact preparation fields no longer invent
+  zero defaults for malformed state.
+- Verification: compileall passed; `git diff --check` passed; no dependency
+  files changed; `v0.1.0^{}` remains
+  `4fc3d6bfd61ad6b4057de66abcf13605af3c2b9c`.
+- Implementation commit: `eed23ad91e46611c93525a06fba0558d1490e618`
+  (`fix: close Task 9 metadata safety boundary`).
+- Fix report: `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/
+  task-9-fix-round-1-report.md`.
