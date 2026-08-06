@@ -2608,3 +2608,42 @@
   audit`.
 - Closure documentation commit: `0ee2d5e` — `docs: close Task 10 review fix
   audit`.
+
+### v0.2 Task 11 — repair-loop operator boundary
+
+- Date: 2026-08-06. Scope covered READY-boundary operator guidance, safe
+  operator stop, pending approval resolution, typed event delivery with the
+  callable adapter preserved, and frozen-manifest repair-loop evidence. The
+  Repair Model context now exposes only bounded frozen baseline/manifest
+  summaries; Guardrail, manifest verification, F0 ownership, full evaluation,
+  strict-subset rollback, and Harness-owned SUCCESS remain authoritative.
+- Skills used: `using-superpowers`, `using-git-worktrees`,
+  `subagent-driven-development`, `test-driven-development`,
+  `requesting-code-review`, `receiving-code-review`, and
+  `verification-before-completion`. The supplied linked worktree was already
+  isolated. No callable subagent-dispatch capability was exposed, so the
+  implementer, specification-compliance review, and code-quality review were
+  separate coordinator passes; no external review feedback was applied.
+  `finishing-a-development-branch` remains deferred because this
+  user-specified linked worktree is externally managed.
+- TDD red: the focused Task 11 command initially failed **4 tests** (3
+  unexpected `operator_queue` constructor failures and 1 missing pending
+  approval API) while 23 existing focused tests passed.
+- TDD green: focused operator/approval/runner command passed **42 tests**;
+  full `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests -q`
+  passed **536 tests**. Compileall, `git diff --check`, and the immutable
+  `v0.1.0^{}` hash check passed.
+- Specification-compliance review: PASS. Guidance is drained only before a
+  READY `_complete` call; queued input cannot interrupt LLM/patch/pytest;
+  `/stop` finalizes through best restoration as `OPERATOR_STOP`; approval
+  commands are scoped and typed no-ops without pending state; finish remains
+  `REQUESTED`; frozen target paths are used for every v2 evaluation; new
+  failures do not enter F0; and SUCCESS is produced only by valid Harness
+  evaluation.
+- Code-quality review: PASS. No broad exception handling, dependency,
+  fallback authority, duplicated manifest validation, dead code, or unrelated
+  scope was added. Tests assert observable prompts, events, target paths,
+  rollback, and state invariants rather than implementation details.
+- Implementation commit: `ba54550` — `feat: queue operator guidance and safe stop`.
+- Documentation/report commit: recorded below after the report and ledger
+  closure are committed.

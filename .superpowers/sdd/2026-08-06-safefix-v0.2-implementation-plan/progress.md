@@ -123,3 +123,13 @@
   530 tests pass; specification-compliance and code-quality reviews PASS.
   Fix report: `task-10-fix-round-1-report.md`; audit documentation commit
   `563061f`; closure documentation commit `0ee2d5e`.
+- Task 10: complete after scoped re-review (commits `41767cf..02b2ba3`;
+  specification-compliance and code-quality PASS with no findings). The
+  explicit v2 manifest-aware runner contract, formal baseline/F0 freeze,
+  Test Model closure, and legacy factory compatibility are covered. Focused
+  33, related 55, and full 530 tests pass. Re-review:
+  `task-10-re-review-round-1.md`.
+- Task 11: implementation complete in `ba54550`; focused operator/approval/
+  runner tests 42 pass and full suite 536 pass. Specification-compliance and
+  code-quality reviews PASS with no findings. Implementer report:
+  `task-11-implementer-report.md`.
