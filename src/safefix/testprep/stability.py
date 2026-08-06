@@ -77,7 +77,8 @@ class StabilityRunner:
                 reason="one or more stability runs had a collection or infrastructure error",
             )
 
-        signatures = tuple(result.failure_ids for result in results)
+        failure_ids = tuple(result.failure_ids for result in results)
+        failure_signatures = tuple(_failure_signature(result) for result in results)
         if all(_is_green(result) for result in results):
             return CandidateEvaluation(
                 candidate=candidate_path,
@@ -87,13 +88,20 @@ class StabilityRunner:
                 reason="all stability runs passed",
             )
 
-        if all(_is_red(result) for result in results) and len(set(signatures)) == 1:
+        if (
+            all(_is_red(result) for result in results)
+            and len(set(failure_ids)) == 1
+            and len(set(failure_signatures)) == 1
+        ):
             return CandidateEvaluation(
                 candidate=candidate_path,
                 status=CandidateStatus.FAIL,
                 runs=runs,
-                stable_failure_ids=signatures[0],
-                reason="all stability runs failed with the same failure identities",
+                stable_failure_ids=failure_ids[0],
+                reason=(
+                    "all stability runs failed with the same failure identities "
+                    "and signatures"
+                ),
             )
 
         return CandidateEvaluation(
@@ -101,7 +109,10 @@ class StabilityRunner:
             status=CandidateStatus.FLAKY,
             runs=runs,
             stable_failure_ids=frozenset(),
-            reason="valid stability runs disagree in outcome or failure identity",
+            reason=(
+                "valid stability runs disagree in outcome, failure identity, "
+                "or failure signature"
+            ),
         )
 
     def _run_isolated(
@@ -172,3 +183,11 @@ def _is_green(result: TestRunResult) -> bool:
 
 def _is_red(result: TestRunResult) -> bool:
     return result.exit_code != 0 and bool(result.failure_ids)
+
+
+def _failure_signature(result: TestRunResult) -> frozenset[tuple[str, str]]:
+    return frozenset(
+        (case.failure_id, case.message)
+        for case in result.cases
+        if case.is_failure
+    )

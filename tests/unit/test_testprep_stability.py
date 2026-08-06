@@ -11,13 +11,18 @@ from safefix.testprep.models import GeneratedTestCandidate
 from safefix.testprep.workspace import CandidateWorkspace
 
 
-def result(*failure_ids: str, valid: bool = True) -> _TestRunResult:
+def result(
+    *failure_ids: str,
+    valid: bool = True,
+    messages: dict[str, str] | None = None,
+) -> _TestRunResult:
     cases = tuple(
         _TestCaseResult(
             failure_id=failure_id,
             classname=failure_id.split("::", 1)[0],
             name=failure_id.split("::", 1)[-1],
             status="failed",
+            message=(messages or {}).get(failure_id, ""),
         )
         for failure_id in failure_ids
     )
@@ -106,6 +111,27 @@ def test_mismatched_failure_ids_are_flaky(tmp_path: Path):
             result("candidate::test_x"),
             result("candidate::test_y"),
             result("candidate::test_x"),
+        ]
+    )
+
+    evaluation = StabilityRunner(
+        runner, stability_runs=3, candidate_root=workspace.session_root
+    ).evaluate(path)
+
+    assert evaluation.status is CandidateStatus.FLAKY
+    assert evaluation.stable_failure_ids == frozenset()
+    workspace.cleanup()
+
+
+def test_same_failure_ids_with_different_messages_are_flaky(tmp_path: Path):
+    workspace = CandidateWorkspace(tmp_path, "stability-signature-flaky")
+    path = workspace.stage(candidate())
+    failure_id = "candidate::test_x"
+    runner = ScriptedRunner(
+        [
+            result(failure_id, messages={failure_id: "assert 1 == 2"}),
+            result(failure_id, messages={failure_id: "assert 3 == 4"}),
+            result(failure_id, messages={failure_id: "assert 5 == 6"}),
         ]
     )
 

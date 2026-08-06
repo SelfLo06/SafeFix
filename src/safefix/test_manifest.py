@@ -30,6 +30,7 @@ class ExistingTestDiscovery:
     collected_ids: frozenset[str]
     collected_count: int
     result: TestRunResult
+    test_paths: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -104,17 +105,30 @@ def discover_existing_tests(
 ) -> ExistingTestDiscovery:
     result = runner.run()
     collected_cases = tuple(case for case in result.cases if not case.is_collection_error)
+    test_paths = runner.collect_test_paths() if collected_cases else ()
     return ExistingTestDiscovery(
         collected_ids=frozenset(case.failure_id for case in collected_cases),
         collected_count=len(collected_cases),
         result=result,
+        test_paths=test_paths,
     )
 
 
 def _entry_from_path(
     project_root: Path, path: str | Path, origin: BaselineSource
 ) -> ManifestEntry:
-    normalized_path, file_path = _resolve_path(project_root, path)
+    return manifest_entry_from_path(project_root, path, origin)
+
+
+def manifest_entry_from_path(
+    project_root: str | Path,
+    path: str | Path,
+    origin: BaselineSource,
+    candidate_id: str | None = None,
+) -> ManifestEntry:
+    """Build one validated manifest entry from a project-relative path."""
+    root = Path(project_root).resolve()
+    normalized_path, file_path = _resolve_path(root, path)
     if not file_path.is_file():
         raise ManifestError(f"manifest test is missing: {normalized_path}")
     try:
@@ -125,6 +139,7 @@ def _entry_from_path(
         path=normalized_path,
         sha256=sha256(content.encode("utf-8")).hexdigest(),
         origin=BaselineSource(origin),
+        candidate_id=candidate_id,
     )
 
 

@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import json
 from pathlib import Path
 import shutil
 
@@ -204,7 +205,36 @@ def test_real_existing_discovery_keeps_collected_fixture_test_in_manifest(tmp_pa
     result = PreparationService().prepare(request)
 
     assert discovery.collected_count == 1
+    assert discovery.test_paths == ("tests/test_existing.py",)
     assert [entry.path for entry in result.manifest_entries] == ["tests/test_existing.py"]
+
+
+def test_real_existing_discovery_retains_custom_pytest_filename(tmp_path: Path) -> None:
+    project = tmp_path / "custom-tests"
+    project.mkdir()
+    (project / "pytest.ini").write_text(
+        "[pytest]\npython_files = suite.py\n", encoding="utf-8"
+    )
+    (project / "suite.py").write_text(
+        "def test_custom_discovered():\n    assert True\n", encoding="utf-8"
+    )
+    discovery = discover_existing_tests(project, ProjectTestRunner(project))
+    workspace = CandidateWorkspace(project, "custom-discovery")
+    request = PreparationRequest(
+        project_root=project,
+        existing_discovery=discovery,
+        test_client=None,
+        review_client=None,
+        config=Config(baseline_source=BaselineSource.EXISTING),
+        approval_provider=None,
+        workspace=workspace,
+    )
+
+    result = PreparationService().prepare(request)
+
+    assert discovery.collected_count == 1
+    assert discovery.test_paths == ("suite.py",)
+    assert [entry.path for entry in result.manifest_entries] == ["suite.py"]
 
 
 def test_existing_source_does_not_generate_when_flag_is_set(tmp_path: Path) -> None:
@@ -219,6 +249,26 @@ def test_existing_source_does_not_generate_when_flag_is_set(tmp_path: Path) -> N
 
     assert result.stop_reason is None
     assert client.prompts == []
+
+
+def test_generation_disabled_mixed_source_keeps_existing_only(tmp_path: Path) -> None:
+    request, client, _, _ = _request(
+        tmp_path,
+        source=BaselineSource.MIXED,
+        existing_count=1,
+        generate_tests=False,
+    )
+
+    result = PreparationService().prepare(request)
+
+    assert result.stop_reason is None
+    assert [entry.path for entry in result.manifest_entries] == [
+        "tests/test_existing.py"
+    ]
+    assert all(entry.origin is BaselineSource.EXISTING for entry in result.manifest_entries)
+    assert result.summary.generated_candidate_count == 0
+    assert client.prompts == []
+    assert not client.closed
 
 
 def test_zero_collected_count_does_not_promote_scanned_test_files(tmp_path: Path) -> None:
@@ -289,6 +339,64 @@ def test_generated_only_is_rejected_when_existing_tests_are_collectible(tmp_path
     assert result.stop_reason is StopReason.CONFIG_ERROR
     assert result.manifest_entries == ()
     assert client.prompts == []
+
+
+def test_default_candidate_execution_cannot_mutate_project(tmp_path: Path) -> None:
+    mutation_source = (
+        "def test_candidate_mutation():\n"
+        "    eval(\"__builtins__['open']('src/app.py', 'w').write('VALUE = 2\\\\n')\")\n"
+        "    assert True\n"
+    )
+    response = json.dumps(
+        {
+            "candidates": [
+                {
+                    "candidate_id": "mutating",
+                    "test_source": mutation_source,
+                    "basis": "The public contract requires this behavior.",
+                    "sources": ["src/app.py"],
+                    "touched_existing_tests": [],
+                }
+            ]
+        }
+    )
+    request, _, _, _ = _request(
+        tmp_path,
+        source=BaselineSource.GENERATED,
+        existing_count=0,
+        test_client=FakeTestClient(response),
+    )
+    app = request.project_root / "src" / "app.py"
+    original = app.read_text(encoding="utf-8")
+
+    result = PreparationService().prepare(request)
+
+    assert result.stop_reason is None
+    assert result.summary.generated_pass_accepted == 1
+    assert app.read_text(encoding="utf-8") == original
+
+
+def test_invalid_existing_discovery_path_returns_configuration_stop(tmp_path: Path) -> None:
+    request, _, _, _ = _request(
+        tmp_path,
+        source=BaselineSource.EXISTING,
+        existing_count=1,
+        generate_tests=False,
+    )
+    request = PreparationRequest(
+        **{
+            **request.__dict__,
+            "existing_discovery": FakeDiscovery(
+                collected_count=1,
+                test_paths=("../outside.py",),
+            ),
+        }
+    )
+
+    result = PreparationService().prepare(request)
+
+    assert result.stop_reason is StopReason.CONFIG_ERROR
+    assert result.manifest_entries == ()
 
 
 def test_standard_pass_is_automatic_and_standard_fail_uses_manual_approval(tmp_path: Path) -> None:

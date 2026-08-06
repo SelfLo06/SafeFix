@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
-from hashlib import sha256
 from pathlib import Path
+import shutil
+import tempfile
 from typing import Callable, Protocol, Sequence
 
 from ..events import SessionEvent
@@ -16,7 +17,7 @@ from ..models import (
     StopReason,
 )
 from ..review import ReviewResult
-from ..test_manifest import ManifestEntry
+from ..test_manifest import ManifestError, ManifestEntry, manifest_entry_from_path
 from ..testrunner import TestRunResult, TestRunner
 from .acceptance import CandidateAcceptancePolicy
 from .models import GeneratedTestCandidate
@@ -147,6 +148,7 @@ class TestPreparationService:
             BaselineSource.GENERATED,
             BaselineSource.MIXED,
         }
+        generation_enabled = request.config.generate_tests and wants_generation
 
         if wants_generation and source is BaselineSource.GENERATED and existing_count > 0:
             return self._result(
@@ -155,7 +157,16 @@ class TestPreparationService:
                 existing_count,
                 stop_reason=StopReason.CONFIG_ERROR,
             )
-        if wants_generation and request.config.acceptance_mode is AcceptanceMode.HIGH_RISK:
+        try:
+            existing_entries = self._existing_manifest_entries(request, source)
+        except (ManifestError, OSError, TypeError, ValueError):
+            return self._result(
+                request,
+                source,
+                existing_count,
+                stop_reason=StopReason.CONFIG_ERROR,
+            )
+        if generation_enabled and request.config.acceptance_mode is AcceptanceMode.HIGH_RISK:
             if request.high_risk_confirmation is not True:
                 return self._result(
                     request,
@@ -164,12 +175,19 @@ class TestPreparationService:
                     stop_reason=StopReason.CONFIG_ERROR,
                 )
 
-        if not wants_generation:
-            return self._result(request, source, existing_count)
+        if not generation_enabled:
+            return self._result(
+                request,
+                source,
+                existing_count,
+                existing_entries=existing_entries,
+            )
 
         try:
-            result = self._prepare_generated(request, source, existing_count)
-        except Exception:
+            result = self._prepare_generated(
+                request, source, existing_count, existing_entries
+            )
+        except (OSError, RuntimeError, TypeError, ValueError):
             # This is the deliberate preparation boundary: model, staging, and
             # review infrastructure failures stop preparation without inventing
             # candidates or allowing a partial formal manifest.
@@ -182,7 +200,7 @@ class TestPreparationService:
         finally:
             try:
                 self._close_test_model(request.test_client)
-            except Exception:
+            except (OSError, RuntimeError, TypeError, ValueError):
                 result = self._result(
                     request,
                     source,
@@ -196,6 +214,7 @@ class TestPreparationService:
         request: PreparationRequest,
         source: BaselineSource,
         existing_count: int,
+        existing_entries: tuple[ManifestEntry, ...],
     ) -> PreparationResult:
         if request.test_client is None:
             raise RuntimeError("Test Model is required when test generation is enabled")
@@ -218,7 +237,7 @@ class TestPreparationService:
                 )
             )
             return PreparationResult(
-                self._manifest_entries(request, source, ()),
+                self._manifest_entries(request, source, (), existing_entries),
                 summary.freeze(),
             )
         summary = _SummaryBuilder(source, existing_count, len(candidates))
@@ -328,7 +347,7 @@ class TestPreparationService:
             else:
                 summary.generated_fail_accepted_manual += 1
 
-        entries = self._manifest_entries(request, source, accepted)
+        entries = self._manifest_entries(request, source, accepted, existing_entries)
         return PreparationResult(entries, summary.freeze())
 
     def _review_if_required(
@@ -353,11 +372,31 @@ class TestPreparationService:
         workspace_runner = getattr(request.workspace, "run_candidate", None)
         if callable(workspace_runner):
             return workspace_runner
-        return lambda path: TestRunner(
-            request.project_root,
-            pytest_args=request.config.pytest_args,
-            target_paths=(path,),
-        ).run()
+        return self._isolated_project_runner(request)
+
+    @staticmethod
+    def _isolated_project_runner(request: PreparationRequest) -> CandidateRunner:
+        project_root = request.project_root.resolve()
+
+        def run(candidate: Path) -> TestRunResult:
+            candidate_path = Path(candidate).resolve()
+            try:
+                relative_candidate = candidate_path.relative_to(project_root)
+            except ValueError as exc:
+                raise ValueError("candidate path must be inside the project root") from exc
+            with tempfile.TemporaryDirectory(prefix="safefix-candidate-project-") as root:
+                snapshot = Path(root) / "project"
+                shutil.copytree(project_root, snapshot)
+                snapshot_candidate = snapshot / relative_candidate
+                if not snapshot_candidate.is_file():
+                    raise ValueError("candidate is missing from the project snapshot")
+                return TestRunner(
+                    snapshot,
+                    pytest_args=request.config.pytest_args,
+                    target_paths=(relative_candidate.as_posix(),),
+                ).run()
+
+        return run
 
     @staticmethod
     def _model_identity_pairs(config: Config) -> tuple[tuple[str, str], tuple[str, str]]:
@@ -389,11 +428,15 @@ class TestPreparationService:
         request: PreparationRequest,
         source: BaselineSource,
         accepted: Sequence[tuple[GeneratedTestCandidate, CandidateAcceptanceRecord, Path]],
+        existing_entries: Sequence[ManifestEntry] | None = None,
     ) -> tuple[ManifestEntry, ...]:
         entries: list[ManifestEntry] = []
         if source in {BaselineSource.EXISTING, BaselineSource.MIXED}:
-            for path in self._existing_paths(request.project_root, request.existing_discovery):
-                entries.append(_entry(request.project_root, path, BaselineSource.EXISTING))
+            entries.extend(
+                existing_entries
+                if existing_entries is not None
+                else self._existing_manifest_entries(request, source)
+            )
         if source in {BaselineSource.GENERATED, BaselineSource.MIXED}:
             entries.extend(
                 _entry(request.project_root, path, BaselineSource.GENERATED, candidate.candidate_id)
@@ -402,29 +445,31 @@ class TestPreparationService:
         entries.sort(key=lambda entry: entry.path)
         return tuple(entries)
 
+    def _existing_manifest_entries(
+        self,
+        request: PreparationRequest,
+        source: BaselineSource,
+    ) -> tuple[ManifestEntry, ...]:
+        if source not in {BaselineSource.EXISTING, BaselineSource.MIXED}:
+            return ()
+        return tuple(
+            _entry(request.project_root, path, BaselineSource.EXISTING)
+            for path in self._existing_paths(request.existing_discovery)
+        )
+
     @staticmethod
     def _existing_paths(
-        project_root: Path,
         discovery: ExistingDiscovery,
     ) -> tuple[str | Path, ...]:
         for name in ("test_paths", "existing_test_paths", "paths"):
             paths = getattr(discovery, name, None)
             if paths:
-                return tuple(paths)
+                return tuple(dict.fromkeys(paths))
         if discovery.collected_count == 0:
             return ()
-        excluded = {".git", ".safefix", ".venv", "venv", "__pycache__"}
-        paths = [
-            path.relative_to(project_root).as_posix()
-            for path in project_root.rglob("*.py")
-            if not any(part in excluded for part in path.relative_to(project_root).parts)
-            and (
-                path.name.startswith("test_")
-                or path.name.endswith("_test.py")
-                or path.name.endswith("_tests.py")
-            )
-        ]
-        return tuple(sorted(paths))
+        raise ManifestError(
+            "existing discovery collected tests but did not provide their paths"
+        )
 
     def _result(
         self,
@@ -432,13 +477,18 @@ class TestPreparationService:
         source: BaselineSource,
         existing_count: int,
         *,
+        existing_entries: Sequence[ManifestEntry] | None = None,
         stop_reason: StopReason | None = None,
     ) -> PreparationResult:
         summary = PreparationSummary(
             baseline_source=source,
             existing_test_count=existing_count,
         )
-        entries = () if stop_reason is not None else self._manifest_entries(request, source, ())
+        entries = (
+            ()
+            if stop_reason is not None
+            else self._manifest_entries(request, source, (), existing_entries)
+        )
         return PreparationResult(entries, summary, stop_reason)
 
     @staticmethod
@@ -520,13 +570,9 @@ def _entry(
     origin: BaselineSource,
     candidate_id: str | None = None,
 ) -> ManifestEntry:
-    candidate = Path(path)
-    resolved = (project_root / candidate if not candidate.is_absolute() else candidate).resolve()
-    relative = resolved.relative_to(project_root.resolve()).as_posix()
-    content = resolved.read_bytes()
-    return ManifestEntry(
-        path=relative,
-        sha256=sha256(content).hexdigest(),
-        origin=origin,
-        candidate_id=candidate_id,
+    return manifest_entry_from_path(
+        project_root,
+        path,
+        origin,
+        candidate_id,
     )

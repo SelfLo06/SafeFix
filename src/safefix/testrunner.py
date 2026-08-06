@@ -118,3 +118,46 @@ class TestRunner:
             valid=not has_collection_error
             and (has_collected_tests or self.allow_empty),
         )
+
+    def collect_test_paths(self) -> tuple[str, ...]:
+        """Return the project-relative files pytest actually collects."""
+        command = [
+            sys.executable,
+            "-m",
+            "pytest",
+            *self.pytest_args,
+            "--collect-only",
+            "-q",
+            *self.target_paths,
+        ]
+        try:
+            completed = subprocess.run(
+                command,
+                cwd=self.project_root,
+                shell=False,
+                capture_output=True,
+                text=True,
+            )
+        except OSError as exc:
+            raise OSError("pytest collection failed") from exc
+        if completed.returncode != 0:
+            raise ValueError("pytest collection failed")
+
+        root = self.project_root.resolve()
+        paths: set[str] = set()
+        for line in completed.stdout.splitlines():
+            node_id = line.strip()
+            if "::" not in node_id:
+                continue
+            path_text = node_id.split("::", 1)[0]
+            candidate = Path(path_text)
+            resolved = (
+                candidate if candidate.is_absolute() else root / candidate
+            ).resolve()
+            try:
+                relative = resolved.relative_to(root)
+            except ValueError:
+                continue
+            if resolved.is_file():
+                paths.add(relative.as_posix())
+        return tuple(sorted(paths))
