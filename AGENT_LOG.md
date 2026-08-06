@@ -1798,3 +1798,50 @@
   `fix: close Task 5 alias-analysis review gaps`.
 - Fix report: `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/
   task-5-fix-round-2-report.md`.
+
+## v0.2 Task 5 — fix round 3
+
+- Date: 2026-08-06. Scope is limited to the remaining HIGH static-rule write
+  bypasses from `task-5-re-review-round-2.md`: assigned `open` aliases,
+  `pathlib.Path` class aliases, and bound `Path` instance method aliases for
+  `open` and `touch`. Direct regression tests assert the exact
+  `non_test_source_edit` code/message. Read-only `open` aliases and existing
+  harmless in-memory `str.replace`/`list.remove` behavior remain allowed. No
+  candidate source was executed or written; no dependency, stability/
+  workspace/orchestration, SPEC/PLAN, or `v0.1.0` tag change was made.
+- Skills: `using-superpowers`, `using-git-worktrees` (verified the supplied
+  linked worktree), `brainstorming` (the approved v0.2 design and Task 5
+  brief served as the design gate), `subagent-driven-development`,
+  `receiving-code-review`, `test-driven-development`,
+  `requesting-code-review`, and `verification-before-completion`.
+  No callable subagent-dispatch capability is exposed in this session, so
+  specification-compliance and code-quality reviews were completed as
+  separate coordinator passes. `finishing-a-development-branch` remains
+  deferred because the approved v0.2 branch is still in progress and this
+  worktree is externally managed.
+- TDD red: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest -p
+  no:cacheprovider tests/unit/test_testprep_rules.py::test_rejects_callable_aliases_that_can_write_files
+  tests/unit/test_testprep_rules.py::test_allows_read_only_callable_aliases -q`
+  — `4 failed, 9 passed`; failures covered the new write aliases and the
+  class-alias read control.
+- TDD green: the same focused command — `13 passed`; parser/rules focused
+  regression — `71 passed`.
+- Related: parser/rules/parse/paths command — `113 passed`; full `tests`
+  suite — `380 passed`.
+- Verification: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m compileall
+  -q src` passed; `git diff --check` passed; deleted-file check was empty;
+  immutable `v0.1.0^{}` remained
+  `4fc3d6bfd61ad6b4057de66abcf13605af3c2b9c`.
+- Specification-compliance review: PASS. Bounded callable/path alias
+  resolution rejects the three remaining HIGH families with the exact
+  deterministic reason while preserving safe reads and harmless in-memory
+  operations. Tests and validation remain AST/read-only; no candidate code
+  execution or filesystem mutation was introduced.
+- Code-quality review: PASS. The change is explicit and bounded, preserves
+  the trusted internal invariant, and adds no broad exception handling,
+  speculative fallback, duplicated boundary validation, dead code, or scope
+  expansion.
+- Implementation commit: `b2fb0cd8d0b85c087d449adca0801a5517dec45a` —
+  `fix: close Task 5 round 3 write alias gaps`.
+- Fix report: `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/
+  task-5-fix-round-3-report.md`.
