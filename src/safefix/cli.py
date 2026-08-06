@@ -2,41 +2,19 @@
 
 import argparse
 import getpass
-import json
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
-from urllib.request import Request, urlopen
 
 from .approval import ApprovalProvider
 from .config import ConfigError, load_config
 from .credentials import CredentialError, CredentialsResolver
 from .llm.openai_compatible import OpenAICompatibleClient
-from .llm.base import LLMResponseError
-from .models import Config, StopReason, exit_code_for_stop_reason
+from .llm.roles import UrllibHTTPTransport
+from .models import Config, ModelRole, StopReason, exit_code_for_stop_reason
 from .runner import SessionRunner
 
 
 EXIT_CODES = {reason: exit_code_for_stop_reason(reason) for reason in StopReason}
-
-
-class UrllibHTTPTransport:
-    """Production HTTP transport for OpenAI-compatible completion requests."""
-
-    def post(
-        self, url: str, headers: dict[str, str], json_body: dict[str, Any], timeout: float
-    ) -> dict[str, Any]:
-        request = Request(
-            url,
-            data=json.dumps(json_body).encode("utf-8"),
-            headers=headers,
-            method="POST",
-        )
-        try:
-            with urlopen(request, timeout=timeout) as response:
-                return json.load(response)
-        except ValueError as exc:
-            raise LLMResponseError("invalid JSON response") from exc
 
 
 class _CachedCredentials:
@@ -78,8 +56,12 @@ def build_parser() -> argparse.ArgumentParser:
     credentials = commands.add_parser("credentials")
     credential_commands = credentials.add_subparsers(dest="credentials_command", required=True)
     credential_set = credential_commands.add_parser("set")
-    credential_commands.add_parser("status")
-    credential_commands.add_parser("clear")
+    role_values = [role.value for role in ModelRole]
+    credential_set.add_argument("--role", choices=role_values)
+    credential_status = credential_commands.add_parser("status")
+    credential_status.add_argument("--role", choices=role_values)
+    credential_clear = credential_commands.add_parser("clear")
+    credential_clear.add_argument("--role", choices=role_values)
     return parser
 
 
@@ -112,6 +94,8 @@ def main(
 
 
 def _credentials_command(args: argparse.Namespace, credentials: CredentialsResolver) -> int:
+    if args.role is not None:
+        credentials = credentials.for_role(ModelRole(args.role))
     if args.credentials_command == "set":
         try:
             value = getpass.getpass("API key: ")

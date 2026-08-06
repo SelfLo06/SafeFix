@@ -4,6 +4,21 @@ import pytest
 
 from safefix.approval import ApprovalProvider
 from safefix.models import Config, SessionResult, StopReason
+from safefix.credentials import CredentialsResolver
+
+
+class FakeKeyring:
+    def __init__(self) -> None:
+        self.values: dict[tuple[str, str], str] = {}
+
+    def get_password(self, service: str, username: str) -> str | None:
+        return self.values.get((service, username))
+
+    def set_password(self, service: str, username: str, password: str) -> None:
+        self.values[(service, username)] = password
+
+    def delete_password(self, service: str, username: str) -> None:
+        del self.values[(service, username)]
 
 
 class FakeCredentials:
@@ -199,3 +214,28 @@ def test_exit_code_mapping_for_all_stop_reasons(tmp_path: Path) -> None:
             ),
             client_factory=lambda **kwargs: object(),
         ) == exit_code
+
+
+def test_credentials_role_selection_uses_separate_keyring_service(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from safefix.cli import main
+
+    keyring = FakeKeyring()
+    credentials = CredentialsResolver(keyring)
+    monkeypatch.setattr("getpass.getpass", lambda _: "test-role-key")
+
+    assert main(
+        ["credentials", "set", "--role", "test"],
+        credentials_factory=lambda: credentials,
+    ) == 0
+
+    assert keyring.values == {("safefix-test", "api_key"): "test-role-key"}
+    assert capsys.readouterr().out == "credential stored\n"
+
+
+def test_credentials_cli_does_not_accept_raw_api_key_argument() -> None:
+    from safefix.cli import build_parser
+
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(["credentials", "set", "--role", "test", "raw-key"])

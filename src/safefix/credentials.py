@@ -2,7 +2,20 @@ from __future__ import annotations
 
 from typing import Any
 
+from .models import ModelRole
+
 _DEFAULT_KEYRING = object()
+
+_ROLE_SERVICES = {
+    ModelRole.TEST: "safefix-test",
+    ModelRole.REPAIR: "safefix-repair",
+    ModelRole.REVIEW: "safefix-review",
+}
+
+
+def role_service_name(role: ModelRole) -> str:
+    """Return the fixed keyring service for a model role."""
+    return _ROLE_SERVICES[ModelRole(role)]
 
 
 class CredentialError(RuntimeError):
@@ -46,7 +59,9 @@ class CredentialsResolver:
     def get(self) -> str:
         value = self._read()
         if value is None:
-            raise CredentialNotFoundError("credential is not stored in keyring")
+            raise CredentialNotFoundError(
+                f"credential for service {self._service_name!r} is not stored in keyring"
+            )
         return value
 
     def clear(self) -> None:
@@ -74,3 +89,11 @@ class CredentialsResolver:
         import keyring.errors as keyring_errors
 
         return self._keyring, keyring_errors
+
+    def for_role(self, role: ModelRole) -> "CredentialsResolver":
+        """Create a resolver for a role while retaining this resolver's backend."""
+        return CredentialsResolver(
+            self._keyring,
+            service_name=role_service_name(role),
+            username=self._username,
+        )

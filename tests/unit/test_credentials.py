@@ -8,7 +8,9 @@ from safefix.credentials import (
     CredentialNotFoundError,
     CredentialValueError,
     CredentialsResolver,
+    role_service_name,
 )
+from safefix.models import ModelRole
 
 
 class FakeKeyring:
@@ -105,3 +107,36 @@ def test_programming_errors_are_not_wrapped_as_credential_errors() -> None:
 
     with pytest.raises(RuntimeError, match="programming error"):
         credentials.status()
+
+
+def test_role_credentials_are_isolated() -> None:
+    keyring = FakeKeyring()
+    CredentialsResolver(keyring, service_name="safefix-test").set("test-key")
+    CredentialsResolver(keyring, service_name="safefix-repair").set("repair-key")
+    CredentialsResolver(keyring, service_name="safefix-review").set("review-key")
+
+    assert role_service_name(ModelRole.TEST) == "safefix-test"
+    assert role_service_name(ModelRole.REPAIR) == "safefix-repair"
+    assert role_service_name(ModelRole.REVIEW) == "safefix-review"
+    assert CredentialsResolver(keyring, service_name=role_service_name(ModelRole.TEST)).get() == "test-key"
+    assert CredentialsResolver(keyring, service_name=role_service_name(ModelRole.REPAIR)).get() == "repair-key"
+    assert CredentialsResolver(keyring, service_name=role_service_name(ModelRole.REVIEW)).get() == "review-key"
+
+
+@pytest.mark.parametrize("role", list(ModelRole))
+def test_missing_role_credential_is_specific_and_has_no_environment_fallback(
+    role: ModelRole, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SAFEFIX_API_KEY", "environment-secret")
+    credentials = CredentialsResolver(FakeKeyring(), service_name=role_service_name(role))
+
+    with pytest.raises(CredentialNotFoundError, match=role_service_name(role)):
+        credentials.get()
+
+
+def test_legacy_repair_service_name_remains_compatible() -> None:
+    keyring = FakeKeyring()
+    credentials = CredentialsResolver(keyring, service_name="safefix")
+    credentials.set("legacy-repair-key")
+
+    assert credentials.get() == "legacy-repair-key"

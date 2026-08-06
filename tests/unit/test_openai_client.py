@@ -2,6 +2,22 @@ import pytest
 
 from safefix.llm.base import LLMTransportError
 from safefix.llm.openai_compatible import OpenAICompatibleClient
+from safefix.llm.roles import ModelClientFactory
+from safefix.models import ModelRole, ModelRoleConfig
+
+
+class FakeKeyring:
+    def __init__(self) -> None:
+        self.values: dict[tuple[str, str], str] = {}
+
+    def get_password(self, service: str, username: str) -> str | None:
+        return self.values.get((service, username))
+
+    def set_password(self, service: str, username: str, password: str) -> None:
+        self.values[(service, username)] = password
+
+    def delete_password(self, service: str, username: str) -> None:
+        del self.values[(service, username)]
 
 
 class FakeTransport:
@@ -56,3 +72,26 @@ def test_openai_client_maps_transport_os_error_to_llm_transport_error():
         client.complete("repair the failing test")
 
     assert isinstance(error.value.__cause__, OSError)
+
+
+def test_model_client_factory_reads_only_requested_role_credential():
+    keyring = FakeKeyring()
+    keyring.set_password("safefix-test", "api_key", "test-key")
+    keyring.set_password("safefix-repair", "api_key", "repair-key")
+    transport = FakeTransport(
+        response={"choices": [{"message": {"content": "ok"}}]}
+    )
+    factory = ModelClientFactory(transport=transport)
+
+    client = factory.create(
+        ModelRoleConfig(
+            role=ModelRole.TEST,
+            base_url="https://test.example/v1",
+            model="test-model",
+            keyring_service="safefix-test",
+        ),
+        keyring,
+    )
+
+    assert client.complete("prompt") == "ok"
+    assert transport.requests[0][1]["Authorization"] == "Bearer test-key"

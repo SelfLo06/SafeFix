@@ -1228,3 +1228,46 @@
 - Finishing workflow: final verification completed; the requested isolated
   branch/worktree is preserved for external integration, with no merge, push,
   or cleanup performed.
+
+## v0.2 Task 2 — role-scoped credentials and model client construction
+
+- Date: 2026-08-06. Worktree: `.worktrees/safefix-v0.2` on branch
+  `safefix-v0.2`; `v0.1.0` remained immutable. Scope is limited to the Task 2
+  credential, CLI role-selection, model-client factory, and tests.
+- Skills used: `using-superpowers`, `using-git-worktrees` (verified the
+  requested linked worktree), `subagent-driven-development` (sole Task 2
+  execution unit), `test-driven-development`, `requesting-code-review`,
+  `receiving-code-review`, `verification-before-completion`, and
+  `finishing-a-development-branch` (external integration remains deferred).
+  No subagent-dispatch capability was available; specification-compliance and
+  code-quality reviews were run as separate coordinator checklists against the
+  complete Task 2 diff.
+- TDD red: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest
+  tests/unit/test_credentials.py tests/unit/test_cli.py
+  tests/unit/test_openai_client.py -q` — expected collection failures for the
+  missing `role_service_name` and `safefix.llm.roles` interfaces.
+- TDD red for the CLI role boundary: with the role-selection implementation
+  temporarily absent, the focused CLI tests failed (`1 failed, 1 passed`) on
+  the expected unrecognized `--role` argument.
+- TDD green: the focused credential/CLI/client command — `23 passed`.
+  Refactor green rerun: `23 passed`.
+- Regression and verification: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src
+  python -m pytest tests -q` — `278 passed`; `PYTHONDONTWRITEBYTECODE=1
+  PYTHONPATH=src python -m compileall -q src` — passed; `git diff --check` —
+  passed.
+- Specification-compliance review: PASS. Fixed Test/Repair/Review keyring
+  services and isolated credentials, preserved the no-flag legacy `safefix`
+  resolver path, added role-aware credential set/status/clear selection with
+  prompt-only secrets, added `ModelClientFactory.create(role_config, keyring)`
+  using only the requested keyring service, and preserved OpenAI-compatible
+  client/MockLLM behavior. Existing Task 1 tests continue to verify redacted
+  role identity fingerprints and duplicate endpoint/model rejection; no
+  preparation, runner, generated-only, or v0.1 tag behavior was changed.
+- Code-quality review: PASS. Keyring errors remain narrowly handled; no
+  environment or plaintext fallback, secret logging, broad catch, duplicated
+  HTTP transport, speculative provider abstraction, dead code, or
+  implementation-coupled test dependency remains.
+- Deviations: none in product scope or behavior. Coordinator review was used
+  because no subagent-dispatch tool was available in this session.
+- Implementation commit: pending at the time of this log entry; the exact
+  hash and audit closure are recorded in the following Task 2 audit entry.
