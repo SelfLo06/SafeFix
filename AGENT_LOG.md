@@ -1620,6 +1620,6 @@
 - Deviations: no product deviation. Process deviation only: subagent
   dispatch was unavailable, so reviews were performed by the coordinator and
   documented separately as required by the repository workflow.
-- Implementation commit: pending; required subject is
+- Implementation commit: `c2cb5cce1231dc3e674b22ba458a64a423b27a7d` —
   `feat: freeze and verify test manifests`. Full report:
   `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/task-4-implementer-report.md`.
