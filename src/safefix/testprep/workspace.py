@@ -40,6 +40,7 @@ class CandidateWorkspace:
                 with self._owner_marker.open("x", encoding="utf-8") as marker:
                     marker.write(self._owner_token)
                 self._owned = True
+                _OWNED_WORKSPACES[self.session_root] = self
 
     def stage(self, candidate: GeneratedTestCandidate) -> Path:
         self._require_owned()
@@ -62,6 +63,7 @@ class CandidateWorkspace:
         self._require_owned()
         self._assert_confined(self.session_root)
         shutil.rmtree(self.session_root)
+        _OWNED_WORKSPACES.pop(self.session_root, None)
         self._owned = False
 
     def _candidate_path(
@@ -114,6 +116,17 @@ def _assert_no_symlink_components(path: Path, label: str) -> None:
             raise ValueError(f"{label} contains a symlink component")
 
 
+def _owned_workspace_for(path: Path) -> CandidateWorkspace | None:
+    workspace = _OWNED_WORKSPACES.get(path.absolute())
+    if workspace is None:
+        return None
+    try:
+        workspace._require_owned()
+    except ValueError:
+        return None
+    return workspace
+
+
 def _safe_component(value: str, field: str) -> str:
     if (
         not isinstance(value, str)
@@ -123,3 +136,6 @@ def _safe_component(value: str, field: str) -> str:
     ):
         raise ValueError(f"{field} must be a safe path component")
     return value
+
+
+_OWNED_WORKSPACES: dict[Path, CandidateWorkspace] = {}

@@ -190,6 +190,37 @@ def test_stability_rejects_candidate_paths_outside_session_root(
     workspace.cleanup()
 
 
+def test_stability_rejects_forged_marker_but_accepts_workspace_root(
+    tmp_path: Path,
+):
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+    workspace = CandidateWorkspace(project_root, "genuine-session")
+    genuine_path = workspace.stage(candidate())
+    genuine_runner = ScriptedRunner([result()])
+
+    evaluation = StabilityRunner(
+        genuine_runner, stability_runs=1, candidate_root=workspace.session_root
+    ).evaluate(genuine_path)
+
+    assert evaluation.status is CandidateStatus.PASS
+
+    forged_root = tmp_path / "outside" / "session"
+    forged_root.mkdir(parents=True)
+    (forged_root / ".session-owner").write_text("forged", encoding="utf-8")
+    forged_candidate = forged_root / "candidate.py"
+    forged_candidate.write_text(candidate().test_source, encoding="utf-8")
+    forged_runner = ScriptedRunner([result()])
+
+    with pytest.raises(ValueError, match="CandidateWorkspace"):
+        StabilityRunner(
+            forged_runner, stability_runs=1, candidate_root=forged_root
+        ).evaluate(forged_candidate)
+
+    assert forged_runner.paths == []
+    workspace.cleanup()
+
+
 def test_config_accepts_maximum_bounded_stability_runs(tmp_path: Path):
     config = load_config(tmp_path, {"stability_runs": MAX_STABILITY_RUNS})
 

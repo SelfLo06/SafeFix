@@ -9,7 +9,7 @@ from typing import Callable
 from ..config import MAX_STABILITY_RUNS
 from ..models import CandidateStatus
 from ..testrunner import TestRunResult
-from .workspace import _assert_no_symlink_components
+from .workspace import _assert_no_symlink_components, _owned_workspace_for
 
 
 @dataclass(frozen=True)
@@ -128,9 +128,8 @@ class StabilityRunner:
         if not self._candidate_root.is_dir():
             raise ValueError("candidate root must be an existing session directory")
         _assert_no_symlink_components(self._candidate_root, "candidate root")
-        marker = self._candidate_root / ".session-owner"
-        if marker.is_symlink() or not marker.is_file():
-            raise ValueError("candidate root is not session-owned")
+        if _owned_workspace_for(self._candidate_root) is None:
+            raise ValueError("candidate root is not a live CandidateWorkspace session")
 
     def _validate_candidate(self, candidate: str | Path) -> Path:
         candidate_path = Path(candidate)
