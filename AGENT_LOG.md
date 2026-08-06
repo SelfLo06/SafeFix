@@ -2565,3 +2565,42 @@
   task-10-implementer-report.md`.
 - Implementation commit: `41767cf` — `feat: integrate frozen v0.2 baseline
   setup`.
+
+### v0.2 Task 10 — fix round 1/5
+
+- Date: 2026-08-06. Addressed P1/P2 from `task-10-review.md`; the review
+  report itself was not edited. Scope is limited to the v2 runner contract,
+  SessionRunner's post-freeze adapter use, and deterministic setup/runner
+  acceptance tests. No dependencies, unrelated scope, Repair/Review baseline
+  authority, new SUCCESS authority, or v0.1.0 tag changes were introduced.
+- Skills used: `using-superpowers`, `using-git-worktrees` (verified the
+  supplied linked worktree), `subagent-driven-development`,
+  `test-driven-development`, `receiving-code-review`, `requesting-code-review`,
+  and `verification-before-completion`. No callable subagent-dispatch
+  capability was exposed, so coordinator passes performed the implementation,
+  specification-compliance review, and code-quality review separately;
+  `finishing-a-development-branch` remains deferred because this worktree is
+  user-specified and externally managed.
+- TDD red: focused setup/runner command — **3 failed, 28 passed** because the
+  old adapter called v2 factories through the legacy two-argument path.
+- TDD green: focused command — **31 passed**, then **33 passed** after the
+  closure and changed/missing-manifest acceptance cases were added.
+- Related runner/setup command — **55 passed**; manifest/TestRunner/preparation
+  command — **52 passed**; full `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src
+  python -m pytest tests -q` — **530 passed**.
+- Specification-compliance review: PASS. A `V2RunnerFactory` now receives
+  keyword-only exact `target_paths`/`allow_empty` and returns a runner exposing
+  matching scope; the shared adapter validates it for discovery, formal F0,
+  and every post-freeze evaluation. The no-setup v0.1 path still invokes the
+  legacy two-argument factory. Tests prove Test Model closure before formal
+  baseline, manifest mutation/missing-file rejection, and F0 immutability.
+- Code-quality review: PASS. Scope enforcement is centralized in one adapter;
+  no identity-based v2 bypass, duplicated validation, broad exception handling,
+  speculative fallback, dead production code, or implementation-coupled tests
+  were found.
+- Verification: compileall and diff check passed; peeled `v0.1.0^{}` remains
+  `4fc3d6bfd61ad6b4057de66abcf13605af3c2b9c`. Full details are in
+  `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/
+  task-10-fix-round-1-report.md`.
+- Implementation commit: `aa60bbc` — `fix: enforce v2 frozen manifest runner
+  scope`.

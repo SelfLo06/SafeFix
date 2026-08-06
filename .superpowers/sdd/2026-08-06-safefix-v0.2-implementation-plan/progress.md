@@ -118,3 +118,8 @@
 - Task 9: complete (commits `1e64748..eed23ad`, review clean).
 - Task 10: complete (commit `41767cf`, review clean; focused 37, related 52,
   full 525 passed).
+- Task 10: fix round 1/5 — `aa60bbc`; P1 v2 runner-scope bypass and P2
+  lifecycle/freeze evidence addressed; focused 33, related 55 and 52, full
+  530 tests pass; specification-compliance and code-quality reviews PASS.
+  Fix report: `task-10-fix-round-1-report.md`; audit/closure documentation
+  commit pending.
