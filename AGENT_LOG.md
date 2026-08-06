@@ -1572,3 +1572,54 @@
 - Implementation commit: `24dd8c7dd02dac886434436a095fae20191114f9` —
   `fix: restore dictionary-shaped safe event payload`; full report:
   `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/task-3-fix-round-4-report.md`.
+
+## v0.2 Task 4 — frozen test manifest and manifest-aware TestRunner
+
+- Date: 2026-08-06. Scope: created `src/safefix/test_manifest.py` and the
+  requested no-tests fixture; modified only `src/safefix/testrunner.py`,
+  `src/safefix/junit.py`, and their focused unit tests. No candidate
+  generation, orchestration, setup integration, dependency, or v0.1.0 tag
+  change was introduced.
+- Skills: `using-superpowers`, `using-git-worktrees` (verified the supplied
+  linked worktree), `brainstorming` (the approved v0.2 design served as the
+  design approval gate), `subagent-driven-development`,
+  `test-driven-development`, `requesting-code-review`,
+  `receiving-code-review` (read; no external review feedback was applied),
+  and `verification-before-completion`. No callable subagent-dispatch tool is
+  exposed in this session, so this fresh implementer completed the required
+  specification and code-quality reviews as separate documented coordinator
+  checklist passes. `finishing-a-development-branch` remains deferred because
+  the v0.2 branch is still in progress and this worktree is externally
+  managed.
+- TDD red: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest
+  tests/unit/test_test_manifest.py tests/unit/test_testrunner.py
+  tests/unit/test_junit.py -q` — expected collection failure because
+  `safefix.test_manifest` was absent. The JUnit collection-error predicate
+  test later red-failed with `AttributeError`, and the formal empty-manifest
+  test red-failed because empty construction was initially accepted.
+- TDD green: the focused command above — `19 passed`; full regression
+  `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests -q` —
+  `306 passed`.
+- Verification: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m
+  compileall -q src` passed; `git diff --check` passed. The focused tests
+  verify deterministic normalized-path/UTF-8 hashes, changed and missing
+  file rejection, manifest-hash tampering, mixed-path retention, exact
+  internal target ordering after display args, shell-free invocation,
+  allow-empty discovery, formal empty-manifest rejection, and distinct
+  no-tests versus invalid collection results.
+- Specification-compliance review: PASS. `ManifestEntry`,
+  `ExistingTestDiscovery`, `FrozenTestManifest`, `discover_existing_tests`,
+  `ManifestError`, exact target invocation, default full-suite behavior,
+  pytest display-argument ordering, valid red-test semantics, immutable
+  manifest verification, existing-test retention, and empty-manifest rules
+  match the v0.2 brief/design and preserve v0.1 defaults and failure IDs.
+- Code-quality review: PASS. Path/content checks occur at filesystem
+  boundaries; the refactored implementation avoids duplicate path resolution,
+  broad catches, speculative fallback, dead code, implementation-coupled
+  assertions, and scope expansion.
+- Deviations: no product deviation. Process deviation only: subagent
+  dispatch was unavailable, so reviews were performed by the coordinator and
+  documented separately as required by the repository workflow.
+- Implementation commit: pending; required subject is
+  `feat: freeze and verify test manifests`. Full report:
+  `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/task-4-implementer-report.md`.

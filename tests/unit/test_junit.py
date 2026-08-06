@@ -47,3 +47,11 @@ def test_collection_error_gets_deterministic_synthetic_id():
         "bd317cf1598e481a"
     )
     assert [case.failure_id for case in first] == [case.failure_id for case in second]
+
+
+def test_collection_error_is_distinct_from_collected_testcase():
+    collection_error = parse_junit_report(FIXTURES / "collection_error.xml")[0]
+    collected = parse_junit_report(FIXTURES / "baseline.xml")[0]
+
+    assert collection_error.is_collection_error is True
+    assert collected.is_collection_error is False

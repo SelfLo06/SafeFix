@@ -21,6 +21,10 @@ class TestCaseResult:
     def is_failure(self) -> bool:
         return self.status in {"failed", "error"}
 
+    @property
+    def is_collection_error(self) -> bool:
+        return self.failure_id.startswith("collection_error::")
+
 
 def parse_junit_report(report_path: str | Path) -> tuple[TestCaseResult, ...]:
     """Parse a valid JUnit XML report into stable testcase identities."""

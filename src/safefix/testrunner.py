@@ -30,9 +30,13 @@ class TestRunner:
         project_root: str | Path,
         pytest_args: Sequence[str] = (),
         report_path: str | Path | None = None,
+        target_paths: Sequence[str | Path] = (),
+        allow_empty: bool = False,
     ) -> None:
         self.project_root = Path(project_root).resolve()
         self.pytest_args = tuple(pytest_args)
+        self.target_paths = tuple(str(path) for path in target_paths)
+        self.allow_empty = allow_empty
         if report_path == "":
             raise ValueError("report_path must not be empty")
         if report_path is None:
@@ -65,6 +69,7 @@ class TestRunner:
             "-m",
             "pytest",
             *self.pytest_args,
+            *self.target_paths,
             f"--junitxml={self.report_path}",
         ]
         try:
@@ -103,13 +108,13 @@ class TestRunner:
                 stderr=f"{completed.stderr}\n{exc}",
                 valid=False,
             )
+        has_collected_tests = any(not case.is_collection_error for case in cases)
+        has_collection_error = any(case.is_collection_error for case in cases)
         return TestRunResult(
             exit_code=completed.returncode,
             cases=cases,
             stdout=completed.stdout,
             stderr=completed.stderr,
-            valid=bool(cases) and any(
-                not case.failure_id.startswith("collection_error::")
-                for case in cases
-            ),
+            valid=not has_collection_error
+            and (has_collected_tests or self.allow_empty),
         )
