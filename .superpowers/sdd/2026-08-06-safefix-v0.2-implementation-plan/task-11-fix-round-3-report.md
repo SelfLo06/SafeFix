@@ -57,9 +57,10 @@ SUCCESS authority, v0.1 behavior, or v0.1.0 tag was modified.
 
 ## Commits
 
-- Implementation and preserved Task 11 worktree audit edits: to be recorded
-  after commit creation.
-- Documentation closure: to be recorded after commit creation.
+- Implementation and preserved Task 11 worktree audit edits: `36ce30d` —
+  `fix: make Task 11 enqueue ordering deterministic`.
+- Documentation closure: pending; this report hash is finalized in the
+  follow-up documentation commit.
 
 ## Concerns
 

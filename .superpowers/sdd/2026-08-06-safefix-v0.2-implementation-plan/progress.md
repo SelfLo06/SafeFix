@@ -150,3 +150,4 @@
   diff verification passed. Specification-compliance and code-quality reviews
   PASS. Report:
   `task-11-fix-round-3-report.md`.
+- Implementation commit: `36ce30d`.
