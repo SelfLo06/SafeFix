@@ -24,6 +24,7 @@ class CandidateWorkspace:
         self._assert_confined(self.session_root)
         self._owned = False
         self._owner_token: str | None = None
+        self._session_identity: tuple[int, int] | None = None
         self._owner_marker = self.session_root / ".session-owner"
         if self.session_root.exists():
             if not self.session_root.is_dir():
@@ -39,6 +40,7 @@ class CandidateWorkspace:
                 self._owner_token = secrets.token_hex(24)
                 with self._owner_marker.open("x", encoding="utf-8") as marker:
                     marker.write(self._owner_token)
+                self._session_identity = _file_identity(self.session_root)
                 self._owned = True
                 _OWNED_WORKSPACES[self.session_root] = self
 
@@ -92,6 +94,14 @@ class CandidateWorkspace:
             raise ValueError("session workspace ownership marker is unreadable") from exc
         if marker != self._owner_token:
             raise ValueError("session workspace ownership marker does not match")
+        if self._session_identity is None:
+            raise ValueError("session workspace identity is missing")
+        try:
+            current_identity = _file_identity(self.session_root)
+        except OSError as exc:
+            raise ValueError("session workspace identity is unavailable") from exc
+        if current_identity != self._session_identity:
+            raise ValueError("session workspace identity does not match")
 
     def _assert_confined(self, path: Path) -> None:
         _assert_no_symlink_components(self.root, "project root")
@@ -125,6 +135,11 @@ def _owned_workspace_for(path: Path) -> CandidateWorkspace | None:
     except ValueError:
         return None
     return workspace
+
+
+def _file_identity(path: Path) -> tuple[int, int]:
+    stat = path.stat()
+    return stat.st_dev, stat.st_ino
 
 
 def _safe_component(value: str, field: str) -> str:

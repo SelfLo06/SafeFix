@@ -221,6 +221,56 @@ def test_stability_rejects_forged_marker_but_accepts_workspace_root(
     workspace.cleanup()
 
 
+def test_stability_revalidates_marker_before_evaluation(
+    tmp_path: Path,
+):
+    workspace = CandidateWorkspace(tmp_path, "marker-lifecycle")
+    path = workspace.stage(candidate())
+    calls: list[Path] = []
+
+    def callback(run_path: Path) -> _TestRunResult:
+        calls.append(run_path)
+        return result()
+
+    stability = StabilityRunner(
+        callback, stability_runs=1, candidate_root=workspace.session_root
+    )
+    (workspace.session_root / ".session-owner").unlink()
+
+    with pytest.raises(ValueError, match="CandidateWorkspace"):
+        stability.evaluate(path)
+
+    assert calls == []
+
+
+def test_stability_rejects_session_root_replacement_after_construction(
+    tmp_path: Path,
+):
+    workspace = CandidateWorkspace(tmp_path, "replacement-lifecycle")
+
+    calls: list[Path] = []
+
+    def callback(run_path: Path) -> _TestRunResult:
+        calls.append(run_path)
+        return result()
+
+    stability = StabilityRunner(
+        callback,
+        stability_runs=1,
+        candidate_root=workspace.session_root,
+    )
+    workspace.cleanup()
+
+    replacement = CandidateWorkspace(tmp_path, "replacement-lifecycle")
+    replacement_path = replacement.stage(candidate())
+
+    with pytest.raises(ValueError, match="CandidateWorkspace"):
+        stability.evaluate(replacement_path)
+
+    assert calls == []
+    replacement.cleanup()
+
+
 def test_config_accepts_maximum_bounded_stability_runs(tmp_path: Path):
     config = load_config(tmp_path, {"stability_runs": MAX_STABILITY_RUNS})
 

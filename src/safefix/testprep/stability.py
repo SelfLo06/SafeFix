@@ -9,7 +9,11 @@ from typing import Callable
 from ..config import MAX_STABILITY_RUNS
 from ..models import CandidateStatus
 from ..testrunner import TestRunResult
-from .workspace import _assert_no_symlink_components, _owned_workspace_for
+from .workspace import (
+    CandidateWorkspace,
+    _assert_no_symlink_components,
+    _owned_workspace_for,
+)
 
 
 @dataclass(frozen=True)
@@ -52,9 +56,10 @@ class StabilityRunner:
         self._run_candidate = run_candidate
         self.stability_runs = stability_runs
         self._candidate_root = Path(candidate_root).absolute()
-        self._validate_candidate_root()
+        self._candidate_workspace: CandidateWorkspace = self._validate_candidate_root()
 
     def evaluate(self, candidate: str | Path) -> CandidateEvaluation:
+        self._validate_candidate_root()
         candidate_path = self._validate_candidate(candidate)
         original_contents = candidate_path.read_bytes()
         runs = tuple(
@@ -124,12 +129,21 @@ class StabilityRunner:
             shutil.rmtree(run_root)
         return CandidateRun(candidate.stem, run_index, result)
 
-    def _validate_candidate_root(self) -> None:
+    def _validate_candidate_root(self) -> CandidateWorkspace:
         if not self._candidate_root.is_dir():
             raise ValueError("candidate root must be an existing session directory")
         _assert_no_symlink_components(self._candidate_root, "candidate root")
-        if _owned_workspace_for(self._candidate_root) is None:
+        workspace = _owned_workspace_for(self._candidate_root)
+        if workspace is None:
             raise ValueError("candidate root is not a live CandidateWorkspace session")
+        if (
+            hasattr(self, "_candidate_workspace")
+            and workspace is not self._candidate_workspace
+        ):
+            raise ValueError(
+                "candidate root is not the original CandidateWorkspace session"
+            )
+        return workspace
 
     def _validate_candidate(self, candidate: str | Path) -> Path:
         candidate_path = Path(candidate)
