@@ -2647,3 +2647,40 @@
 - Implementation commit: `ba54550` — `feat: queue operator guidance and safe stop`.
 - Documentation/report commit: `945b987` — `docs: close Task 11 repair loop
   audit`.
+
+### v0.2 Task 11 — fix round 1/5
+
+- Date: 2026-08-06. Addressed the blocking findings in the independent
+  `task-11-review.md`: real READY/PAUSED controller semantics, typed bounded
+  `/status`, deterministic pending-approval interaction, and load-bearing
+  atomic-boundary control tests. No v0.1 tag, frozen manifest/F0, Harness
+  SUCCESS authority, dependency, shell, or product scope changes.
+- Skills used: `using-superpowers`, `using-git-worktrees`,
+  `subagent-driven-development`, `test-driven-development`,
+  `receiving-code-review`, `requesting-code-review`, and
+  `verification-before-completion`. The supplied linked worktree was already
+  isolated. No callable subagent-dispatch capability was exposed, so the
+  implementation, specification-compliance review, and code-quality review
+  were separate coordinator passes; `finishing-a-development-branch` remains
+  deferred because this worktree is user-specified and externally managed.
+- TDD red: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest
+  tests/unit/test_runner_operator.py -q` — **5 failed, 5 passed** on the new
+  pause/status/ordering tests before the fix.
+- TDD green: focused operator tests — **11 passed**; focused operator,
+  approval, dispatch, evaluate, and limits regression — **48 passed**; full
+  suite — **542 passed**.
+- Specification-compliance review: PASS. Pause gates the next Repair Model
+  decision/action; resume releases it; stop is terminal from paused; status
+  reports bounded phase/counters/current failures/best/pending approval
+  without mutation; approval commands remain scoped; controls queued during
+  LLM/apply_patch/pytest remain deferred; finish, F0, frozen manifest, and
+  SUCCESS invariants remain unchanged.
+- Code-quality review: PASS. No unnecessary abstraction, duplicated
+  validation, broad exception handling, speculative fallback, dead code,
+  dependency, or scope expansion was introduced.
+- Verification: compileall, diff check, and immutable v0.1.0 hash check passed;
+  hash remains `4fc3d6bfd61ad6b4057de66abcf13605af3c2b9c`.
+- Implementation commit: `5730ca1` — `fix: close Task 11 pause and status
+  review`.
+- Fix report: `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/
+  task-11-fix-round-1-report.md`.
