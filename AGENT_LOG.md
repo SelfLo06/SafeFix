@@ -1325,3 +1325,48 @@
 - Implementation commit: `6b439e154ee45f27ac5a542fca33a8822a530c42`
   (`fix: bind model roles to credentials`). Full report:
   `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/task-2-fix-round-1-report.md`.
+
+## v0.2 Task 3 — typed events, operator commands, and bounded guidance
+
+- Date: 2026-08-06. Worktree: `.worktrees/safefix-v0.2` on branch
+  `safefix-v0.2`; `v0.1.0` remained immutable. Scope is limited to the two
+  new Task 3 modules, their focused tests, and this audit record. No runner,
+  TUI, dependency, configuration, file-write, shell, pytest, F0, or session
+  invariant behavior was added or changed.
+- Skills used: `using-superpowers`, `using-git-worktrees` (verified the
+  requested linked worktree), `subagent-driven-development`,
+  `test-driven-development`, `requesting-code-review`,
+  `receiving-code-review`, `verification-before-completion`, and
+  `finishing-a-development-branch` (the supplied worktree is preserved for
+  external integration). No subagent-dispatch capability was available;
+  specification-compliance and code-quality reviews were run as separate
+  coordinator checklists against the exact Task 3 diff.
+- TDD red: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest
+  tests/unit/test_events.py tests/unit/test_operator.py -q` — expected
+  collection failure because `safefix.events` and `safefix.operator` did not
+  exist.
+- TDD green: the same focused command — `8 passed`; refactor green and
+  related command `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest
+  tests/unit/test_events.py tests/unit/test_operator.py
+  tests/unit/test_session_state.py -q` — `13 passed`.
+- Implementation: added frozen `SessionEvent`, runtime-checkable `EventSink`,
+  allowed event kinds, bounded recursive safe-payload redaction, the six
+  operator controls, approval-only command scope, unknown/direct tool-file-
+  shell input as guidance, and bounded newest guidance draining at READY.
+  The existing callable `SessionRunner.event_sink` path was left unchanged.
+- Specification-compliance review: PASS. The exact Task 3 files/interfaces,
+  typed sequence/phase/kind fields, redaction boundary, guidance bounds,
+  command recognition, no-dispatch authority, pending-approval scope, and
+  v0.1 compatibility are covered. No raw model response, complete source,
+  credential, shell execution, or test/F0/config mutation path was added.
+- Code-quality review: PASS. The implementation is stdlib-only and small;
+  validation occurs at input boundaries, no broad exception handling or
+  speculative fallback exists, no unnecessary event bus/runner integration
+  was introduced, and tests assert observable behavior rather than internals.
+- Verification: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest
+  tests -q` — `288 passed`; `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src
+  python -m compileall -q src` — passed; `git diff --check` — passed; tag
+  `v0.1.0` still resolves to `277bf09932e58f8950aaf5eacf4155def164e9ba`.
+- Implementation commit: pending intentional commit with subject
+  `feat: add bounded operator event protocol`; the resulting hash and report
+  path are recorded in the follow-up audit closure.
