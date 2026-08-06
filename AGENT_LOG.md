@@ -1278,3 +1278,50 @@
   compileall and `git diff --check` passed.
 - The accidental test edit in the main checkout was removed; the main
   checkout is clean and all Task 2 changes are in `.worktrees/safefix-v0.2`.
+
+## v0.2 Task 2 — fix round 1
+
+- Date: 2026-08-06. Scope: addressed exactly the two load-bearing findings in
+  `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/task-2-review.md`.
+  Modified only `src/safefix/llm/roles.py`, `src/safefix/config.py`,
+  `tests/unit/test_openai_client.py`, and `tests/unit/test_config.py` in the
+  implementation commit. The immutable `v0.1.0` tag, dependencies, legacy
+  Repair resolver, and unrelated files were not changed.
+- Skills: `using-superpowers`, `brainstorming` (the approved design supplied
+  the completed design gate), `using-git-worktrees`,
+  `subagent-driven-development`, `receiving-code-review`,
+  `systematic-debugging`, `test-driven-development`,
+  `requesting-code-review`, and `verification-before-completion`.
+  `finishing-a-development-branch` remains deferred: this is the explicitly
+  supplied linked worktree and only Task 2 fix round 1 is in scope.
+- Root cause: `ModelClientFactory.create()` trusted the public
+  `keyring_service` field, and `_validate_role_pairs()` compared raw URLs even
+  though `OpenAICompatibleClient` removes trailing slashes.
+- TDD red: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest
+  tests/unit/test_openai_client.py::test_model_client_factory_uses_role_service_when_config_service_is_mismatched
+  tests/unit/test_config.py::test_duplicate_role_effective_endpoint_model_is_rejected -q`
+  — expected `2 failed`: the forged Test config sent `Bearer repair-key` and
+  the effective duplicate was accepted.
+- TDD green: the same command — `2 passed`.
+- Related regression: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m
+  pytest tests/unit/test_credentials.py tests/unit/test_cli.py
+  tests/unit/test_openai_client.py tests/unit/test_config.py -q` — `70 passed`.
+  Full regression: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest
+  tests -q` — `280 passed`. `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python
+  -m compileall -q src` and `git diff --check` passed.
+- Specification-compliance review: PASS. The factory derives the fixed
+  keyring service from `ModelRole`, so a forged role/service configuration
+  cannot cross-read credentials. Configuration now rejects equivalent
+  trailing-slash endpoint/model pairs at the same boundary the client
+  normalizes. Legacy Repair service behavior, keyring-only policy, and API-key
+  redaction remain unchanged.
+- Code-quality review: PASS. No unnecessary abstraction, duplicate downstream
+  validation, broad exception handling, fallback, dead code, scope expansion,
+  or implementation-coupled test was introduced.
+- Deviation: no reviewer-subagent dispatch capability is exposed in this
+  session; the specification-compliance and code-quality reviews were
+  performed as two separate documented checklist passes over the exact scoped
+  diff. No product-scope deviation.
+- Implementation commit: `6b439e154ee45f27ac5a542fca33a8822a530c42`
+  (`fix: bind model roles to credentials`). Full report:
+  `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/task-2-fix-round-1-report.md`.
