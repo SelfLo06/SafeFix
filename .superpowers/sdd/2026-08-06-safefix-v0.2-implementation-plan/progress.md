@@ -116,5 +116,5 @@
   specification-compliance and code-quality reviews PASS. Report:
   `task-9-fix-round-1-report.md`.
 - Task 9: complete (commits `1e64748..eed23ad`, review clean).
-- Task 10: implementation and coordinator specification/code-quality reviews
-  complete; final commit/report hash closure pending.
+- Task 10: complete (commit `41767cf`, review clean; focused 37, related 52,
+  full 525 passed).

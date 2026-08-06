@@ -2563,4 +2563,5 @@
 - Implementer report:
   `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/
   task-10-implementer-report.md`.
-- Implementation commit: pending final commit.
+- Implementation commit: `41767cf` — `feat: integrate frozen v0.2 baseline
+  setup`.
