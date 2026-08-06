@@ -2070,5 +2070,9 @@
   has no broad exception handling, speculative fallback, duplicate boundary
   validation, dead code, dependency, or scope expansion; tests assert public
   behavior and policy purity.
-- Immutable `v0.1.0` tag check remains required at final verification. Commit
-  hash is recorded after the intentional Task 7 commit.
+- Verification after implementation commit: focused Task 7 **27 passed**;
+  full repository **426 passed** with one pre-existing warning; compileall,
+  diff check, and immutable `v0.1.0` tag verification passed. The tag remains
+  `4fc3d6bfd61ad6b4057de66abcf13605af3c2b9c`.
+- Implementation commit: `5cd2870` — `feat: enforce generated-test
+  acceptance modes`.
