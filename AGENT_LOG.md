@@ -1708,3 +1708,9 @@
   broad exception handling, invented defaults, speculative fallback, LLM
   call, unnecessary abstraction, dead code, or scope expansion was found.
 - Required implementation commit subject: `feat: validate generated test candidates`.
+- Implementation commit: `c787ca7` (`feat: validate generated test candidates`).
+- No production or test source changes were made after this implementation
+  commit.
+- Post-commit verification: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python
+  -m pytest tests -q` — `339 passed`; compileall, `git diff --check`, and the
+  immutable `v0.1.0^{}` check also passed.
