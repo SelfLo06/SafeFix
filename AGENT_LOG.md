@@ -1758,3 +1758,43 @@
 - Fix report: `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/
   task-5-fix-round-1-report.md`; scoped re-review:
   `task-5-re-review-round-1.md`.
+
+## v0.2 Task 5 — fix round 2
+
+- Date: 2026-08-06. Scope is limited to the residual alias-analysis gaps in
+  `task-5-re-review-round-1.md`: callable aliases for `Path.touch`,
+  write-mode `Path.open`, and `builtins.open`; `getattr` aliases covering
+  source writes, nondeterminism, private access, mock limits, and dynamic
+  importlib receivers; and aliases of performance variables. No candidate
+  source was executed or written. Existing import aliases, constant dynamic
+  imports, and harmless in-memory `str.replace`/`list.remove` behavior remain
+  covered. No dependency, stability/workspace/orchestration, SPEC/PLAN, or
+  v0.1.0 tag change was made.
+- Skills: `using-superpowers`, `using-git-worktrees` (verified the supplied
+  linked worktree), `subagent-driven-development`, `systematic-debugging`,
+  `test-driven-development`, `receiving-code-review`,
+  `requesting-code-review`, and `verification-before-completion`.
+  No callable subagent-dispatch capability is exposed in this session, so the
+  specification-compliance and code-quality reviews were completed as
+  separate coordinator passes and recorded here. `finishing-a-development-
+  branch` remains deferred because the approved v0.2 branch is still in
+  progress and this worktree is externally managed.
+- TDD red: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest -p
+  no:cacheprovider tests/unit/test_testprep_rules.py -q` — `9 failed, 37
+  passed`; failures were the nine new residual alias probes.
+- TDD green/focused: the same command — `46 passed`.
+- Related: parser/rules/parse/paths command — `105 passed`.
+- Verification: full `tests` suite — `372 passed`; `python -m compileall -q
+  src` passed; `git diff --check` passed.
+- Specification-compliance review: PASS. Every residual probe from the
+  scoped re-review has an exact `RuleViolation` code/message assertion, and
+  canonical callable resolution now covers assigned aliases without
+  executing candidate code or touching candidate/project files.
+- Code-quality review: PASS. Callable alias tracking is one-pass and bounded,
+  restricted to known rule-relevant names; performance aliases use a
+  separate narrow map. No broad exception handling, speculative fallback,
+  unnecessary abstraction, dead code, or scope expansion was added.
+- Implementation commit: `215a2ef95cff2634679de7c620cfe2b498ec7e66` —
+  `fix: close Task 5 alias-analysis review gaps`.
+- Fix report: `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/
+  task-5-fix-round-2-report.md`.
