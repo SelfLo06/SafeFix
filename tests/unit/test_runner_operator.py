@@ -339,14 +339,18 @@ def test_controls_queued_during_apply_patch_and_pytest_wait_for_ready(
     import safefix.runner as runner_module
 
     original_dispatch = runner_module.dispatch
+    dispatch_entered = threading.Event()
+    release_dispatch = threading.Event()
 
-    def dispatch_and_queue(root: Path, action: object, snapshot: object) -> object:
-        outcome = original_dispatch(root, action, snapshot)
+    def blocked_dispatch(root: Path, action: object, snapshot: object) -> object:
         if getattr(action, "tool", None).value == "apply_patch":
+            dispatch_entered.set()
             queue.submit_text("/pause")
-        return outcome
+            if not release_dispatch.wait(timeout=2):
+                raise AssertionError("dispatch gate was not released")
+        return original_dispatch(root, action, snapshot)
 
-    monkeypatch.setattr(runner_module, "dispatch", dispatch_and_queue)
+    monkeypatch.setattr(runner_module, "dispatch", blocked_dispatch)
 
     class QueueingEvaluationRunner(SequentialRunner):
         def __init__(self) -> None:
@@ -357,11 +361,16 @@ def test_controls_queued_during_apply_patch_and_pytest_wait_for_ready(
                 ]
             )
             self.evaluations = 0
+            self.evaluation_entered = threading.Event()
+            self.release_evaluation = threading.Event()
 
         def run(self) -> _TestRunResult:
             self.evaluations += 1
             if self.evaluations == 2:
+                self.evaluation_entered.set()
                 queue.submit_text("/status")
+                if not self.release_evaluation.wait(timeout=2):
+                    raise AssertionError("evaluation gate was not released")
             return super().run()
 
     test_runner = QueueingEvaluationRunner()
@@ -389,6 +398,22 @@ def test_controls_queued_during_apply_patch_and_pytest_wait_for_ready(
         test_runner_factory=lambda _root, _args: test_runner,
     )
     thread, result = _run_async(runner)
+    assert dispatch_entered.wait(timeout=2)
+    try:
+        assert events.events == []
+        assert runner.phase.value == "ready"
+        assert "value" not in result
+    finally:
+        release_dispatch.set()
+
+    assert test_runner.evaluation_entered.wait(timeout=2)
+    try:
+        assert events.events == []
+        assert runner.phase.value == "ready"
+        assert "value" not in result
+    finally:
+        test_runner.release_evaluation.set()
+
     events.wait_for("status")
     assert runner.phase.value == "paused"
     assert runner.state is not None

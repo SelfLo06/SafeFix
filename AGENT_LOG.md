@@ -2684,3 +2684,36 @@
   review`.
 - Fix report: `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/
   task-11-fix-round-1-report.md`.
+
+### v0.2 Task 11 — fix round 2/5
+
+- Date: 2026-08-06. Addressed the sole remaining scoped re-review finding:
+  the apply-patch deferral test queued `/pause` after dispatch had returned.
+  The test now uses a blocked fake dispatch that submits `/pause` while the
+  operation is in flight, asserts no event/phase transition/result before
+  release, and separately gates evaluation while submitting `/status`. Only
+  `tests/unit/test_runner_operator.py` changed for behavior coverage; no
+  production behavior, dependency, authority, scope, or v0.1.0 tag changed.
+- Skills used: `using-superpowers`, `using-git-worktrees` (verified the
+  supplied linked worktree), `subagent-driven-development`,
+  `test-driven-development`, `receiving-code-review`,
+  `requesting-code-review`, and `verification-before-completion`.
+  No callable subagent-dispatch capability was exposed, so fresh
+  implementation, specification-compliance review, and code-quality review
+  were separate coordinator passes. `finishing-a-development-branch` remains
+  deferred because this user-specified linked worktree is externally managed.
+- TDD red: the new focused test first failed because it joined while the
+  runner was intentionally paused, before `/resume`; the gate assertions had
+  passed. TDD green: the corrected focused test passed 1 test.
+- Focused runner/operator/approval regression: **48 passed**. Full suite:
+  **542 passed**. Compileall and `git diff --check` passed.
+- Specification-compliance review: PASS. The test is load-bearing for command
+  arrival during blocked dispatch and evaluation, while control consumption
+  remains deferred until READY.
+- Code-quality review: PASS. Synchronization uses standard-library events;
+  no unnecessary abstraction, broad exception handling, speculative fallback,
+  dead code, implementation scope, or dependency expansion was introduced.
+- Immutable tag check: peeled `v0.1.0^{}` remains
+  `4fc3d6bfd61ad6b4057de66abcf13605af3c2b9c`.
+- Report: `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/
+  task-11-fix-round-2-report.md`.
