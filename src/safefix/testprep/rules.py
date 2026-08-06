@@ -2,7 +2,7 @@ import ast
 import re
 import sys
 import tomllib
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 from ..paths import normalize_rel_path
 from .models import GeneratedTestCandidate, RuleViolation
@@ -60,8 +60,31 @@ _MOCK_CALLS = {
     "unittest.mock.patch.dict",
     "unittest.mock.create_autospec",
 }
-_WRITE_METHODS = {"write_text", "write_bytes", "unlink", "rename"}
+_WRITE_METHODS = {"write_text", "write_bytes", "unlink", "rename", "rmdir"}
 _PATH_WRITE_METHODS = {"replace", "touch"}
+_PATH_MUTATION_METHODS = _WRITE_METHODS | _PATH_WRITE_METHODS
+_PATH_PROBE_METHODS = {
+    "read_text",
+    "read_bytes",
+    "exists",
+    "open",
+    "glob",
+    "rglob",
+    "iterdir",
+    "is_file",
+    "is_dir",
+    "stat",
+    "lstat",
+    "absolute",
+    "resolve",
+    "expanduser",
+    "as_uri",
+    "cwd",
+    "home",
+    "mkdir",
+    "chmod",
+}
+_PATH_METHODS = _PATH_MUTATION_METHODS | _PATH_PROBE_METHODS
 _SOURCE_WRITE_CALLS = {
     "codecs.open",
     "io.open",
@@ -147,10 +170,20 @@ _UNSAFE_PROCESS_PREFIXES = (
     "importlib.",
     "subprocess.",
     "multiprocessing.",
-    "os.exec",
-    "os.spawn",
+    "os.",
     "pty.",
 )
+_UNSAFE_FILESYSTEM_PREFIXES = (
+    "builtins.open",
+    "codecs.",
+    "glob.",
+    "io.",
+    "pathlib.",
+    "shutil.",
+    "tempfile.",
+)
+_UNSAFE_API_MESSAGE = "candidate must not use OS, process, or filesystem APIs"
+_UNSAFE_PATH_MESSAGE = "candidate must not use absolute or dynamic filesystem paths"
 
 
 def validate_candidate(
@@ -202,6 +235,8 @@ def validate_candidate(
         add("complex_snapshot", "candidate must use simple value assertions, not snapshots")
     if _mock_count(tree) > 2:
         add("excessive_mocking", "candidate uses more than two mock operations")
+    if _has_absolute_path_literal(tree):
+        add("unsafe_execution", _UNSAFE_PATH_MESSAGE)
     for module in _undeclared_imports(tree, root):
         add("undeclared_import", f"candidate imports undeclared dependency: {module}")
     has_source_write = _has_source_write(tree)
@@ -213,10 +248,7 @@ def validate_candidate(
             "candidate must not access paths outside the Harness-owned candidate project",
         )
     if not has_source_write and _has_unsafe_execution(tree):
-        add(
-            "unsafe_execution",
-            "candidate must not use dynamic execution, imports, process, or attribute access",
-        )
+        add("unsafe_execution", _UNSAFE_API_MESSAGE)
 
     return _ordered(violations)
 
@@ -415,6 +447,8 @@ def _has_source_write(tree: ast.AST) -> bool:
             if isinstance(node.func, ast.Name)
             else None
         )
+        if path_method is not None and path_method[1] in _PATH_MUTATION_METHODS:
+            return True
         if path_method is not None:
             callable_name = f"pathlib.Path.{path_method[1]}"
         if callable_name in {"apply_patch", "system", "popen"}:
@@ -466,17 +500,40 @@ def _has_unsafe_execution(tree: ast.AST) -> bool:
     callable_aliases = _with_assigned_callable_aliases(
         tree, module_aliases, callable_aliases
     )
+    path_names = _path_variable_names(tree, module_aliases, callable_aliases)
+    path_method_aliases = _path_method_aliases(
+        tree, module_aliases, callable_aliases, path_names
+    )
+    string_names = _string_variable_names(tree)
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
+        if isinstance(node.func, ast.Name):
+            path_method = path_method_aliases.get(node.func.id)
+            if path_method is not None and path_method[1] in _PATH_PROBE_METHODS:
+                return True
+        if isinstance(node.func, ast.Attribute):
+            if node.func.attr in _PATH_PROBE_METHODS:
+                return True
+            if node.func.attr == "replace" and not _is_string_expression(
+                node.func.value, string_names
+            ):
+                return True
         callable_name = _canonical_callable_name(
             node.func, module_aliases, callable_aliases
         )
         if callable_name in _UNSAFE_EXECUTION_CALLS:
             return True
+        if callable_name in {"os.urandom", "os.getrandom"}:
+            continue
         if any(
             callable_name == prefix[:-1] or callable_name.startswith(prefix)
             for prefix in _UNSAFE_PROCESS_PREFIXES
+        ):
+            return True
+        if any(
+            callable_name == prefix or callable_name.startswith(prefix)
+            for prefix in _UNSAFE_FILESYSTEM_PREFIXES
         ):
             return True
         if callable_name in {"getattr", "builtins.getattr"}:
@@ -487,6 +544,16 @@ def _has_unsafe_execution(tree: ast.AST) -> bool:
                 continue
             if member in _DYNAMIC_ATTR_HANDLED_BY_EXISTING_RULES:
                 continue
+            return True
+    return False
+
+
+def _has_absolute_path_literal(tree: ast.AST) -> bool:
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Constant) or not isinstance(node.value, str):
+            continue
+        value = node.value
+        if Path(value).is_absolute() or PureWindowsPath(value).is_absolute():
             return True
     return False
 
@@ -718,7 +785,14 @@ def _with_assigned_module_aliases(
 ) -> dict[str, str]:
     aliases = dict(module_aliases)
     for node in ast.walk(tree):
-        if not isinstance(node, ast.Assign) or not isinstance(node.value, ast.Call):
+        if not isinstance(node, ast.Assign):
+            continue
+        if isinstance(node.value, ast.Name) and node.value.id in aliases:
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    aliases[target.id] = aliases[node.value.id]
+            continue
+        if not isinstance(node.value, ast.Call):
             continue
         importer = _canonical_callable_name(
             node.value.func, aliases, callable_aliases
@@ -793,7 +867,11 @@ def _path_method_aliases(
             value = node.value
         else:
             continue
-        if not isinstance(value, ast.Attribute) or value.attr not in {"open", "touch"}:
+        if not isinstance(value, ast.Attribute) or value.attr not in _PATH_METHODS:
+            continue
+        if value.attr == "replace" and _is_string_expression(
+            value.value, _string_variable_names(tree)
+        ):
             continue
         if _is_path_class_receiver(value.value, module_aliases, callable_aliases):
             kind = "class"
@@ -802,11 +880,35 @@ def _path_method_aliases(
         ):
             kind = "bound"
         else:
-            continue
+            kind = "bound"
         for target in targets:
             if isinstance(target, ast.Name):
                 aliases[target.id] = (kind, value.attr)
     return aliases
+
+
+def _string_variable_names(tree: ast.AST) -> set[str]:
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.Assign, ast.AnnAssign)):
+            continue
+        value = node.value
+        if not isinstance(value, ast.Constant) or not isinstance(value.value, str):
+            continue
+        targets = node.targets if isinstance(node, ast.Assign) else (node.target,)
+        for target in targets:
+            if isinstance(target, ast.Name):
+                names.add(target.id)
+    return names
+
+
+def _is_string_expression(node: ast.AST, string_names: set[str]) -> bool:
+    return (
+        isinstance(node, ast.Constant)
+        and isinstance(node.value, str)
+    ) or (isinstance(node, ast.JoinedStr)) or (
+        isinstance(node, ast.Name) and node.id in string_names
+    )
 
 
 def _write_mode(

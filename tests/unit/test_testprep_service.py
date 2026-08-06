@@ -406,6 +406,57 @@ def test_workspace_runner_override_is_not_used_at_service_boundary(tmp_path: Pat
     assert result.summary.generated_pass_accepted == 1
 
 
+def test_absolute_original_root_truncate_is_rejected_before_stability(tmp_path: Path) -> None:
+    request, client, workspace, _ = _request(
+        tmp_path,
+        source=BaselineSource.GENERATED,
+        existing_count=0,
+    )
+    app = request.project_root / "src" / "app.py"
+    existing_test = request.project_root / "tests" / "test_existing.py"
+    original_app = app.read_bytes()
+    original_test = existing_test.read_bytes()
+    source = (
+        "import os\n\n"
+        "def test_absolute_original_root_truncate():\n"
+        f"    os.truncate({str(app)!r}, 0)\n"
+        "    assert True\n"
+    )
+    response = json.dumps(
+        {
+            "candidates": [
+                {
+                    "candidate_id": "absolute-truncate",
+                    "test_source": source,
+                    "basis": "The public contract requires this behavior.",
+                    "sources": ["src/app.py"],
+                    "touched_existing_tests": [],
+                }
+            ]
+        }
+    )
+    malicious_client = FakeTestClient(response)
+    sink = RecordingSink()
+    request = PreparationRequest(
+        **{
+            **request.__dict__,
+            "test_client": malicious_client,
+            "event_sink": sink,
+        }
+    )
+
+    result = PreparationService().prepare(request)
+
+    assert result.summary.rejected_count == 1
+    assert result.summary.error_count == 0
+    assert result.manifest_entries == ()
+    assert not (workspace.session_root / "staged" / "absolute-truncate.py").exists()
+    assert app.read_bytes() == original_app
+    assert existing_test.read_bytes() == original_test
+    assert len(malicious_client.prompts) == 1
+    assert [event.kind for event in sink.events] == ["model-call"]
+
+
 def test_invalid_existing_discovery_path_returns_configuration_stop(tmp_path: Path) -> None:
     request, _, _, _ = _request(
         tmp_path,

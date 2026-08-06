@@ -166,10 +166,15 @@ def test_rejects_os_randomness_through_module_alias(project):
     )
 
 
-def test_allows_read_only_path_open(project):
+def test_rejects_read_only_path_open(project):
     source = "from pathlib import Path\n\ndef test_read():\n    Path('src/app.py').open('r')\n"
 
-    assert validate_candidate(make_candidate(source), project) == ()
+    assert validate_candidate(make_candidate(source), project) == (
+        RuleViolation(
+            "unsafe_execution",
+            "candidate must not use OS, process, or filesystem APIs",
+        ),
+    )
 
 
 def test_rejects_benchmark_fixture_call(project):
@@ -255,6 +260,8 @@ def test_still_rejects_filesystem_mutation_methods(project, source):
         "from pathlib import Path\n\np = Path('src/app.py')\ntouch = p.touch\n\ndef test_write():\n    touch()\n",
         "from pathlib import Path\n\ntouch = Path.touch\n\ndef test_write():\n    touch(Path('src/app.py'))\n",
         "from pathlib import Path\n\nop = Path.open\n\ndef test_write():\n    op(Path('src/app.py'), 'w')\n",
+        "def test_rmdir_alias(tmp_path):\n    remove = tmp_path.rmdir\n    remove()\n",
+        "def test_replace_alias(tmp_path):\n    replace = tmp_path.replace\n    replace('other')\n",
         "from builtins import open as fopen\n\ndef test_write():\n    fopen('src/app.py', 'w')\n",
         "import os\n\ng = getattr\n\ndef test_write():\n    g(os, 'system')('touch src/app.py')\n",
         "import importlib\n\ng = getattr\n\ndef test_write():\n    g(importlib.import_module('shutil'), 'copyfile')('src/app.py', 'tests/test_existing.py')\n",
@@ -277,8 +284,13 @@ def test_rejects_callable_aliases_that_can_write_files(project, source):
         "from pathlib import Path\n\np = Path('src/app.py')\nop = p.open\n\ndef test_read():\n    op('r')\n",
     ],
 )
-def test_allows_read_only_callable_aliases(project, source):
-    assert validate_candidate(make_candidate(source), project) == ()
+def test_rejects_read_only_callable_aliases(project, source):
+    assert validate_candidate(make_candidate(source), project) == (
+        RuleViolation(
+            "unsafe_execution",
+            "candidate must not use OS, process, or filesystem APIs",
+        ),
+    )
 
 
 @pytest.mark.parametrize(
@@ -348,6 +360,65 @@ def test_rejects_absolute_path_access_before_candidate_execution(project):
     assert validate_candidate(make_candidate(source), project) == (
         RuleViolation(
             "unsafe_execution",
-            "candidate must not access paths outside the Harness-owned candidate project",
+            "candidate must not use absolute or dynamic filesystem paths",
+        ),
+    )
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "import os\n\ndef test_fork():\n    os.fork()\n",
+        "import os\n\ndef test_spawn():\n    os.posix_spawn('bin/true', ['bin/true'], {})\n",
+        "import os\n\ndef test_mkdir():\n    os.mkdir('created')\n",
+        "import os\n\ndef test_chmod():\n    os.chmod('src/app.py', 0o644)\n",
+        "import os\n\ndef test_truncate():\n    os.truncate('src/app.py', 0)\n",
+        "import os as operating_system\n\ndef test_truncate_alias():\n    operating_system.truncate('src/app.py', 0)\n",
+        "from os import truncate as change_size\n\ndef test_truncate_import_alias():\n    change_size('src/app.py', 0)\n",
+        "import os\nmodule = os\noperation = module.truncate\n\ndef test_truncate_assigned_alias():\n    operation('src/app.py', 0)\n",
+        "import os\nmodule = os.path\noperation = module.abspath\n\ndef test_abspath_module_alias():\n    operation('src/app.py')\n",
+    ],
+)
+def test_rejects_os_process_and_filesystem_apis(project, source):
+    assert validate_candidate(make_candidate(source), project) == (
+        RuleViolation(
+            "unsafe_execution",
+            "candidate must not use OS, process, or filesystem APIs",
+        ),
+    )
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "from pathlib import Path\n\ndef test_read_text():\n    Path('src/app.py').read_text()\n",
+        "from pathlib import Path as P\n\ndef test_exists():\n    P('src/app.py').exists()\n",
+        "from pathlib import Path\n\ndef test_open():\n    Path('src/app.py').open('r')\n",
+        "import pathlib\nP = pathlib.Path\nread = P('src/app.py').read_text\n\ndef test_read_alias():\n    read()\n",
+        "import pathlib\nP = pathlib.Path\nprobe = P.exists\n\ndef test_exists_alias():\n    probe(P('src/app.py'))\n",
+        "from pathlib import Path\n\ndef test_glob():\n    Path('src').glob('*.py')\n",
+        "def test_fixture_read(tmp_path):\n    tmp_path.read_text()\n",
+        "def test_fixture_exists(tmp_path):\n    probe = tmp_path.exists\n    probe()\n",
+        "def test_fixture_absolute(tmp_path):\n    tmp_path.absolute()\n",
+        "def test_fixture_mkdir(tmp_path):\n    tmp_path.mkdir()\n",
+        "def test_fixture_chmod(tmp_path):\n    tmp_path.chmod(0o644)\n",
+    ],
+)
+def test_rejects_path_api_probes_and_aliases(project, source):
+    assert validate_candidate(make_candidate(source), project) == (
+        RuleViolation(
+            "unsafe_execution",
+            "candidate must not use OS, process, or filesystem APIs",
+        ),
+    )
+
+
+def test_rejects_absolute_path_literal_even_without_a_path_api(project):
+    source = "def test_absolute_literal():\n    assert '/tmp/original-root' == '/tmp/original-root'\n"
+
+    assert validate_candidate(make_candidate(source), project) == (
+        RuleViolation(
+            "unsafe_execution",
+            "candidate must not use absolute or dynamic filesystem paths",
         ),
     )
