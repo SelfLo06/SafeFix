@@ -96,6 +96,7 @@ _TRACKED_CALLABLE_NAMES = (
         "import_module",
         "importlib.import_module",
         "builtins.open",
+        "pathlib.Path",
         "pathlib.Path.open",
         "pathlib.Path.touch",
     }
@@ -337,12 +338,22 @@ def _has_source_write(tree: ast.AST) -> bool:
         tree, module_aliases, callable_aliases
     )
     path_names = _path_variable_names(tree, module_aliases, callable_aliases)
+    path_method_aliases = _path_method_aliases(
+        tree, module_aliases, callable_aliases, path_names
+    )
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
         callable_name = _canonical_callable_name(
             node.func, module_aliases, callable_aliases
         )
+        path_method = (
+            path_method_aliases.get(node.func.id)
+            if isinstance(node.func, ast.Name)
+            else None
+        )
+        if path_method is not None:
+            callable_name = f"pathlib.Path.{path_method[1]}"
         if callable_name in {"apply_patch", "system", "popen"}:
             return True
         if callable_name in _SOURCE_WRITE_CALLS:
@@ -350,7 +361,18 @@ def _has_source_write(tree: ast.AST) -> bool:
         if callable_name == "pathlib.Path.touch":
             return True
         if callable_name in {"builtins.open", "pathlib.Path.open"}:
-            if _write_mode(node):
+            alias_kind = path_method[0] if path_method is not None else None
+            if _write_mode(
+                node,
+                path_class_receiver=alias_kind == "class"
+                or (
+                    isinstance(node.func, ast.Attribute)
+                    and _is_path_class_receiver(
+                        node.func.value, module_aliases, callable_aliases
+                    )
+                ),
+                bound_path_method=alias_kind == "bound",
+            ):
                 return True
         if isinstance(node.func, ast.Name) and node.func.id == "open":
             if _write_mode(node):
@@ -400,6 +422,8 @@ def _canonical_callable_name(
     if isinstance(node, ast.Name):
         if node.id in module_aliases:
             return module_aliases[node.id]
+        if node.id == "open":
+            return "builtins.open"
         return callable_aliases.get(node.id, node.id)
     if isinstance(node, ast.Attribute):
         if isinstance(node.value, ast.Call):
@@ -479,6 +503,8 @@ def _with_assigned_callable_aliases(
         else:
             continue
         value_name = _canonical_callable_name(value, module_aliases, aliases) if value else ""
+        if value_name == "pathlib.Path" and isinstance(value, ast.Call):
+            continue
         if not value_name or value_name not in _TRACKED_CALLABLE_NAMES:
             continue
         for target in targets:
@@ -576,8 +602,47 @@ def _is_path_receiver(
     return _canonical_callable_name(node, module_aliases, callable_aliases) == "pathlib.Path"
 
 
-def _write_mode(node: ast.Call, *, path_class_receiver: bool = False) -> bool:
-    if isinstance(node.func, ast.Name):
+def _path_method_aliases(
+    tree: ast.AST,
+    module_aliases: dict[str, str],
+    callable_aliases: dict[str, str],
+    path_names: set[str],
+) -> dict[str, tuple[str, str]]:
+    aliases: dict[str, tuple[str, str]] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+            value = node.value
+        elif isinstance(node, ast.AnnAssign):
+            targets = (node.target,)
+            value = node.value
+        else:
+            continue
+        if not isinstance(value, ast.Attribute) or value.attr not in {"open", "touch"}:
+            continue
+        if _is_path_class_receiver(value.value, module_aliases, callable_aliases):
+            kind = "class"
+        elif _is_path_receiver(
+            value.value, module_aliases, callable_aliases, path_names
+        ):
+            kind = "bound"
+        else:
+            continue
+        for target in targets:
+            if isinstance(target, ast.Name):
+                aliases[target.id] = (kind, value.attr)
+    return aliases
+
+
+def _write_mode(
+    node: ast.Call,
+    *,
+    path_class_receiver: bool = False,
+    bound_path_method: bool = False,
+) -> bool:
+    if bound_path_method:
+        mode_index = 0
+    elif isinstance(node.func, ast.Name):
         mode_index = 1
     elif path_class_receiver:
         mode_index = 1

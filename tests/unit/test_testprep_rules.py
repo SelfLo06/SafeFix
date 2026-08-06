@@ -247,6 +247,11 @@ def test_still_rejects_filesystem_mutation_methods(project, source):
 @pytest.mark.parametrize(
     "source",
     [
+        "fopen = open\n\ndef test_write():\n    fopen('src/app.py', 'w')\n",
+        "import pathlib\n\nP = pathlib.Path\n\ndef test_write():\n    P.open(P('src/app.py'), 'w')\n",
+        "import pathlib\n\nP = pathlib.Path\n\ndef test_write():\n    P.touch(P('src/app.py'))\n",
+        "from pathlib import Path\n\np = Path('src/app.py')\nop = p.open\n\ndef test_write():\n    op('w')\n",
+        "from pathlib import Path\n\np = Path('src/app.py')\ntouch = p.touch\n\ndef test_write():\n    touch()\n",
         "from pathlib import Path\n\ntouch = Path.touch\n\ndef test_write():\n    touch(Path('src/app.py'))\n",
         "from pathlib import Path\n\nop = Path.open\n\ndef test_write():\n    op(Path('src/app.py'), 'w')\n",
         "from builtins import open as fopen\n\ndef test_write():\n    fopen('src/app.py', 'w')\n",
@@ -261,6 +266,18 @@ def test_rejects_callable_aliases_that_can_write_files(project, source):
             "candidate must not write production or existing test files",
         ),
     )
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "fopen = open\n\ndef test_read():\n    fopen('src/app.py', 'r')\n",
+        "import pathlib\n\nP = pathlib.Path\n\ndef test_read():\n    P.open(P('src/app.py'), 'r')\n",
+        "from pathlib import Path\n\np = Path('src/app.py')\nop = p.open\n\ndef test_read():\n    op('r')\n",
+    ],
+)
+def test_allows_read_only_callable_aliases(project, source):
+    assert validate_candidate(make_candidate(source), project) == ()
 
 
 @pytest.mark.parametrize(
