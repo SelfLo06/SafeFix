@@ -1475,3 +1475,49 @@
 - Implementation commit: `8071beb` — `fix: harden typed event payload
   immutability`; report:
   `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/task-3-fix-round-2-report.md`.
+
+## v0.2 Task 3 — fix round 3
+
+- Date: 2026-08-06. Scope: addressed only the remaining HIGH `safe_payload`
+  direct-JSON-serialization finding from the round-2 scoped re-review. The
+  adapter, operator command boundary, redaction/boundedness rules, Harness
+  authority, dependencies, and immutable `v0.1.0` tag were preserved. The
+  only implementation/test files changed are `src/safefix/events.py` and
+  `tests/unit/test_events.py`.
+- Skills: `using-superpowers`, `using-git-worktrees` (verified the supplied
+  linked worktree), `subagent-driven-development`, `receiving-code-review`,
+  `systematic-debugging`, `test-driven-development`, `requesting-code-review`,
+  and `verification-before-completion`. No subagent-dispatch capability is
+  exposed in this session; specification-compliance and code-quality reviews
+  were completed as separate coordinator checklist passes. The finishing
+  workflow remains deferred because the approved v0.2 branch is still in
+  progress and this worktree is preserved for external integration.
+- Review feedback was verified against the current code before implementation:
+  the previous tuple-backed `Mapping` defeated dict mutation bypasses but
+  failed stdlib JSON encoding, while `_jsonable` in the test masked that public
+  failure.
+- TDD red: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest
+  -p no:cacheprovider tests/unit/test_events.py -q` — `2 failed, 8 passed`;
+  both failures were direct `json.dumps(event.safe_payload)` TypeErrors.
+- TDD green: the same command — `10 passed`; the helper conversion was removed
+  and the direct JSON regression now asserts the tuple-entry output.
+- Related regression: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m
+  pytest -p no:cacheprovider tests/unit/test_events.py
+  tests/unit/test_operator.py tests/unit/test_session_state.py
+  tests/unit/test_runner_dispatch.py -q` — `29 passed`.
+- Full verification: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m
+  pytest -p no:cacheprovider tests -q` — `296 passed`; compileall and
+  `git diff --check` passed. Runtime probes rejected top-level, nested,
+  sequence, nested-item, and object-attribute mutation while direct
+  `json.dumps(event.safe_payload)` succeeded. The `v0.1.0` tag ref remains
+  unchanged (`277bf09932e58f8950aaf5eacf4155def164e9ba`; dereferenced commit
+  `4fc3d6bfd61ad6b4057de66abcf13605af3c2b9c`).
+- Specification-compliance review: PASS. The public safe payload is now
+  recursively immutable and directly JSON serializable without weakening
+  sanitization, bounds, adapter compatibility, or authority boundaries.
+- Code-quality review: PASS. The stdlib-only tuple-entry representation is
+  scoped and maintainable; no unnecessary abstraction, duplicate validation,
+  broad catch, speculative fallback, dead code, or scope expansion was added.
+- Implementation commit: `0a099f6b85a2c7ec8c1ff92ee9e7066b9792c354` —
+  `fix: make safe event payload JSON serializable`; full report:
+  `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/task-3-fix-round-3-report.md`.
