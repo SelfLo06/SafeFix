@@ -2748,4 +2748,4 @@
   `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/task-11-fix-round-3-report.md`.
 - Implementation commit: `36ce30d` — `fix: make Task 11 enqueue ordering
   deterministic`.
-- Documentation closure commit is recorded after this evidence update.
+- Documentation closure commit: `37f67d4` — `docs: record Task 11 fix round 3`.

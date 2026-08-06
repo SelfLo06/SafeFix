@@ -59,8 +59,7 @@ SUCCESS authority, v0.1 behavior, or v0.1.0 tag was modified.
 
 - Implementation and preserved Task 11 worktree audit edits: `36ce30d` —
   `fix: make Task 11 enqueue ordering deterministic`.
-- Documentation closure: pending; this report hash is finalized in the
-  follow-up documentation commit.
+- Documentation closure: `37f67d4` — `docs: record Task 11 fix round 3`.
 
 ## Concerns
 
