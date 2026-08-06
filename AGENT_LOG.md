@@ -2749,3 +2749,36 @@
 - Implementation commit: `36ce30d` — `fix: make Task 11 enqueue ordering
   deterministic`.
 - Documentation closure commit: `37f67d4` — `docs: record Task 11 fix round 3`.
+
+### v0.2 Task 12 — final review checkpoint and high-risk completion gate
+
+- Date: 2026-08-06. Skills used: `using-superpowers`,
+  `using-git-worktrees`, `subagent-driven-development`,
+  `test-driven-development`, `requesting-code-review`,
+  `receiving-code-review`, and `verification-before-completion`.
+  `finishing-a-development-branch` remains deferred because this is the
+  user-specified externally managed linked worktree. No callable subagent
+  dispatch was exposed, so implementation, specification-compliance review,
+  and code-quality review were separate coordinator passes.
+- TDD red command:
+  `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests/unit/test_final_review.py tests/unit/test_runner_evaluate.py tests/unit/test_models.py tests/unit/test_snapshot.py -q`
+  — 7 failed as expected: missing final-review API/injection and checkpoint.
+- TDD green focused command:
+  `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests/unit/test_final_review.py tests/unit/test_runner_evaluate.py tests/unit/test_models.py -q`
+  — 24 passed.
+- Related command covering snapshot/artifacts/state/review — 41 passed.
+  Full command `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests -q`
+  — 549 passed. Compileall, `git diff --check`, and immutable
+  `v0.1.0^{}` (`4fc3d6bfd61ad6b4057de66abcf13605af3c2b9c`) checks passed.
+- Specification-compliance review: PASS. FinalReviewService consumes bounded
+  final evidence only after valid all-green frozen-manifest pytest; standard
+  PASS/WARN/REVIEW_REQUIRED retain SUCCESS with verdict/warning artifact data;
+  high-risk REVIEW_REQUIRED uses FINAL_REVIEW_GATE, approval preserves the
+  green candidate, and rejection restores the explicit pre-final best with
+  FINAL_REVIEW_REJECTED. Review output cannot alter F0, pytest results, or code
+  except through the Harness-owned reject restore.
+- Code-quality review: PASS. No unnecessary abstraction, duplicated
+  validation, broad exception handling, speculative fallback, dead code,
+  dependency, or scope expansion found. Task 13 remains responsible for TUI
+  wiring; this task exposes injected review/gate boundaries only.
+- Implementation commit: `2f8a7c2` — `feat: add final review checkpoint gates`.
