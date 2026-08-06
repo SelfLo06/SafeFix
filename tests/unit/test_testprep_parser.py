@@ -101,3 +101,12 @@ def test_rejects_too_many_candidates():
 
     with pytest.raises(ParseError):
         CandidateParser().parse(response)
+
+
+def test_rejects_deep_but_size_bounded_json_with_deterministic_parse_error():
+    response = '{"candidates":' + ("[" * 10_000) + ("]" * 10_000) + "}"
+
+    with pytest.raises(
+        ParseError, match=r"^response JSON nesting exceeds the parser limit$"
+    ):
+        CandidateParser().parse(response)

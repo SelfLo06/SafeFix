@@ -62,6 +62,8 @@ class CandidateParser:
                 object_pairs_hook=_object_pairs,
                 parse_constant=_reject_json_constant,
             )
+        except RecursionError as exc:
+            raise ParseError("response JSON nesting exceeds the parser limit") from exc
         except (TypeError, ValueError, json.JSONDecodeError) as exc:
             raise ParseError("response must be valid JSON") from exc
 

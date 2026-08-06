@@ -40,6 +40,7 @@ _NONDETERMINISTIC_IMPORTS = {
     "urllib",
     "uuid",
 }
+_NONDETERMINISTIC_CALLS = {"os.urandom", "os.getrandom"}
 _SNAPSHOT_IMPORTS = {"inline_snapshot", "snapshottest", "syrupy"}
 _MOCK_CALLS = {
     "Mock",
@@ -50,9 +51,39 @@ _MOCK_CALLS = {
     "patch.object",
     "patch.dict",
     "create_autospec",
+    "unittest.mock.Mock",
+    "unittest.mock.MagicMock",
+    "unittest.mock.AsyncMock",
+    "unittest.mock.PropertyMock",
+    "unittest.mock.patch",
+    "unittest.mock.patch.object",
+    "unittest.mock.patch.dict",
+    "unittest.mock.create_autospec",
 }
-_WRITE_METHODS = {"write_text", "write_bytes", "unlink", "remove", "rename", "replace"}
+_WRITE_METHODS = {"write_text", "write_bytes", "unlink", "rename"}
+_PATH_WRITE_METHODS = {"replace", "touch"}
+_SOURCE_WRITE_CALLS = {
+    "os.system",
+    "os.popen",
+    "os.remove",
+    "os.unlink",
+    "os.rename",
+    "os.replace",
+    "shutil.copy",
+    "shutil.copy2",
+    "shutil.copyfile",
+    "shutil.copytree",
+    "shutil.move",
+    "shutil.rmtree",
+}
 _PERFORMANCE_NAMES = {"benchmark", "duration", "elapsed", "latency", "runtime"}
+_PERFORMANCE_CALL_NAMES = {
+    "benchmark",
+    "perf_counter",
+    "process_time",
+    "timeit",
+    "pedantic",
+}
 
 
 def validate_candidate(
@@ -136,6 +167,16 @@ def _has_private_reference(tree: ast.AST) -> bool:
             return True
         if isinstance(node, ast.Name) and node.id.startswith("_") and node.id != "_":
             return True
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "getattr"
+            and len(node.args) >= 2
+            and isinstance(node.args[1], ast.Constant)
+            and isinstance(node.args[1].value, str)
+            and node.args[1].value.startswith("_")
+        ):
+            return True
     return False
 
 
@@ -168,8 +209,22 @@ def _import_roots(tree: ast.AST) -> set[str]:
 def _has_nondeterminism(tree: ast.AST) -> bool:
     if _import_roots(tree) & _NONDETERMINISTIC_IMPORTS:
         return True
+    module_aliases, callable_aliases = _import_bindings(tree)
+    module_aliases = _with_assigned_module_aliases(
+        tree, module_aliases, callable_aliases
+    )
+    callable_aliases = _with_assigned_callable_aliases(
+        tree, module_aliases, callable_aliases
+    )
     for node in ast.walk(tree):
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+        if not isinstance(node, ast.Call):
+            continue
+        callable_name = _canonical_callable_name(
+            node.func, module_aliases, callable_aliases
+        )
+        if callable_name in _NONDETERMINISTIC_CALLS:
+            return True
+        if isinstance(node.func, ast.Attribute):
             if node.func.attr in {"now", "today", "utcnow", "time", "random", "randint", "get"}:
                 root = node.func.value.id if isinstance(node.func.value, ast.Name) else ""
                 if root in _NONDETERMINISTIC_IMPORTS:
@@ -180,14 +235,31 @@ def _has_nondeterminism(tree: ast.AST) -> bool:
 def _has_performance_threshold(tree: ast.AST) -> bool:
     if _import_roots(tree) & {"timeit", "pytest_benchmark", "benchmark"}:
         return True
+    module_aliases, callable_aliases = _import_bindings(tree)
+    module_aliases = _with_assigned_module_aliases(
+        tree, module_aliases, callable_aliases
+    )
+    callable_aliases = _with_assigned_callable_aliases(
+        tree, module_aliases, callable_aliases
+    )
     for node in ast.walk(tree):
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
-            if node.func.attr in {"perf_counter", "process_time", "timeit", "pedantic"}:
+        if isinstance(node, ast.Call):
+            callable_name = _canonical_callable_name(
+                node.func, module_aliases, callable_aliases
+            )
+            if (
+                callable_name in _PERFORMANCE_CALL_NAMES
+                or callable_name.rsplit(".", 1)[-1] in _PERFORMANCE_CALL_NAMES
+            ):
+                return True
+            if isinstance(node.func, ast.Attribute) and node.func.attr in _PERFORMANCE_CALL_NAMES:
                 return True
         if isinstance(node, ast.Compare):
+            operands = (node.left, *node.comparators)
             names = {
                 child.id.lower()
-                for child in ast.walk(node.left)
+                for operand in operands
+                for child in ast.walk(operand)
                 if isinstance(child, ast.Name)
             }
             if names & _PERFORMANCE_NAMES:
@@ -208,10 +280,23 @@ def _has_complex_snapshot(tree: ast.AST) -> bool:
 
 def _mock_count(tree: ast.AST) -> int:
     count = 0
+    module_aliases, callable_aliases = _import_bindings(tree)
+    module_aliases = _with_assigned_module_aliases(
+        tree, module_aliases, callable_aliases
+    )
+    callable_aliases = _with_assigned_callable_aliases(
+        tree, module_aliases, callable_aliases
+    )
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
-        if isinstance(node.func, ast.Name) and node.func.id in _MOCK_CALLS:
+        callable_name = _canonical_callable_name(
+            node.func, module_aliases, callable_aliases
+        )
+        if (
+            callable_name in _MOCK_CALLS
+            or callable_name.rsplit(".", 1)[-1] in _MOCK_CALLS
+        ):
             count += 1
         elif isinstance(node.func, ast.Attribute):
             dotted = _dotted_name(node.func)
@@ -221,21 +306,230 @@ def _mock_count(tree: ast.AST) -> int:
 
 
 def _has_source_write(tree: ast.AST) -> bool:
+    module_aliases, callable_aliases = _import_bindings(tree)
+    module_aliases = _with_assigned_module_aliases(
+        tree, module_aliases, callable_aliases
+    )
+    callable_aliases = _with_assigned_callable_aliases(
+        tree, module_aliases, callable_aliases
+    )
+    path_names = _path_variable_names(tree, module_aliases, callable_aliases)
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
-        if isinstance(node.func, ast.Attribute) and node.func.attr in _WRITE_METHODS:
+        callable_name = _canonical_callable_name(
+            node.func, module_aliases, callable_aliases
+        )
+        if callable_name in {"apply_patch", "system", "popen"}:
             return True
-        if isinstance(node.func, ast.Name) and node.func.id in {"apply_patch", "system", "popen"}:
+        if callable_name in _SOURCE_WRITE_CALLS:
             return True
         if isinstance(node.func, ast.Name) and node.func.id == "open":
-            if len(node.args) >= 2 and isinstance(node.args[1], ast.Constant) and isinstance(node.args[1].value, str):
-                if re.search(r"[wax+]", node.args[1].value):
+            if _write_mode(node):
+                return True
+        if isinstance(node.func, ast.Attribute):
+            if node.func.attr in _WRITE_METHODS:
+                return True
+            if node.func.attr in _PATH_WRITE_METHODS:
+                if node.func.attr == "touch" or _is_path_receiver(
+                    node.func.value, module_aliases, callable_aliases, path_names
+                ):
                     return True
-        if isinstance(node.func, ast.Attribute) and node.func.attr in {"copy", "move", "rmtree"}:
-            if isinstance(node.func.value, ast.Name) and node.func.value.id == "shutil":
+            if node.func.attr == "open" and _write_mode(
+                node,
+                path_class_receiver=_is_path_class_receiver(
+                    node.func.value, module_aliases, callable_aliases
+                ),
+            ):
                 return True
     return False
+
+
+def _import_bindings(tree: ast.AST) -> tuple[dict[str, str], dict[str, str]]:
+    module_aliases: dict[str, str] = {}
+    callable_aliases: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.asname:
+                    module_aliases[alias.asname] = alias.name
+                else:
+                    module_aliases[alias.name.split(".", 1)[0]] = alias.name.split(
+                        ".", 1
+                    )[0]
+        elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
+            for alias in node.names:
+                bound_name = alias.asname or alias.name
+                callable_aliases[bound_name] = f"{node.module}.{alias.name}"
+    return module_aliases, callable_aliases
+
+
+def _canonical_callable_name(
+    node: ast.AST,
+    module_aliases: dict[str, str],
+    callable_aliases: dict[str, str],
+) -> str:
+    if isinstance(node, ast.Name):
+        if node.id in module_aliases:
+            return module_aliases[node.id]
+        return callable_aliases.get(node.id, node.id)
+    if isinstance(node, ast.Attribute):
+        parts = _dotted_name_parts(node)
+        if parts and parts[0] in module_aliases:
+            parts = module_aliases[parts[0]].split(".") + parts[1:]
+        elif parts and parts[0] in callable_aliases:
+            parts = callable_aliases[parts[0]].split(".") + parts[1:]
+        return ".".join(parts)
+    if isinstance(node, ast.Call):
+        dynamic_name = _dynamic_callable_name(
+            node, module_aliases, callable_aliases
+        )
+        if dynamic_name:
+            return dynamic_name
+        return _canonical_callable_name(node.func, module_aliases, callable_aliases)
+    return ""
+
+
+def _dynamic_callable_name(
+    node: ast.Call,
+    module_aliases: dict[str, str],
+    callable_aliases: dict[str, str],
+) -> str | None:
+    if not isinstance(node.func, ast.Name) or node.func.id != "getattr":
+        return None
+    if len(node.args) < 2 or not isinstance(node.args[1], ast.Constant):
+        return None
+    member = node.args[1].value
+    if not isinstance(member, str):
+        return None
+    base = node.args[0]
+    if isinstance(base, ast.Call):
+        base_callable = _canonical_callable_name(
+            base.func, module_aliases, callable_aliases
+        )
+        if base_callable == "__import__" and base.args:
+            if isinstance(base.args[0], ast.Constant) and isinstance(base.args[0].value, str):
+                return f"{base.args[0].value}.{member}"
+        if base_callable in {"import_module", "importlib.import_module"} and base.args:
+            if isinstance(base.args[0], ast.Constant) and isinstance(base.args[0].value, str):
+                return f"{base.args[0].value}.{member}"
+    base_name = _canonical_callable_name(base, module_aliases, callable_aliases)
+    if base_name:
+        return f"{base_name}.{member}"
+    return None
+
+
+def _with_assigned_callable_aliases(
+    tree: ast.AST,
+    module_aliases: dict[str, str],
+    callable_aliases: dict[str, str],
+) -> dict[str, str]:
+    aliases = dict(callable_aliases)
+    changed = True
+    while changed:
+        changed = False
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Assign):
+                targets = node.targets
+            elif isinstance(node, ast.AnnAssign):
+                targets = (node.target,)
+            else:
+                continue
+            value_name = _canonical_callable_name(
+                node.value, module_aliases, aliases
+            ) if isinstance(node, (ast.Assign, ast.AnnAssign)) and node.value else ""
+            if not value_name:
+                continue
+            for target in targets:
+                if isinstance(target, ast.Name) and aliases.get(target.id) != value_name:
+                    aliases[target.id] = value_name
+                    changed = True
+    return aliases
+
+
+def _with_assigned_module_aliases(
+    tree: ast.AST,
+    module_aliases: dict[str, str],
+    callable_aliases: dict[str, str],
+) -> dict[str, str]:
+    aliases = dict(module_aliases)
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Assign) or not isinstance(node.value, ast.Call):
+            continue
+        importer = _canonical_callable_name(
+            node.value.func, aliases, callable_aliases
+        )
+        if importer not in {"__import__", "import_module", "importlib.import_module"}:
+            continue
+        if not node.value.args:
+            continue
+        module = node.value.args[0]
+        if not isinstance(module, ast.Constant) or not isinstance(module.value, str):
+            continue
+        for target in node.targets:
+            if isinstance(target, ast.Name):
+                aliases[target.id] = module.value
+    return aliases
+
+
+def _path_variable_names(
+    tree: ast.AST,
+    module_aliases: dict[str, str],
+    callable_aliases: dict[str, str],
+) -> set[str]:
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Assign) or not isinstance(node.value, ast.Call):
+            continue
+        constructor = _canonical_callable_name(
+            node.value.func, module_aliases, callable_aliases
+        )
+        if constructor != "pathlib.Path":
+            continue
+        for target in node.targets:
+            if isinstance(target, ast.Name):
+                names.add(target.id)
+    return names
+
+
+def _is_path_class_receiver(
+    node: ast.AST,
+    module_aliases: dict[str, str],
+    callable_aliases: dict[str, str],
+) -> bool:
+    return isinstance(node, (ast.Name, ast.Attribute)) and _canonical_callable_name(
+        node, module_aliases, callable_aliases
+    ) == "pathlib.Path"
+
+
+def _is_path_receiver(
+    node: ast.AST,
+    module_aliases: dict[str, str],
+    callable_aliases: dict[str, str],
+    path_names: set[str],
+) -> bool:
+    if isinstance(node, ast.Name) and node.id in path_names:
+        return True
+    return _canonical_callable_name(node, module_aliases, callable_aliases) == "pathlib.Path"
+
+
+def _write_mode(node: ast.Call, *, path_class_receiver: bool = False) -> bool:
+    if isinstance(node.func, ast.Name):
+        mode_index = 1
+    elif path_class_receiver:
+        mode_index = 1
+    else:
+        mode_index = 0
+    mode_node: ast.AST | None = node.args[mode_index] if len(node.args) > mode_index else None
+    for keyword in node.keywords:
+        if keyword.arg == "mode":
+            mode_node = keyword.value
+            break
+    if mode_node is None:
+        return False
+    if not isinstance(mode_node, ast.Constant) or not isinstance(mode_node.value, str):
+        return True
+    return bool(re.search(r"[wax+]", mode_node.value))
 
 
 def _undeclared_imports(tree: ast.AST, project_root: Path) -> tuple[str, ...]:
@@ -273,6 +567,10 @@ def _declared_dependencies(project_root: Path) -> set[str]:
 
 
 def _dotted_name(node: ast.Attribute) -> str:
+    return ".".join(_dotted_name_parts(node))
+
+
+def _dotted_name_parts(node: ast.Attribute) -> list[str]:
     parts: list[str] = []
     current: ast.AST = node
     while isinstance(current, ast.Attribute):
@@ -280,4 +578,4 @@ def _dotted_name(node: ast.Attribute) -> str:
         current = current.value
     if isinstance(current, ast.Name):
         parts.append(current.id)
-    return ".".join(reversed(parts))
+    return list(reversed(parts))
