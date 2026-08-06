@@ -1151,4 +1151,4 @@
   no-index whitespace check produced no whitespace errors. The only command
   correction was escaping the initial placeholder-scan regex; no document
   content depended on that failed command.
-- Pending commit subject: `docs: design SafeFix v0.2 architecture`.
+- Design commit: `f44f286` (`docs: design SafeFix v0.2 architecture`).
