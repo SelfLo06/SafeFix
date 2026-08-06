@@ -2215,3 +2215,45 @@
   preparation review findings`.
 - Fix report: `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/
   task-8-fix-round-1-report.md`.
+
+### v0.2 Task 8 — fix round 2/5
+
+- Date: 2026-08-06. Closed the remaining HIGH protected candidate-execution
+  boundary from `task-8-re-review-round-1.md`. Static candidate validation now
+  rejects dynamic evaluation/import/process/attribute access, dynamic file
+  paths, absolute path access, and additional standard-library file-open
+  aliases before staging or stability. The service's default runner no longer
+  consults an optional `workspace.run_candidate`; injected runners remain only
+  through the explicit constructor test seam, while the default continues to
+  execute the Harness-owned snapshot.
+- Added adversarial regressions proving an absolute original-project mutation
+  candidate is rejected before any runner call and that production source and
+  existing tests remain unchanged. Added runner-override and unsafe static-rule
+  coverage while preserving valid simple/read-only candidates and existing
+  policy flows.
+- TDD red: the pre-fix focused service/rules command failed **9 tests** for the
+  unhandled unsafe-rule and workspace-runner behaviors. TDD green: focused
+  service/rules command passed **87 tests**; related Task 8/manifest/runner
+  command passed **173 tests**.
+- Specification-compliance review: PASS. Candidate execution cannot be
+  redirected through the request workspace, unsafe boundary forms are rejected
+  before stability, snapshot execution remains the default, and no baseline/F0,
+  Repair Model, SUCCESS authority, v0.1 behavior, dependency, or tag scope was
+  changed.
+- Code-quality review: PASS. The change uses deterministic AST/path checks,
+  preserves existing rule reasons, avoids broad catches and speculative
+  abstractions, and tests observable boundary behavior. No callable
+  subagent-dispatch capability is exposed, so implementer and separate review
+  passes were coordinator passes; this workflow deviation is recorded.
+- `finishing-a-development-branch` is deferred because this user-specified
+  linked worktree is externally managed; the branch is preserved for the next
+  integration decision.
+- Verification: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest
+  tests -q` — **463 passed**; `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src
+  python -m compileall -q src` — passed; `git diff --check` — passed; immutable
+  tag check passed with `v0.1.0^{}` equal to
+  `4fc3d6bfd61ad6b4057de66abcf13605af3c2b9c`.
+- Fix commit: `4823695b84306976c8b29b3197b762ef098f8b33` — `fix: close Task 8
+  candidate execution boundary`.
+- Fix report: `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/
+  task-8-fix-round-2-report.md`.
