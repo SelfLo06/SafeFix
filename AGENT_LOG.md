@@ -2717,3 +2717,5 @@
   `4fc3d6bfd61ad6b4057de66abcf13605af3c2b9c`.
 - Report: `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/
   task-11-fix-round-2-report.md`.
+- Test-fix and audit-log commit: `40c7ff1` — `fix: make Task 11 patch
+  deferral test load-bearing`.
