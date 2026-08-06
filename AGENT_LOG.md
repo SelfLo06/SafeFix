@@ -2490,3 +2490,38 @@
 - Documentation closure commit: `58357aa` (`docs: record Task 9 fix round 2`).
 - Fix report: `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/
   task-9-fix-round-2-report.md`.
+
+### v0.2 Task 9 — fix round 3/5
+
+- Date: 2026-08-06. Scope is limited to the remaining P2 shared sanitizer
+  key-name gap: nested `userinfo` and bare `source` across event repr,
+  context, and artifact projections. No dependency, runner/TUI, v0.1 artifact
+  key, atomic-write, unrelated scope, or `v0.1.0` tag change was introduced.
+- Skills used: `using-superpowers`, `using-git-worktrees`,
+  `subagent-driven-development`, `test-driven-development`,
+  `receiving-code-review`, `requesting-code-review`, and
+  `verification-before-completion`. `finishing-a-development-branch` remains
+  deferred because this user-specified linked worktree is externally managed.
+  No callable subagent-dispatch capability was exposed, so implementer and
+  independent specification/code-quality review passes were coordinator
+  passes.
+- TDD red: the exact new regression failed before the fix because nested
+  `userinfo` and `source` names remained in `SessionEvent` repr. The first
+  compatibility run also caught that substring matching would redact required
+  `baseline_source`; the final helper preserves that field while redacting
+  only exact new key names.
+- TDD green: focused Task 9/event/dispatch command passed **44 tests**;
+  `tests/unit` passed **515 tests**; full `tests` passed **519 tests**.
+- Specification-compliance review: PASS. The requested key names are absent
+  from all three projections, safe values do not bypass key redaction, and
+  prior sanitizer, positional state, metadata, confirmation, artifact-key,
+  and atomic-write contracts remain preserved.
+- Code-quality review: PASS. The sanitizer remains shared and boundary-focused;
+  no broad catches, duplicated validation, speculative fallback, dead code,
+  dependency, or unrelated scope expansion was added.
+- Verification: compileall passed; both scoped `git diff --check` commands
+  passed; immutable `v0.1.0^{}` remains
+  `4fc3d6bfd61ad6b4057de66abcf13605af3c2b9c`.
+- Implementation commit: `f318299` (`fix: redact nested source key names`).
+- Fix report: `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/
+  task-9-fix-round-3-report.md`.
