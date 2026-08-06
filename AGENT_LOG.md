@@ -1123,3 +1123,32 @@
 - Build and test artifacts were removed. Final `git status --short
   --untracked-files=all` was empty, and `git ls-files env.lock` produced no
   output. The hosted Release remains non-draft with both uploaded assets.
+
+## v0.2 design brainstorming closure
+
+- Date: 2026-08-06. Scope is design-only: created
+  `docs/superpowers/specs/2026-08-06-safefix-v0.2-design.md`; no production
+  code, implementation plan, dependency, or v0.1 tag was changed.
+- Skills: `superpowers:using-superpowers` and
+  `superpowers:brainstorming`. The brainstorming hard gate was honored; no
+  implementation skill was invoked because the user requested a design review
+  stop before implementation.
+- Context evidence: read `SPEC.md`, `PLAN.md`, `SPEC_PROCESS.md`,
+  `AGENTS.md`, this log, `README.md`, course requirements, current source and
+  tests. The main worktree was clean, v0.1.0 remained published, and the
+  existing suite passed with `256 passed`.
+- Approach decision: retained the single-process `SessionRunner` authority and
+  added a separate test-preparation layer plus TUI adapter. Rejected direct
+  mixing of preparation/TUI state into repair policy and rejected a general
+  event-bus or agent-framework rewrite.
+- Minimum corrections recorded in the design: existing tests always remain in
+  a baseline when present; generated-only is valid only for projects without
+  existing tests; `SUCCESS` remains Harness-owned; `/stop` uses
+  `OPERATOR_STOP`; controlled generated-test writes are separate from Repair
+  Model `apply_patch`; legacy CLI behavior remains available.
+- Design self-review: marker scan passed with no unresolved markers; internal
+  contradiction, ambiguity, and scope checks are recorded in the design; the
+  no-index whitespace check produced no whitespace errors. The only command
+  correction was escaping the initial placeholder-scan regex; no document
+  content depended on that failed command.
+- Pending commit subject: `docs: design SafeFix v0.2 architecture`.
