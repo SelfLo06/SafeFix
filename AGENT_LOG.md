@@ -1663,5 +1663,5 @@
   defects, uses no broad exception handling or speculative fallback, retains
   the existing public constructor positional compatibility, and tests public
   behavior rather than implementation details.
-- Implementation commit: pending; full report:
+- Implementation commit: `dbe73ba` (`fix: close Task 4 review findings`); full report:
   `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/task-4-fix-round-1-report.md`.
