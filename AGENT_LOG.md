@@ -1521,3 +1521,54 @@
 - Implementation commit: `0a099f6b85a2c7ec8c1ff92ee9e7066b9792c354` —
   `fix: make safe event payload JSON serializable`; full report:
   `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/task-3-fix-round-3-report.md`.
+
+## v0.2 Task 3 — fix round 4
+
+- Date: 2026-08-06. Scope: addressed only the new HIGH contract defect from
+  `task-3-re-review-round-3.md`: `SessionEvent.safe_payload` again exposes a
+  dictionary-shaped public contract with normal key iteration and direct JSON
+  object serialization. The private sanitized snapshot remains immutable;
+  every property access materializes a fresh recursive dict/list copy. Only
+  `src/safefix/events.py` and `tests/unit/test_events.py` changed in the
+  implementation commit. The adapter, operator authority boundary, redaction
+  and bounds, dependencies, and immutable `v0.1.0` tag were preserved.
+- Skills: `using-superpowers`, `using-git-worktrees`,
+  `subagent-driven-development`, `receiving-code-review`,
+  `systematic-debugging`, `test-driven-development`,
+  `requesting-code-review`, and `verification-before-completion`.
+  No subagent-dispatch capability is exposed in this session, so the
+  specification-compliance and code-quality reviews were completed as
+  separate documented coordinator checklist passes. The finishing workflow
+  remains deferred because the approved v0.2 branch is still in progress and
+  this worktree is preserved for external integration.
+- Root cause verified before fixing: round 3 made the tuple-entry immutable
+  snapshot the public value, which made direct stdlib JSON encoding work but
+  violated `dict[str, object]`/normal `Mapping` iteration and produced a JSON
+  array instead of an object.
+- TDD red: after adding the contract and mutation-isolation assertions,
+  `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest -p
+  no:cacheprovider tests/unit/test_events.py -q` — `6 failed, 6 passed`;
+  failures were the non-dict public value, tuple-entry JSON shape, and
+  mutation tests receiving an immutable private representation.
+- TDD green: the focused event command — `12 passed`; related
+  `tests/unit/test_events.py tests/unit/test_operator.py
+  tests/unit/test_session_state.py tests/unit/test_runner_dispatch.py` —
+  `31 passed`; full suite — `298 passed`.
+- Specification-compliance review: PASS. `safe_payload` is annotated and
+  exposed as a fresh `dict[str, object]`; `list(event.safe_payload)` yields
+  keys; `json.loads(json.dumps(event.safe_payload))` yields a JSON object;
+  nested dict/list mutation and `dict.__setitem__` cannot alter the event or
+  inject data into later representations. Direct JSON, deep mutation,
+  base-class bypass, redaction, bounds, and LegacyEventSinkAdapter tests are
+  retained. No tuple-entry array is public and no Harness authority changed.
+- Code-quality review: PASS. The private tuple-backed snapshot and small
+  materialization helpers are the minimum design needed to combine genuine
+  recursive safety with the approved dict contract. Validation remains at the
+  event boundary; no broad exception handling, duplicate validation,
+  speculative fallback, dead code, or unrelated scope was added.
+- Verification before audit closure: `git diff --check` passed; no deleted
+  files; tag `v0.1.0` still points to
+  `4fc3d6bfd61ad6b4057de66abcf13605af3c2b9c`.
+- Implementation commit: `24dd8c7dd02dac886434436a095fae20191114f9` —
+  `fix: restore dictionary-shaped safe event payload`; full report:
+  `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/task-3-fix-round-4-report.md`.
