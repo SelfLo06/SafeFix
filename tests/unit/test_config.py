@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 
 from safefix.config import ConfigError, load_config
+from safefix.models import AcceptanceMode, BaselineSource, ModelRole
 
 
 def test_config_defaults(tmp_path: Path):
@@ -19,6 +20,103 @@ def test_config_fields_exist(tmp_path: Path):
     assert hasattr(config, "pytest_args")
     assert hasattr(config, "base_url")
     assert hasattr(config, "model")
+
+
+def test_v02_config_defaults(tmp_path: Path):
+    config = load_config(tmp_path, {})
+
+    assert config.generate_tests is False
+    assert config.baseline_source is BaselineSource.EXISTING
+    assert config.acceptance_mode is AcceptanceMode.STANDARD
+    assert config.stability_runs == 3
+    assert config.max_auto_accepted_failures == 3
+    assert config.test_base_url == ""
+    assert config.test_model == ""
+    assert config.review_base_url == ""
+    assert config.review_model == ""
+
+
+def test_generated_only_is_a_valid_config_value(tmp_path: Path):
+    config = load_config(
+        tmp_path,
+        {"generate_tests": True, "baseline_source": "generated"},
+    )
+
+    assert config.baseline_source is BaselineSource.GENERATED
+
+
+def test_role_configs_use_repair_alias_and_fixed_services(tmp_path: Path):
+    config = load_config(
+        tmp_path,
+        {
+            "base_url": "https://repair.example/v1",
+            "model": "repair-model",
+            "test_base_url": "https://test.example/v1",
+            "test_model": "test-model",
+            "review_base_url": "https://review.example/v1",
+            "review_model": "review-model",
+        },
+    )
+
+    repair = config.role_config(ModelRole.REPAIR)
+    test = config.role_config(ModelRole.TEST)
+    review = config.role_config(ModelRole.REVIEW)
+    assert (repair.base_url, repair.model, repair.keyring_service) == (
+        "https://repair.example/v1",
+        "repair-model",
+        "safefix-repair",
+    )
+    assert (test.base_url, test.model, test.keyring_service) == (
+        "https://test.example/v1",
+        "test-model",
+        "safefix-test",
+    )
+    assert (review.base_url, review.model, review.keyring_service) == (
+        "https://review.example/v1",
+        "review-model",
+        "safefix-review",
+    )
+
+
+@pytest.mark.parametrize("key", ["stability_runs", "max_auto_accepted_failures"])
+@pytest.mark.parametrize("value", [0, -1, True])
+def test_v02_numeric_bounds_are_positive(tmp_path: Path, key: str, value: object):
+    with pytest.raises(ConfigError):
+        load_config(tmp_path, {key: value})
+
+
+def test_invalid_acceptance_mode_is_rejected(tmp_path: Path):
+    with pytest.raises(ConfigError, match="acceptance_mode"):
+        load_config(tmp_path, {"acceptance_mode": "unsafe"})
+
+
+def test_duplicate_role_endpoint_model_is_rejected(tmp_path: Path):
+    with pytest.raises(ConfigError, match="same base_url.*model"):
+        load_config(
+            tmp_path,
+            {
+                "base_url": "https://same/v1",
+                "model": "m",
+                "review_base_url": "https://same/v1",
+                "review_model": "m",
+            },
+            require_llm=True,
+        )
+
+
+def test_same_endpoint_with_different_models_is_allowed(tmp_path: Path):
+    config = load_config(
+        tmp_path,
+        {
+            "base_url": "https://same/v1",
+            "model": "repair-model",
+            "review_base_url": "https://same/v1",
+            "review_model": "review-model",
+        },
+        require_llm=True,
+    )
+
+    assert config.review_model == "review-model"
 
 
 def test_require_llm_needs_base_url_model(tmp_path: Path):

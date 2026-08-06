@@ -1,8 +1,9 @@
 from pathlib import Path
 import re
 import tomllib
+from enum import Enum
 
-from .models import Config
+from .models import AcceptanceMode, BaselineSource, Config
 
 
 class ConfigError(ValueError):
@@ -18,9 +19,36 @@ _FIELDS = {
     "pytest_args",
     "base_url",
     "model",
+    "generate_tests",
+    "baseline_source",
+    "acceptance_mode",
+    "stability_runs",
+    "max_auto_accepted_failures",
+    "test_base_url",
+    "test_model",
+    "review_base_url",
+    "review_model",
 }
-_INTEGER_FIELDS = {"max_steps", "max_rounds", "max_no_progress_rounds"}
+_INTEGER_FIELDS = {
+    "max_steps",
+    "max_rounds",
+    "max_no_progress_rounds",
+    "stability_runs",
+    "max_auto_accepted_failures",
+}
 _LIST_FIELDS = {"allowed_paths", "excluded_paths", "pytest_args"}
+_STRING_FIELDS = {
+    "base_url",
+    "model",
+    "test_base_url",
+    "test_model",
+    "review_base_url",
+    "review_model",
+}
+_ENUM_FIELDS = {
+    "baseline_source": BaselineSource,
+    "acceptance_mode": AcceptanceMode,
+}
 _PYTEST_FLAGS = {"-q", "-v", "--tb=short", "--tb=line", "--tb=no", "--disable-warnings"}
 _REPORT_ARG = re.compile(r"-r[faAFeExXnNoOpPiIsSxX]+")
 
@@ -51,6 +79,8 @@ def load_config(
             *cli_values["excluded_paths"],
         ]
     values.update(cli_values)
+    _normalize_enums(values)
+    _validate_role_pairs(values)
 
     if require_llm and (not values.get("base_url", "").strip() or not values.get("model", "").strip()):
         raise ConfigError("base_url and model are required when require_llm is true")
@@ -74,7 +104,11 @@ def _validate_values(values: dict) -> None:
                 raise ConfigError(f"{key} must be a list of strings")
             if key == "pytest_args":
                 _validate_pytest_args(value)
-        elif key in {"base_url", "model"} and not isinstance(value, str):
+        elif key == "generate_tests" and not isinstance(value, bool):
+            raise ConfigError(f"{key} must be a boolean")
+        elif key in _ENUM_FIELDS and not isinstance(value, (str, Enum)):
+            raise ConfigError(f"{key} must be a valid enum value")
+        elif key in _STRING_FIELDS and not isinstance(value, str):
             raise ConfigError(f"{key} must be a string")
 
 
@@ -82,3 +116,33 @@ def _validate_pytest_args(args: list[str]) -> None:
     for arg in args:
         if arg not in _PYTEST_FLAGS and not _REPORT_ARG.fullmatch(arg):
             raise ConfigError(f"disallowed pytest argument: {arg}")
+
+
+def _normalize_enums(values: dict) -> None:
+    for key, enum_type in _ENUM_FIELDS.items():
+        if key not in values or isinstance(values[key], enum_type):
+            continue
+        try:
+            values[key] = enum_type(values[key])
+        except ValueError as exc:
+            raise ConfigError(f"{key} must be one of: {', '.join(item.value for item in enum_type)}") from exc
+
+
+def _validate_role_pairs(values: dict) -> None:
+    configured: dict[tuple[str, str], str] = {}
+    for role, base_key, model_key in (
+        ("repair", "base_url", "model"),
+        ("test", "test_base_url", "test_model"),
+        ("review", "review_base_url", "review_model"),
+    ):
+        base_url = values.get(base_key, "")
+        model = values.get(model_key, "")
+        if not base_url.strip() or not model.strip():
+            continue
+        pair = (base_url, model)
+        previous = configured.get(pair)
+        if previous is not None:
+            raise ConfigError(
+                f"roles {previous} and {role} use the same base_url and model"
+            )
+        configured[pair] = role

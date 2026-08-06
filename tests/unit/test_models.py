@@ -1,4 +1,11 @@
 from safefix.models import (
+    AcceptanceMode,
+    BaselineSource,
+    CandidateStatus,
+    ModelRole,
+    ModelRoleConfig,
+    Phase,
+    ReviewVerdict,
     StopReason,
     GuardDecision,
     ToolName,
@@ -21,7 +28,25 @@ def test_stop_reason_values():
         "NO_PROGRESS",
         "ERROR",
         "CONFIG_ERROR",
+        "OPERATOR_STOP",
+        "TEST_PREPARATION_ERROR",
+        "FINAL_REVIEW_REJECTED",
     }
+
+
+def test_v02_enum_values_are_stable():
+    assert {item.value for item in ModelRole} == {"test", "repair", "review"}
+    assert {item.value for item in BaselineSource} == {"existing", "generated", "mixed"}
+    assert {item.value for item in AcceptanceMode} == {"review", "standard", "high-risk"}
+    assert {item.value for item in CandidateStatus} == {"pass", "fail", "error", "flaky"}
+    assert {item.value for item in ReviewVerdict} == {
+        "pass",
+        "warn",
+        "review_required",
+        "not_configured",
+    }
+    assert Phase.PROJECT_INTAKE.value == "project_intake"
+    assert Phase.FINAL_REVIEW_GATE.value == "final_review_gate"
 
 
 def test_tool_call_apply_patch_roundtrip():
@@ -40,6 +65,11 @@ def test_config_defaults():
     assert config.max_steps == 30
     assert config.max_rounds == 10
     assert config.max_no_progress_rounds == 3
+    assert config.generate_tests is False
+    assert config.baseline_source is BaselineSource.EXISTING
+    assert config.acceptance_mode is AcceptanceMode.STANDARD
+    assert config.stability_runs == 3
+    assert config.max_auto_accepted_failures == 3
 
 
 def test_config_fields_exist():
@@ -62,7 +92,29 @@ def test_stop_reason_exit_code_contract():
         assert exit_code_for_stop_reason(reason) == 1
     assert exit_code_for_stop_reason(StopReason.CONFIG_ERROR) == 2
     assert exit_code_for_stop_reason(StopReason.ERROR) == 3
+    assert exit_code_for_stop_reason(StopReason.OPERATOR_STOP) == 1
+    assert exit_code_for_stop_reason(StopReason.FINAL_REVIEW_REJECTED) == 1
+    assert exit_code_for_stop_reason(StopReason.TEST_PREPARATION_ERROR) == 3
 
 
 def test_session_result_derives_exit_code_from_stop_reason():
     assert SessionResult(stop_reason=StopReason.ERROR).exit_code == 3
+
+
+def test_model_role_config_is_frozen_and_fingerprint_is_redacted():
+    config = ModelRoleConfig(
+        role=ModelRole.REPAIR,
+        base_url="https://llm.example/v1?api_key=secret",
+        model="repair-model",
+        keyring_service="safefix-repair",
+    )
+
+    assert config.identity_fingerprint == "repair:https://llm.example/v1:repair-model"
+    assert "secret" not in config.identity_fingerprint
+
+    try:
+        config.model = "other-model"
+    except (AttributeError, TypeError):
+        pass
+    else:
+        raise AssertionError("ModelRoleConfig must be immutable")

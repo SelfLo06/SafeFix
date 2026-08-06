@@ -1,5 +1,54 @@
 from dataclasses import dataclass, field
 from enum import Enum
+
+
+class ModelRole(str, Enum):
+    TEST = "test"
+    REPAIR = "repair"
+    REVIEW = "review"
+
+
+class BaselineSource(str, Enum):
+    EXISTING = "existing"
+    GENERATED = "generated"
+    MIXED = "mixed"
+
+
+class AcceptanceMode(str, Enum):
+    REVIEW = "review"
+    STANDARD = "standard"
+    HIGH_RISK = "high-risk"
+
+
+class CandidateStatus(str, Enum):
+    PASS = "pass"
+    FAIL = "fail"
+    ERROR = "error"
+    FLAKY = "flaky"
+
+
+class ReviewVerdict(str, Enum):
+    PASS = "pass"
+    WARN = "warn"
+    REVIEW_REQUIRED = "review_required"
+    NOT_CONFIGURED = "not_configured"
+
+
+class Phase(str, Enum):
+    PROJECT_INTAKE = "project_intake"
+    EXISTING_TEST_DISCOVERY = "existing_test_discovery"
+    TEST_PREPARATION = "test_preparation"
+    FREEZE_TEST_SET = "freeze_test_set"
+    BASELINE = "baseline"
+    READY = "ready"
+    DISPATCH = "dispatch"
+    EVALUATE = "evaluate"
+    FINAL_REVIEW = "final_review"
+    FINAL_REVIEW_GATE = "final_review_gate"
+    PAUSED = "paused"
+    STOP = "stop"
+
+
 class StopReason(Enum):
     SUCCESS = "success"
     REQUESTED = "requested"
@@ -8,6 +57,9 @@ class StopReason(Enum):
     NO_PROGRESS = "no_progress"
     ERROR = "error"
     CONFIG_ERROR = "config_error"
+    OPERATOR_STOP = "operator_stop"
+    TEST_PREPARATION_ERROR = "test_preparation_error"
+    FINAL_REVIEW_REJECTED = "final_review_rejected"
 
 
 def exit_code_for_stop_reason(reason: StopReason) -> int:
@@ -18,6 +70,8 @@ def exit_code_for_stop_reason(reason: StopReason) -> int:
         StopReason.MAX_STEPS,
         StopReason.MAX_ROUNDS,
         StopReason.NO_PROGRESS,
+        StopReason.OPERATOR_STOP,
+        StopReason.FINAL_REVIEW_REJECTED,
     }:
         return 1
     if reason is StopReason.CONFIG_ERROR:
@@ -73,6 +127,24 @@ class Feedback:
     labels: dict[str, str] = field(default_factory=dict)
 
 
+@dataclass(frozen=True)
+class ModelRoleConfig:
+    role: ModelRole
+    base_url: str
+    model: str
+    keyring_service: str
+
+    @property
+    def identity_fingerprint(self) -> str:
+        """Return a stable provider/model identity without URL credentials."""
+        from urllib.parse import urlsplit, urlunsplit
+
+        parsed = urlsplit(self.base_url)
+        netloc = parsed.netloc.rsplit("@", 1)[-1]
+        safe_url = urlunsplit((parsed.scheme, netloc, parsed.path, "", ""))
+        return f"{self.role.value}:{safe_url}:{self.model}"
+
+
 @dataclass
 class Config:
     max_steps: int = 30
@@ -83,6 +155,30 @@ class Config:
     pytest_args: list[str] = field(default_factory=list)
     base_url: str = ""
     model: str = ""
+    generate_tests: bool = False
+    baseline_source: BaselineSource = BaselineSource.EXISTING
+    acceptance_mode: AcceptanceMode = AcceptanceMode.STANDARD
+    stability_runs: int = 3
+    max_auto_accepted_failures: int = 3
+    test_base_url: str = ""
+    test_model: str = ""
+    review_base_url: str = ""
+    review_model: str = ""
+
+    def role_config(self, role: ModelRole) -> ModelRoleConfig:
+        role = ModelRole(role)
+        if role is ModelRole.TEST:
+            base_url, model, service = self.test_base_url, self.test_model, "safefix-test"
+        elif role is ModelRole.REPAIR:
+            base_url, model, service = self.base_url, self.model, "safefix-repair"
+        else:
+            base_url, model, service = self.review_base_url, self.review_model, "safefix-review"
+        return ModelRoleConfig(
+            role=role,
+            base_url=base_url,
+            model=model,
+            keyring_service=service,
+        )
 
 
 @dataclass(frozen=True)
