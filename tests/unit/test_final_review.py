@@ -215,6 +215,19 @@ def test_high_risk_review_rejection_restores_explicit_pre_final_best(tmp_path: P
 
     assert result.stop_reason is StopReason.FINAL_REVIEW_REJECTED
     assert (tmp_path / "src" / "app.py").read_text(encoding="utf-8") == "value = 2\n"
+    assert runner.state is not None
+    assert runner.state.F.ids == {"tests.test_app::test_second"}
+    assert runner.state.U_best.ids == {"tests.test_app::test_second"}
+    assert runner.state.last_evaluated is not None
+    assert runner.state.last_evaluated.ids == {"tests.test_app::test_second"}
+
+    artifact = json.loads((tmp_path / "safefix-session.json").read_text(encoding="utf-8"))
+    assert artifact["failure_sets"]["current"] == ["tests.test_app::test_second"]
+    assert artifact["failure_sets"]["unresolved_best"] == [
+        "tests.test_app::test_second"
+    ]
+    assert artifact["unresolved_current"] == ["tests.test_app::test_second"]
+    assert artifact["failure_diffs"]["resolved"] == ["tests.test_app::test_first"]
 
 
 def test_review_model_failure_after_green_maps_to_error(tmp_path: Path) -> None:

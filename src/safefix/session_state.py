@@ -327,6 +327,7 @@ class SessionState:
             raise RuntimeError("pre-final best state has not been captured")
         self.F = self.pre_final_best
         self.U_best = self.pre_final_best
+        self.last_evaluated = self.pre_final_best
 
     def __repr__(self) -> str:
         return (
