@@ -2139,9 +2139,9 @@
 - TDD red commands: initial focused collection failed because the service
   exports were absent; follow-up red regressions exposed malformed-response
   accounting, close-failure mapping, missing real-discovery paths, and missing
-  event emission. Green focused/related command passed 62 tests.
+  event emission. Green focused/related command passed 64 tests.
 - Verification: full `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m
-  pytest tests -q` passed 442 tests; `compileall -q src`, `git diff --check`,
+  pytest tests -q` passed 444 tests; `compileall -q src`, `git diff --check`,
   and immutable `v0.1.0` tag verification passed.
 - Specification-compliance review: PASS. Existing tests remain in the source
   manifest, generated tests enter only after acceptance, modes and explicit
@@ -2158,7 +2158,7 @@
   was exposed, so implementer and separate review passes were coordinator
   passes; this deviation is recorded. `finishing-a-development-branch` is
   deferred because this is an externally managed in-progress worktree.
-- Implementation commit: pending final intentional commit with subject
+- Implementation commit: `207ab1f872c5dbf7bcee1ead44d6360c55f709eb` —
   `feat: add isolated test preparation service`.
 - Full report: `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/
   task-8-implementer-report.md`.
