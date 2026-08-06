@@ -1845,3 +1845,50 @@
   `fix: close Task 5 round 3 write alias gaps`.
 - Fix report: `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/
   task-5-fix-round-3-report.md`.
+
+## v0.2 Task 6 — candidate workspace and stability classification
+
+- Date: 2026-08-06. Scope is limited to `CandidateWorkspace`, repeated
+  candidate runs, and PASS/FAIL/ERROR/FLAKY classification. Candidate source
+  is written only below a validated session-owned `.safefix/sessions/<id>`
+  directory; source files and existing tests are not written. No acceptance
+  policy, preparation orchestration, dependency, SPEC/PLAN, or v0.1.0 tag
+  change was made.
+- Skills: `using-superpowers`, `using-git-worktrees` (verified the supplied
+  linked worktree), `subagent-driven-development`,
+  `test-driven-development`, `requesting-code-review`,
+  `receiving-code-review`, and `verification-before-completion`.
+  No callable subagent-dispatch capability is exposed in this session, so the
+  fresh-implementer work and the required specification-compliance and
+  code-quality reviews were performed as separate coordinator passes. The
+  deviation is recorded rather than silently skipping the review gates.
+  `finishing-a-development-branch` remains deferred because the v0.2 branch
+  is still in progress and this worktree is externally managed.
+- TDD red: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest
+  tests/unit/test_testprep_stability.py tests/unit/test_testprep_workspace.py
+  -q` failed during collection with missing `safefix.testprep.stability` and
+  `safefix.testprep.workspace` modules.
+- TDD green: the focused command passed with 9 tests. The focused plus
+  manifest/runner regression command passed with 25 tests. The fresh full
+  regression command passed with 389 tests; compileall and `git diff --check`
+  also passed.
+- Specification-compliance review: PASS. The workspace validates session and
+  candidate path components, confines staging and cleanup, returns an
+  accepted-candidate path without writing it, and leaves production and
+  existing-test files unchanged. Stability runs execute the exact positive
+  configured count, preserve `CandidateRun` records and stable failure IDs,
+  classify all-valid green as PASS, all-valid stable red as FAIL, invalid
+  collection/infrastructure results as ERROR, and every other valid
+  disagreement as FLAKY. Existing Task 4 manifest and v0.1 TestRunner
+  behavior remain green.
+- Code-quality review: PASS. The implementation is small and typed, uses no
+  new dependency or speculative orchestration, validates at filesystem and
+  run-result boundaries, and does not duplicate Task 4 or Task 5 logic. The
+  runner exception boundary intentionally converts injected infrastructure
+  exceptions into invalid results so ERROR remains distinct from FLAKY.
+- Immutable tag verification: `git rev-parse 'v0.1.0^{}'` remained
+  `4fc3d6bfd61ad6b4057de66abcf13605af3c2b9c`.
+- Required implementation commit: `8b28104fcbc4b5eb32b5a64fb861e2bd236a419e`
+  (`feat: classify generated tests by stable runs`).
+- Full report: `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/
+  task-6-implementer-report.md`.
