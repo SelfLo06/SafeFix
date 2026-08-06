@@ -3,6 +3,7 @@
 Date: 2026-08-06
 Worktree: `.worktrees/safefix-v0.2`
 Implementation commit: `0a08d44`
+Documentation closure commit: `58357aa`
 
 ## Findings addressed
 

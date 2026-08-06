@@ -2487,5 +2487,6 @@
   `4fc3d6bfd61ad6b4057de66abcf13605af3c2b9c`.
 - Implementation commit: `0a08d44` (`fix: close Task 9 sanitizer and
   confirmation boundary`).
+- Documentation closure commit: `58357aa` (`docs: record Task 9 fix round 2`).
 - Fix report: `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/
   task-9-fix-round-2-report.md`.
