@@ -60,6 +60,21 @@ def test_parser_rejects_non_object_trailing_and_non_finite_json():
                      '"implementation_coupling":false,"risk":NaN,"summary":"ok"}')
 
 
+def test_parser_does_not_chain_raw_malformed_response_or_secrets():
+    secret = "Authorization: Bearer sk-proj-review-secret"
+
+    with pytest.raises(ReviewParseError) as exc_info:
+        ReviewParser().parse(
+            '{"verdict":"PASS","basis_supported":true,"invented_behavior":false,'
+            f'"implementation_coupling":false,"risk":"low","summary":"{secret}"'
+        )
+
+    error = exc_info.value
+    assert error.__cause__ is None
+    assert error.__context__ is None
+    assert secret not in str(error)
+
+
 def test_parser_rejects_oversized_response_and_text_fields():
     parser = ReviewParser()
 

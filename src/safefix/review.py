@@ -53,21 +53,26 @@ class ReviewParser:
             raise ReviewParseError("response must be a JSON string")
         try:
             response_size = len(response.encode("utf-8"))
-        except UnicodeEncodeError as exc:
-            raise ReviewParseError("response is not valid UTF-8 text") from exc
+        except UnicodeEncodeError:
+            response_size = None
+        if response_size is None:
+            raise ReviewParseError("response is not valid UTF-8 text")
         if response_size > self.MAX_RESPONSE_BYTES:
             raise ReviewParseError("response exceeds the Review output limit")
 
+        parse_error: str | None = None
         try:
             payload = json.loads(
                 response,
                 object_pairs_hook=_object_pairs,
                 parse_constant=_reject_json_constant,
             )
-        except RecursionError as exc:
-            raise ReviewParseError("response JSON nesting exceeds the parser limit") from exc
-        except (TypeError, ValueError, json.JSONDecodeError) as exc:
-            raise ReviewParseError("response must be valid JSON") from exc
+        except RecursionError:
+            parse_error = "response JSON nesting exceeds the parser limit"
+        except (TypeError, ValueError):
+            parse_error = "response must be valid JSON"
+        if parse_error is not None:
+            raise ReviewParseError(parse_error)
 
         if not isinstance(payload, dict) or set(payload) != _REVIEW_FIELDS:
             raise ReviewParseError("response must contain exactly the Review fields")
@@ -123,9 +128,12 @@ def _parse_verdict(value: Any) -> ReviewVerdict:
         raise ReviewParseError("verdict must be a string")
     normalized = value.strip().lower().replace("-", "_")
     try:
-        return ReviewVerdict(normalized)
-    except ValueError as exc:
-        raise ReviewParseError("verdict must be PASS, WARN, REVIEW_REQUIRED, or NOT_CONFIGURED") from exc
+        verdict = ReviewVerdict(normalized)
+    except ValueError:
+        verdict = None
+    if verdict is None:
+        raise ReviewParseError("verdict must be PASS, WARN, REVIEW_REQUIRED, or NOT_CONFIGURED")
+    return verdict
 
 
 def _parse_bool(value: Any, field: str) -> bool:

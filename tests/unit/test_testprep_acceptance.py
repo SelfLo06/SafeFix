@@ -10,6 +10,10 @@ from safefix.testprep.stability import CandidateEvaluation
 
 DISTINCT_PAIRS = (("https://test.example/v1", "test-model"), ("https://review.example/v1", "review-model"))
 SAME_PAIRS = (("https://same.example/v1", "model"), ("https://same.example/v1", "model"))
+EFFECTIVE_ENDPOINT_ALIAS_PAIRS = (
+    ("https://same.example/v1/", "model"),
+    ("https://same.example/v1///", "model"),
+)
 
 
 def review(**overrides):
@@ -150,6 +154,23 @@ def test_high_risk_fail_without_review_is_manual():
     assert decision.accepted is False
     assert decision.requires_manual is True
     assert "Review Model" in decision.reason
+
+
+def test_high_risk_fail_rejects_effective_endpoint_aliases_as_same_model():
+    decision = CandidateAcceptancePolicy().decide(
+        AcceptanceMode.HIGH_RISK,
+        evaluation(CandidateStatus.FAIL),
+        review(),
+        0,
+        EFFECTIVE_ENDPOINT_ALIAS_PAIRS,
+        0,
+        5,
+    )
+
+    assert decision.accepted is False
+    assert decision.requires_manual is True
+    assert decision.automatic is False
+    assert "model identities are not distinct" in decision.reason
 
 
 def test_high_risk_pass_remains_automatic_and_does_not_need_review():

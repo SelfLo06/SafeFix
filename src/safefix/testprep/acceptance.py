@@ -126,7 +126,11 @@ def _has_distinct_model_identities(
         test_pair, review_pair = pairs
     if not _valid_identity_pair(test_pair) or not _valid_identity_pair(review_pair):
         return False
-    return test_pair != review_pair
+    return _effective_identity_pair(test_pair) != _effective_identity_pair(review_pair)
+
+
+def _effective_identity_pair(pair: tuple[str, str]) -> tuple[str, str]:
+    return (pair[0].rstrip("/"), pair[1])
 
 
 def _valid_identity_pair(pair: object) -> bool:
