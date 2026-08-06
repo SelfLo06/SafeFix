@@ -2162,3 +2162,56 @@
   `feat: add isolated test preparation service`.
 - Full report: `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/
   task-8-implementer-report.md`.
+
+### v0.2 Task 8 — fix round 1/5
+
+- Date: 2026-08-06. Fixed all five findings from
+  `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/task-8-review.md`.
+  `ExistingTestDiscovery` now retains actual project-relative pytest-collected
+  paths, including configured `python_files` names; preparation uses those
+  paths and rejects count-only positive discovery instead of heuristic scanning.
+  Default candidate pytest runs execute from a disposable Harness-owned project
+  snapshot, so dynamic `eval`/`open` writes cannot change production, existing
+  tests, or the future formal baseline. Stability requires matching failure IDs
+  and `(failure ID, message)` signatures; otherwise valid red runs are FLAKY.
+  `generate_tests=False` bypasses Test Model generation and returns existing-only
+  entries for mixed preparation. Invalid discovery paths and manifest entry
+  failures map to `CONFIG_ERROR`; preparation catches only explicit boundary
+  exception types.
+- Added exact regressions for custom pytest filenames, generation-disabled mixed
+  preparation, adversarial dynamic mutation, differing failure messages, and
+  invalid existing paths. No dependency, v0.1.0 tag, baseline/F0, Repair Model,
+  or unrelated scope was changed.
+- Skills: `using-superpowers`, `systematic-debugging`, `using-git-worktrees`
+  (verified supplied linked worktree), `subagent-driven-development`,
+  `test-driven-development`, `receiving-code-review`, `requesting-code-review`,
+  and `verification-before-completion`. No callable subagent-dispatch capability
+  was exposed, so fresh-implementer and separate specification/code-quality
+  review passes were performed by the coordinator and this deviation is
+  recorded. `finishing-a-development-branch` remains deferred because this is
+  an externally managed in-progress worktree and integration choice belongs to
+  the user.
+- TDD red: the six new regression tests failed as expected (`6 failed`), with
+  missing discovery paths, ignored generation flag, production-cwd mutation,
+  raw manifest `ValueError`, and ID-only stability classification exposed.
+  TDD green: focused regression command passed **6 tests**; Task 8/manifest/
+  runner/JUnit related command passed **145 tests**; post-refactor service and
+  stability command passed **34 tests**.
+- Specification-compliance review: PASS. Existing collected paths are carried
+  into existing/mixed manifests without conventional-name inference; default
+  candidate execution is snapshot-isolated; stable FAIL requires identity and
+  message-signature agreement; disabled generation emits no generated entries;
+  invalid manifest inputs return the deterministic configuration stop.
+- Code-quality review: PASS. Existing-entry construction is shared and reused,
+  validation is at the discovery/filesystem boundary, the snapshot runner is a
+  local mechanism with no new dependency, broad exception swallowing and
+  heuristic fallback are removed, and tests assert observable contracts.
+- Verification: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest
+  tests -q` — **449 passed**; `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src
+  python -m compileall -q src` — passed; `git diff --check` — passed; immutable
+  tag check passed with `v0.1.0^{}` equal to
+  `4fc3d6bfd61ad6b4057de66abcf13605af3c2b9c`.
+- Fix commit: `b6d33a49faae4b5e9b1c15c2c9b8afeed667fcdf` — `fix: address Task 8
+  preparation review findings`.
+- Fix report: `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/
+  task-8-fix-round-1-report.md`.
