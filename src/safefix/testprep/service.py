@@ -127,6 +127,8 @@ class TestPreparationService:
     def __init__(
         self,
         *,
+        # Explicit trusted seam for deterministic unit tests. Candidate
+        # workspaces are untrusted data boundaries and never provide runners.
         candidate_runner: CandidateRunner | None = None,
         parser: CandidateParser | None = None,
         acceptance_policy: CandidateAcceptancePolicy | None = None,
@@ -369,9 +371,6 @@ class TestPreparationService:
     def _runner_for(self, request: PreparationRequest) -> CandidateRunner:
         if self._candidate_runner is not None:
             return self._candidate_runner
-        workspace_runner = getattr(request.workspace, "run_candidate", None)
-        if callable(workspace_runner):
-            return workspace_runner
         return self._isolated_project_runner(request)
 
     @staticmethod

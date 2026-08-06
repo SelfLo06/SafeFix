@@ -120,6 +120,7 @@ def test_rule_reasons_are_deterministic_and_ordered(project):
     "source",
     [
         "from pathlib import Path\n\ndef test_write():\n    Path('src/app.py').open('w')\n",
+        "import io\n\ndef test_write():\n    io.open('src/app.py', 'w')\n",
         "from pathlib import Path as P\n\ndef test_write():\n    P('src/app.py').open(mode='wb')\n",
         "from pathlib import Path\n\ndef test_write():\n    Path('src/app.py').touch()\n",
         "import os as operating_system\n\ndef test_write():\n    operating_system.system('touch src/app.py')\n",
@@ -315,3 +316,38 @@ def test_allows_read_only_callable_aliases(project, source):
 )
 def test_rejects_getattr_and_performance_aliases(project, source, violation):
     assert validate_candidate(make_candidate(source), project) == (violation,)
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "def test_eval():\n    eval('assert True')\n",
+        "def test_exec():\n    exec('value = 1')\n",
+        "def test_compile():\n    compile('value = 1', '<candidate>', 'exec')\n",
+        "from builtins import eval as execute\n\ndef test_eval():\n    execute('assert True')\n",
+        "def test_import():\n    __import__('os')\n",
+        "import importlib\n\ndef test_import():\n    importlib.import_module('os')\n",
+        "import subprocess\n\ndef test_process():\n    subprocess.run(['true'])\n",
+        "import subprocess\n\nrun = subprocess.run\n\ndef test_process():\n    run(['true'])\n",
+        "def test_process():\n    __import__('subprocess').run(['true'])\n",
+        "def test_open():\n    open(path, 'r')\n",
+        "def test_dynamic_attribute():\n    getattr(object(), name)\n",
+    ],
+)
+def test_rejects_dynamic_execution_and_process_boundaries(project, source):
+    assert "unsafe_execution" in codes(make_candidate(source), project)
+
+
+def test_rejects_absolute_path_access_before_candidate_execution(project):
+    absolute_path = str(project / "src" / "app.py")
+    source = (
+        "from pathlib import Path\n\n"
+        f"def test_absolute_read():\n    Path({absolute_path!r}).open('r')\n"
+    )
+
+    assert validate_candidate(make_candidate(source), project) == (
+        RuleViolation(
+            "unsafe_execution",
+            "candidate must not access paths outside the Harness-owned candidate project",
+        ),
+    )

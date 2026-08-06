@@ -341,10 +341,11 @@ def test_generated_only_is_rejected_when_existing_tests_are_collectible(tmp_path
     assert client.prompts == []
 
 
-def test_default_candidate_execution_cannot_mutate_project(tmp_path: Path) -> None:
+def test_absolute_eval_mutation_is_rejected_before_candidate_run(tmp_path: Path) -> None:
+    absolute_app = str(tmp_path / "project" / "src" / "app.py")
     mutation_source = (
         "def test_candidate_mutation():\n"
-        "    eval(\"__builtins__['open']('src/app.py', 'w').write('VALUE = 2\\\\n')\")\n"
+        f"    eval(\"__builtins__['open']({absolute_app!r}, 'w').write('VALUE = 2\\\\n')\")\n"
         "    assert True\n"
     )
     response = json.dumps(
@@ -360,20 +361,49 @@ def test_default_candidate_execution_cannot_mutate_project(tmp_path: Path) -> No
             ]
         }
     )
-    request, _, _, _ = _request(
+    request, _, workspace, _ = _request(
         tmp_path,
         source=BaselineSource.GENERATED,
         existing_count=0,
         test_client=FakeTestClient(response),
     )
+    run_calls: list[Path] = []
+
+    def unexpected_run(path: Path) -> RunResult:
+        run_calls.append(path)
+        raise AssertionError("unsafe candidate reached the runner")
+
     app = request.project_root / "src" / "app.py"
+    existing_test = request.project_root / "tests" / "test_existing.py"
     original = app.read_text(encoding="utf-8")
+    existing_original = existing_test.read_text(encoding="utf-8")
+
+    result = PreparationService(candidate_runner=unexpected_run).prepare(request)
+
+    assert result.summary.rejected_count == 1
+    assert result.summary.error_count == 0
+    assert run_calls == []
+    assert not (workspace.session_root / "staged" / "mutating.py").exists()
+    assert app.read_text(encoding="utf-8") == original
+    assert existing_test.read_text(encoding="utf-8") == existing_original
+
+
+def test_workspace_runner_override_is_not_used_at_service_boundary(tmp_path: Path) -> None:
+    request, _, _, _ = _request(
+        tmp_path,
+        source=BaselineSource.GENERATED,
+        existing_count=0,
+    )
+
+    def untrusted_runner(path: Path) -> RunResult:
+        raise AssertionError("workspace runner override must not be trusted")
+
+    request.workspace.run_candidate = untrusted_runner  # type: ignore[attr-defined]
 
     result = PreparationService().prepare(request)
 
     assert result.stop_reason is None
     assert result.summary.generated_pass_accepted == 1
-    assert app.read_text(encoding="utf-8") == original
 
 
 def test_invalid_existing_discovery_path_returns_configuration_stop(tmp_path: Path) -> None:

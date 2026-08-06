@@ -63,6 +63,10 @@ _MOCK_CALLS = {
 _WRITE_METHODS = {"write_text", "write_bytes", "unlink", "rename"}
 _PATH_WRITE_METHODS = {"replace", "touch"}
 _SOURCE_WRITE_CALLS = {
+    "codecs.open",
+    "io.open",
+    "os.fdopen",
+    "os.open",
     "os.system",
     "os.popen",
     "os.remove",
@@ -100,6 +104,52 @@ _TRACKED_CALLABLE_NAMES = (
         "pathlib.Path.open",
         "pathlib.Path.touch",
     }
+)
+_DYNAMIC_ATTR_HANDLED_BY_EXISTING_RULES = (
+    {name.rsplit(".", 1)[-1] for name in _SOURCE_WRITE_CALLS}
+    | {"open", "urandom", "getrandom"}
+    | _MOCK_CALLS
+    | _PERFORMANCE_CALL_NAMES
+)
+_DANGEROUS_GETATTR_ATTRIBUTES = {
+    name.rsplit(".", 1)[-1] for name in _SOURCE_WRITE_CALLS
+} | {
+    "open",
+    "execv",
+    "execve",
+    "execvp",
+    "execvpe",
+    "spawnl",
+    "spawnle",
+    "spawnlp",
+    "spawnlpe",
+    "spawnv",
+    "spawnve",
+    "spawnvp",
+    "spawnvpe",
+}
+_UNSAFE_EXECUTION_CALLS = {
+    "eval",
+    "builtins.eval",
+    "exec",
+    "builtins.exec",
+    "compile",
+    "builtins.compile",
+    "__import__",
+    "builtins.__import__",
+    "import_module",
+    "importlib.import_module",
+    "globals",
+    "locals",
+    "vars",
+}
+_UNSAFE_PROCESS_PREFIXES = (
+    "importlib.",
+    "subprocess.",
+    "multiprocessing.",
+    "os.exec",
+    "os.spawn",
+    "pty.",
 )
 
 
@@ -154,8 +204,19 @@ def validate_candidate(
         add("excessive_mocking", "candidate uses more than two mock operations")
     for module in _undeclared_imports(tree, root):
         add("undeclared_import", f"candidate imports undeclared dependency: {module}")
-    if _has_source_write(tree):
+    has_source_write = _has_source_write(tree)
+    if has_source_write:
         add("non_test_source_edit", "candidate must not write production or existing test files")
+    elif _has_unsafe_file_path(tree):
+        add(
+            "unsafe_execution",
+            "candidate must not access paths outside the Harness-owned candidate project",
+        )
+    if not has_source_write and _has_unsafe_execution(tree):
+        add(
+            "unsafe_execution",
+            "candidate must not use dynamic execution, imports, process, or attribute access",
+        )
 
     return _ordered(violations)
 
@@ -344,6 +405,8 @@ def _has_source_write(tree: ast.AST) -> bool:
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
+        if _dangerous_getattr_member(node, module_aliases, callable_aliases):
+            return True
         callable_name = _canonical_callable_name(
             node.func, module_aliases, callable_aliases
         )
@@ -393,6 +456,112 @@ def _has_source_write(tree: ast.AST) -> bool:
             ):
                 return True
     return False
+
+
+def _has_unsafe_execution(tree: ast.AST) -> bool:
+    module_aliases, callable_aliases = _import_bindings(tree)
+    module_aliases = _with_assigned_module_aliases(
+        tree, module_aliases, callable_aliases
+    )
+    callable_aliases = _with_assigned_callable_aliases(
+        tree, module_aliases, callable_aliases
+    )
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        callable_name = _canonical_callable_name(
+            node.func, module_aliases, callable_aliases
+        )
+        if callable_name in _UNSAFE_EXECUTION_CALLS:
+            return True
+        if any(
+            callable_name == prefix[:-1] or callable_name.startswith(prefix)
+            for prefix in _UNSAFE_PROCESS_PREFIXES
+        ):
+            return True
+        if callable_name in {"getattr", "builtins.getattr"}:
+            member = _getattr_member(node)
+            if member is None:
+                return True
+            if member.startswith("_"):
+                continue
+            if member in _DYNAMIC_ATTR_HANDLED_BY_EXISTING_RULES:
+                continue
+            return True
+    return False
+
+
+def _has_unsafe_file_path(tree: ast.AST) -> bool:
+    module_aliases, callable_aliases = _import_bindings(tree)
+    module_aliases = _with_assigned_module_aliases(
+        tree, module_aliases, callable_aliases
+    )
+    callable_aliases = _with_assigned_callable_aliases(
+        tree, module_aliases, callable_aliases
+    )
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        callable_name = _canonical_callable_name(
+            node.func, module_aliases, callable_aliases
+        )
+        if callable_name == "builtins.open" and node.args:
+            if _path_expression_escapes(node.args[0], module_aliases, callable_aliases):
+                return True
+        elif callable_name == "pathlib.Path.open" and isinstance(node.func, ast.Attribute):
+            path_expression = node.func.value
+            if _is_path_class_receiver(
+                node.func.value, module_aliases, callable_aliases
+            ):
+                path_expression = node.args[0] if node.args else node.func.value
+            if _path_expression_escapes(
+                path_expression, module_aliases, callable_aliases
+            ):
+                return True
+    return False
+
+
+def _path_expression_escapes(
+    node: ast.AST,
+    module_aliases: dict[str, str],
+    callable_aliases: dict[str, str],
+) -> bool:
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        path = Path(node.value)
+        return path.is_absolute() or ".." in path.parts
+    if isinstance(node, ast.Call):
+        if (
+            _canonical_callable_name(node.func, module_aliases, callable_aliases)
+            == "pathlib.Path"
+            and node.args
+        ):
+            return _path_expression_escapes(
+                node.args[0], module_aliases, callable_aliases
+            )
+    return True
+
+
+def _dangerous_getattr_member(
+    node: ast.Call,
+    module_aliases: dict[str, str],
+    callable_aliases: dict[str, str],
+) -> bool:
+    callable_name = _canonical_callable_name(node.func, module_aliases, callable_aliases)
+    if callable_name not in {"getattr", "builtins.getattr"}:
+        return False
+    member = _getattr_member(node)
+    if member is None:
+        return False
+    return member in _DANGEROUS_GETATTR_ATTRIBUTES
+
+
+def _getattr_member(node: ast.Call) -> str | None:
+    if len(node.args) < 2:
+        return None
+    member = node.args[1]
+    if isinstance(member, ast.Constant) and isinstance(member.value, str):
+        return member.value
+    return None
 
 
 def _import_bindings(tree: ast.AST) -> tuple[dict[str, str], dict[str, str]]:
@@ -505,7 +674,13 @@ def _with_assigned_callable_aliases(
         value_name = _canonical_callable_name(value, module_aliases, aliases) if value else ""
         if value_name == "pathlib.Path" and isinstance(value, ast.Call):
             continue
-        if not value_name or value_name not in _TRACKED_CALLABLE_NAMES:
+        if not value_name or (
+            value_name not in _TRACKED_CALLABLE_NAMES
+            and value_name not in _UNSAFE_EXECUTION_CALLS
+            and not any(
+                value_name.startswith(prefix) for prefix in _UNSAFE_PROCESS_PREFIXES
+            )
+        ):
             continue
         for target in targets:
             if isinstance(target, ast.Name):
