@@ -2306,3 +2306,55 @@
   `fix: close Task 8 static candidate boundary`.
 - Fix report: `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/
   task-8-fix-round-3-report.md`.
+
+### v0.2 Task 8 — fix round 4/5
+
+- Date: 2026-08-06. Closed the remaining HIGH dynamic-wrapper protected-
+  execution bypass from `task-8-re-review-round-3.md`. The candidate syntax
+  boundary now rejects dangerous import and import-from roots, including
+  aliases, plus process/filesystem/path-related standard-library modules;
+  rejects dynamic callable resolvers and standalone/returned dangerous
+  callables before staging; and preserves deterministic existing rule
+  precedence for source writes, randomness, public project APIs, pytest, and
+  in-memory operations.
+- Added the exact dynamic-wrapper regression: the candidate imports `os`,
+  returns `os.truncate` from a helper, constructs the absolute original-root
+  path from `SAFEFIX_ORIGINAL_ROOT`, and is rejected before any stability run.
+  The regression asserts no staged manifest entry, only the model-call event,
+  and unchanged production/existing-test bytes. The default Harness-owned
+  snapshot runner and runner-override protection remain unchanged; no
+  candidate unsafe input is executed.
+- Skills: `using-superpowers`, `using-git-worktrees` (verified supplied linked
+  worktree), `subagent-driven-development`, `test-driven-development`,
+  `receiving-code-review`, `requesting-code-review`, and
+  `verification-before-completion`. No callable subagent-dispatch capability
+  is exposed, so fresh-implementer and separate specification/code-quality
+  review passes were coordinator passes; this workflow deviation is recorded.
+  `finishing-a-development-branch` remains deferred because the user-specified
+  linked worktree is externally managed.
+- TDD red: the exact focused regression/rule slice failed **6 tests** before
+  the production change: dangerous imports and returned callables validated
+  clean, and the service accepted the dynamic wrapper after stability.
+- TDD green: focused Task 8 rules/service command passed **124 tests**; the
+  corrected related Task 8/manifest/runner/JUnit command passed **201 tests**;
+  full `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests -q`
+  passed **500 tests**. The first related command used a nonexistent legacy
+  path (`tests/unit/test_manifest.py`) and was corrected to
+  `tests/unit/test_test_manifest.py`; the corrected command passed.
+- Specification-compliance review: PASS. Dangerous modules and aliases,
+  dynamic resolution, returned dangerous callables, process/filesystem/path
+  APIs, pre-stability rejection, unchanged source/tests, no workspace runner
+  override, no baseline/F0 or Repair Model authority, and prior Task 8 flows
+  are covered.
+- Code-quality review: PASS. The closure is deterministic local AST analysis
+  with explicit trusted-boundary validation, no broad exception handling,
+  duplicate alias analysis, fallback execution, dead code, dependency, or
+  unrelated scope expansion.
+- Verification: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m compileall
+  -q src` — passed; `git diff --check` — passed; immutable tag check passed
+  with `v0.1.0^{}` equal to
+  `4fc3d6bfd61ad6b4057de66abcf13605af3c2b9c`.
+- Implementation commit: `bc5e0ac` — `fix: close Task 8 dynamic wrapper
+  boundary`.
+- Fix report: `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/
+  task-8-fix-round-4-report.md`.
