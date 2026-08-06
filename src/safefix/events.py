@@ -58,6 +58,8 @@ _SENSITIVE_KEY_PARTS = _SECRET_KEY_PARTS + (
     "endpoint",
     "query",
     "auth",
+    "userinfo",
+    "source",
 )
 _SECRET_TEXT_RE = re.compile(
     r"(?i)(?:bearer\s+|(?:api[_ -]?key|access[_ -]?token|password|secret)\s*[:=]\s*|sk-[a-z0-9_-]{8,})\S*"
@@ -264,7 +266,7 @@ def _sanitize_mapping(
     ):
         safe_key = _sanitize_key(key)
         normalized_key = safe_key.lower().replace("-", "_").replace(" ", "_")
-        if any(part in normalized_key for part in _SENSITIVE_KEY_PARTS):
+        if _is_sensitive_key(normalized_key):
             safe_key = f"[REDACTED_KEY_{index}]"
             sanitized[safe_key] = _REDACTED
         else:
@@ -296,6 +298,14 @@ def _sanitize_key(key: object) -> str:
     if any(part in normalized for part in _SENSITIVE_KEY_PARTS):
         return key[:MAX_SAFE_SUMMARY_CHARS]
     return sanitize_summary(key)
+
+
+def _is_sensitive_key(normalized_key: str) -> bool:
+    return normalized_key in {"source", "userinfo"} or any(
+        part in normalized_key
+        for part in _SENSITIVE_KEY_PARTS
+        if part not in {"source", "userinfo"}
+    )
 
 
 def sanitize_timestamp(value: str) -> str:

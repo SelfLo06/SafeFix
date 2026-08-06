@@ -1,17 +1,23 @@
 from safefix.context import ContextBuilder
 from safefix.events import SessionEvent
+from safefix.artifacts import ArtifactWriter
 from safefix.memory import MAX_MEMORY_ENTRIES, ProjectMemoryStore
 from safefix.models import (
+    BaselineSource,
     Feedback,
     FailureSet,
     GuardDecision,
     Phase,
     ReviewVerdict,
+    SessionResult,
+    StopReason,
     ToolCall,
     ToolName,
 )
 from safefix.review import ReviewResult
 from safefix.session_state import SessionState
+from safefix.test_manifest import FrozenTestManifest, ManifestEntry
+from safefix.testprep import PreparationSummary
 
 
 def failures(*ids: str) -> FailureSet:
@@ -166,3 +172,52 @@ def test_context_sanitizes_unkeyed_secret_code_traceback_and_outcome_values(tmp_
 
     for secret in ("TOKENSECRET", "SOURCESECRET", "Traceback", "Exception", "print("):
         assert secret not in rendered
+
+
+def test_shared_sanitizer_redacts_nested_userinfo_and_source_key_names(tmp_path):
+    nested_safe_values = {
+        "userinfo": "value",
+        "source": "value",
+        "visible": "safe-value",
+    }
+    event = SessionEvent(
+        sequence=3,
+        timestamp="2026-08-06T00:00:00Z",
+        phase=Phase.READY,
+        kind="tool",
+        safe_payload={"nested": nested_safe_values},
+    )
+    state = SessionState(failures("case-a"))
+    state.record_tool_event(
+        ToolCall(tool=ToolName.READ_FILE),
+        Feedback(outcome="safe", summary="safe", labels={"nested": nested_safe_values}),
+    )
+    state.set_high_risk_confirmation({"nested": nested_safe_values})
+    state.set_preparation(
+        PreparationSummary(baseline_source=BaselineSource.EXISTING),
+        FrozenTestManifest(
+            session_id="session-1",
+            baseline_source=BaselineSource.EXISTING,
+            entries=(
+                ManifestEntry("tests/test_app.py", "hash", BaselineSource.EXISTING),
+            ),
+            stability_runs=1,
+            manifest_hash="manifest-hash",
+        ),
+    )
+
+    context = ContextBuilder(
+        ProjectMemoryStore(tmp_path / "project", data_dir=tmp_path / "data")
+    ).build(state)
+    artifact_path = tmp_path / "session.json"
+    ArtifactWriter(artifact_path).write(
+        state, SessionResult(stop_reason=StopReason.ERROR)
+    )
+
+    assert "userinfo" not in repr(event)
+    assert "source" not in repr(event)
+    assert "userinfo" not in repr(context)
+    assert "source" not in repr(context)
+    artifact = artifact_path.read_text()
+    assert '"userinfo":' not in artifact
+    assert '"source":' not in artifact
