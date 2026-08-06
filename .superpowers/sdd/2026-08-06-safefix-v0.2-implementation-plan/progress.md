@@ -133,3 +133,20 @@
   runner tests 42 pass and full suite 536 pass. Specification-compliance and
   code-quality reviews PASS with no findings. Implementer report:
   `task-11-implementer-report.md`.
+
+- Task 11: fix round 1/5 — `5730ca1`; addressed the blocking review findings
+  with explicit READY/PAUSED gating, deterministic pending-approval behavior,
+  bounded typed status snapshots, and atomic-boundary control tests. Focused
+  operator tests 11 passed, related runner/approval tests 48 passed, and full
+  regression 542 passed. Separate coordinator specification-compliance and
+  code-quality reviews PASS. Fix report:
+  `task-11-fix-round-1-report.md`.
+- Task 11: complete after fix-round re-review — commits `ba54550..5730ca1`
+  plus audit closure `8166708`; the Task 11 blocking findings are closed.
+
+- Task 11: fix round 3/5 — deterministic enqueue ordering was added to the
+  in-flight apply-patch `/pause` and evaluation `/status` test. Red failed at
+  the enqueue-complete assertion; targeted, focused, full, compileall, and
+  diff verification passed. Specification-compliance and code-quality reviews
+  PASS. Report:
+  `task-11-fix-round-3-report.md`.

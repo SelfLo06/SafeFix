@@ -340,12 +340,14 @@ def test_controls_queued_during_apply_patch_and_pytest_wait_for_ready(
 
     original_dispatch = runner_module.dispatch
     dispatch_entered = threading.Event()
+    dispatch_enqueued = threading.Event()
     release_dispatch = threading.Event()
 
     def blocked_dispatch(root: Path, action: object, snapshot: object) -> object:
         if getattr(action, "tool", None).value == "apply_patch":
             dispatch_entered.set()
             queue.submit_text("/pause")
+            dispatch_enqueued.set()
             if not release_dispatch.wait(timeout=2):
                 raise AssertionError("dispatch gate was not released")
         return original_dispatch(root, action, snapshot)
@@ -362,6 +364,7 @@ def test_controls_queued_during_apply_patch_and_pytest_wait_for_ready(
             )
             self.evaluations = 0
             self.evaluation_entered = threading.Event()
+            self.evaluation_enqueued = threading.Event()
             self.release_evaluation = threading.Event()
 
         def run(self) -> _TestRunResult:
@@ -369,6 +372,7 @@ def test_controls_queued_during_apply_patch_and_pytest_wait_for_ready(
             if self.evaluations == 2:
                 self.evaluation_entered.set()
                 queue.submit_text("/status")
+                self.evaluation_enqueued.set()
                 if not self.release_evaluation.wait(timeout=2):
                     raise AssertionError("evaluation gate was not released")
             return super().run()
@@ -399,6 +403,7 @@ def test_controls_queued_during_apply_patch_and_pytest_wait_for_ready(
     )
     thread, result = _run_async(runner)
     assert dispatch_entered.wait(timeout=2)
+    assert dispatch_enqueued.wait(timeout=2)
     try:
         assert events.events == []
         assert runner.phase.value == "ready"
@@ -407,6 +412,7 @@ def test_controls_queued_during_apply_patch_and_pytest_wait_for_ready(
         release_dispatch.set()
 
     assert test_runner.evaluation_entered.wait(timeout=2)
+    assert test_runner.evaluation_enqueued.wait(timeout=2)
     try:
         assert events.events == []
         assert runner.phase.value == "ready"
