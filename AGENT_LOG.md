@@ -2782,3 +2782,46 @@
   dependency, or scope expansion found. Task 13 remains responsible for TUI
   wiring; this task exposes injected review/gate boundaries only.
 - Implementation commit: `2f8a7c2` — `feat: add final review checkpoint gates`.
+
+### v0.2 Task 12 — fix round 1
+
+- Date: 2026-08-06. Addressed the independent review's HIGH finding: a
+  high-risk final-review rejection restored source files and checkpoint fields
+  but left `last_evaluated` at the discarded all-green candidate. The explicit
+  pre-final restore now also restores `last_evaluated`, so artifact `current`,
+  unresolved, and failure-diff fields describe the restored workspace.
+- Skills used: `using-superpowers`, `using-git-worktrees` (verified the
+  supplied linked worktree), `subagent-driven-development`,
+  `systematic-debugging`, `receiving-code-review`,
+  `test-driven-development`, `requesting-code-review`, and
+  `verification-before-completion`. No callable subagent-dispatch capability
+  was exposed, so separate coordinator specification-compliance and
+  code-quality reviews were performed. `finishing-a-development-branch` is
+  deferred because this user-specified linked worktree remains preserved.
+- TDD red: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest
+  tests/unit/test_final_review.py::test_high_risk_review_rejection_restores_explicit_pre_final_best -q`
+  — failed as expected because `last_evaluated` was empty while the restored
+  checkpoint contained `tests.test_app::test_second`.
+- TDD green: the same targeted command — 1 passed. Focused Task 12 suite:
+  `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest
+  tests/unit/test_final_review.py tests/unit/test_runner_evaluate.py
+  tests/unit/test_models.py tests/unit/test_snapshot.py tests/unit/test_artifacts.py
+  tests/unit/test_session_state.py -q` — 54 passed. Full suite:
+  `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests -q` —
+  549 passed. `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m compileall
+  -q src tests` exited 0.
+- Specification-compliance review: PASS. The high-risk rejection now restores
+  terminal source, `F`, `U_best`, and artifact-current state together; the
+  green candidate is not represented as current. Harness-owned pytest success
+  authority and the v0.1 behavior of ordinary failed-patch rollback remain
+  unchanged.
+- Code-quality review: PASS. The existing final-checkpoint method owns the
+  third restored field; no abstraction, duplicate validation, broad exception,
+  fallback, dependency, or scope expansion was added. The regression reads
+  the written artifact and asserts observable state rather than private helper
+  calls.
+- Implementation commit: `ab5fdd6` — `fix: restore state after final review
+  rejection`.
+- Detailed report:
+  `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/
+  task-12-fix-round-1-report.md`.
