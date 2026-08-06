@@ -132,3 +132,21 @@ def test_restore_cleans_temporary_file_when_fsync_fails(
     assert first.read_text() == "first baseline\n"
     assert second.read_text() == "second baseline\n"
     assert list((tmp_path / "src").glob(".*.safefix-*")) == []
+
+
+def test_pre_final_best_restores_the_checkpoint_before_the_final_candidate(tmp_path: Path):
+    source = tmp_path / "src" / "app.py"
+    source.parent.mkdir()
+    source.write_text("value = 1\n", encoding="utf-8")
+    store = SnapshotStore(tmp_path, ("src/app.py",))
+
+    store.snapshot_before_apply(("src/app.py",))
+    source.write_text("value = 2\n", encoding="utf-8")
+    store.update_best()
+    store.snapshot_before_apply(("src/app.py",))
+    source.write_text("value = 3\n", encoding="utf-8")
+    store.capture_pre_final_best()
+    store.update_best()
+    store.restore_pre_final_best()
+
+    assert source.read_text(encoding="utf-8") == "value = 2\n"

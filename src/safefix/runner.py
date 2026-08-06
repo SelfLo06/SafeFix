@@ -19,11 +19,13 @@ from .feedback import FeedbackEngine
 from .guardrail import Guardrail
 from .llm.base import LLMClient, LLMResponseError, LLMTransportError
 from .models import (
+    AcceptanceMode,
     Config,
     FailureSet,
     Feedback,
     GuardDecision,
     Phase,
+    ReviewVerdict,
     SessionResult,
     StopReason,
     ToolCall,
@@ -35,6 +37,7 @@ from .operator import OperatorCommandQueue
 from .paths import compute_writable_py_files
 from .session_state import SessionState, safe_summary
 from .snapshot import SnapshotStore
+from .review import FinalReviewRequest, FinalReviewService, ReviewClient, ReviewParseError
 from .session_setup import SessionSetup, manifest_from_entries, runner_for
 from .testprep.service import TestPreparationService
 from .testrunner import TestRunResult, TestRunner
@@ -72,6 +75,8 @@ class SessionRunner:
         memory_store: ProjectMemoryStore | None = None,
         preparation_factory: object | None = None,
         manifest_factory: object | None = None,
+        final_review_client: ReviewClient | None = None,
+        final_review_service: FinalReviewService | None = None,
     ) -> None:
         self.project_root = Path(project_root).resolve()
         self._cli_overrides = {} if cli_overrides is None else cli_overrides
@@ -93,6 +98,8 @@ class SessionRunner:
         self._context_builder = ContextBuilder(self._memory_store)
         self._preparation_factory = preparation_factory
         self._manifest_factory = manifest_factory
+        self._final_review_client = final_review_client
+        self._final_review_service = final_review_service or FinalReviewService()
         self._setup_selected = (
             self._test_runner_factory is TestRunner
             or self._preparation_factory is not None
@@ -315,6 +322,9 @@ class SessionRunner:
                 if feedback.outcome in {"better", "success"}:
                     assert self.snapshot_store is not None
                     try:
+                        if feedback.outcome == "success" and self._is_high_risk_final_review():
+                            self.snapshot_store.capture_pre_final_best()
+                            state.capture_pre_final_best()
                         state.update_best_checkpoint(current)
                         state.reset_no_progress()
                         self.snapshot_store.update_best()
@@ -324,7 +334,7 @@ class SessionRunner:
                         )
                         return self._finalize(StopReason.ERROR)
                     if feedback.outcome == "success":
-                        return self._finalize(StopReason.SUCCESS)
+                        return self._complete_final_review(evaluation)
                     continue
 
                 state.record_patch_fingerprint(self._patch_fingerprint(action))
@@ -492,6 +502,59 @@ class SessionRunner:
                 self.state.record_guidance(summary)  # type: ignore[union-attr]
                 self._emit_control("guidance", {"summary": summary})
         return None
+
+    def _is_high_risk_final_review(self) -> bool:
+        assert self.config is not None
+        return self.config.acceptance_mode is AcceptanceMode.HIGH_RISK
+
+    def _complete_final_review(self, evaluation: TestRunResult) -> SessionResult:
+        assert self.state is not None
+        if self.manifest is None or self._final_review_client is None:
+            return self._finalize(StopReason.SUCCESS)
+
+        self._phase = Phase.FINAL_REVIEW
+        request = self._final_review_request(evaluation)
+        try:
+            review = self._final_review_service.review(request, self._final_review_client)
+        except (ReviewParseError, LLMResponseError, LLMTransportError, OSError, ValueError):
+            return self._finalize(StopReason.ERROR)
+        self.state.set_review(review)
+        self._emit(f"final_review verdict={review.verdict.value}")
+        if (
+            self._is_high_risk_final_review()
+            and review.verdict is ReviewVerdict.REVIEW_REQUIRED
+        ):
+            self._phase = Phase.FINAL_REVIEW_GATE
+            if not self._approval.approve(request):
+                try:
+                    assert self.snapshot_store is not None
+                    self.snapshot_store.restore_pre_final_best()
+                    self.state.restore_pre_final_best()
+                except OSError:
+                    return self._finalize(StopReason.ERROR)
+                return self._finalize(StopReason.FINAL_REVIEW_REJECTED)
+        return self._finalize(StopReason.SUCCESS)
+
+    def _final_review_request(self, evaluation: TestRunResult) -> FinalReviewRequest:
+        assert self.state is not None
+        assert self.snapshot_store is not None
+        changed_files = tuple(sorted(self.snapshot_store.best_contents))
+        return FinalReviewRequest(
+            baseline_summary=(
+                f"frozen baseline failures={len(self.state.F0.ids)}; "
+                f"failure_ids={','.join(sorted(self.state.F0.ids))}"
+            ),
+            final_diff_summary=f"changed_files={len(changed_files)}",
+            changed_files=changed_files,
+            constraints=(
+                "Harness owns F0, frozen-manifest pytest results, and patch state; "
+                "the Review Model may only provide a verdict."
+            ),
+            pytest_summary=(
+                f"valid={evaluation.valid}; failures={len(evaluation.failure_ids)}; "
+                f"cases={len(evaluation.cases)}"
+            ),
+        )
 
     def _status_payload(self) -> dict[str, object]:
         assert self.state is not None

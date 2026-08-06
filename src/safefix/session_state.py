@@ -66,6 +66,7 @@ class SessionState:
     manifest_hash: str | None = field(default=None, init=False)
     stability_runs: int | None = field(default=None, init=False)
     review_result: ReviewResult | None = field(default=None, init=False)
+    pre_final_best: FailureSet | None = field(default=None, init=False, repr=False)
     _recent_events: tuple[SessionEvent, ...] = field(
         default_factory=tuple, init=False, repr=False
     )
@@ -317,6 +318,15 @@ class SessionState:
     def update_best_checkpoint(self, failures: FailureSet) -> None:
         self.F = failures
         self.U_best = failures
+
+    def capture_pre_final_best(self) -> None:
+        self.pre_final_best = self.U_best
+
+    def restore_pre_final_best(self) -> None:
+        if self.pre_final_best is None:
+            raise RuntimeError("pre-final best state has not been captured")
+        self.F = self.pre_final_best
+        self.U_best = self.pre_final_best
 
     def __repr__(self) -> str:
         return (

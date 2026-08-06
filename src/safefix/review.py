@@ -41,6 +41,35 @@ class ReviewClient(Protocol):
         """Review one preparation or checkpoint prompt."""
 
 
+@dataclass(frozen=True)
+class FinalReviewRequest:
+    baseline_summary: str
+    final_diff_summary: str
+    changed_files: tuple[str, ...]
+    constraints: str
+    pytest_summary: str
+
+
+class FinalReviewService:
+    """Present Harness-owned final evidence to the Review Model."""
+
+    def review(self, request: FinalReviewRequest, review_client: ReviewClient) -> ReviewResult:
+        prompt = json.dumps(
+            {
+                "baseline_summary": request.baseline_summary,
+                "final_diff_summary": request.final_diff_summary,
+                "changed_files": list(request.changed_files),
+                "constraints": request.constraints,
+                "pytest_summary": request.pytest_summary,
+            },
+            sort_keys=True,
+        )
+        result = review_client.review(prompt)
+        if not isinstance(result, ReviewResult):
+            raise ReviewParseError("Review Model returned an invalid result")
+        return result
+
+
 class ReviewParser:
     """Parse exactly one bounded JSON Review result."""
 

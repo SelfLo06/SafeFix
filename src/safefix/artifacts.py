@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 import tempfile
 
-from .models import AcceptanceMode, BaselineSource, SessionResult
+from .models import AcceptanceMode, BaselineSource, ReviewVerdict, SessionResult
 from .review import ReviewResult
 from .events import sanitize_untrusted
 from .session_state import SessionState, SessionStateBoundaryError, safe_summary
@@ -161,6 +161,7 @@ def _review_payload(review: object | None) -> dict[str, object] | None:
         raise SessionStateBoundaryError("invalid session metadata: review_result")
     return {
         "verdict": _enum_value(review.verdict),
+        "warning": review.verdict in {ReviewVerdict.WARN, ReviewVerdict.REVIEW_REQUIRED},
         "basis_supported": review.basis_supported,
         "invented_behavior": review.invented_behavior,
         "implementation_coupling": review.implementation_coupling,

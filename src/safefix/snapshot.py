@@ -27,6 +27,7 @@ class SnapshotStore:
         self.baseline_contents: dict[str, str] = {}
         self.best_contents: dict[str, str] = {}
         self.pre_apply_contents: dict[str, str] | None = None
+        self.pre_final_best_contents: dict[str, str] | None = None
 
     def snapshot_before_apply(
         self,
@@ -48,6 +49,27 @@ class SnapshotStore:
         self.best_contents = {
             relative_path: content
             for relative_path, content in current.items()
+            if content != self.baseline_contents[relative_path]
+        }
+
+    def capture_pre_final_best(self) -> None:
+        """Capture the checkpoint that immediately preceded a green candidate."""
+        if self.pre_apply_contents is None:
+            raise RuntimeError("pre-apply snapshot has not been captured")
+        contents = {
+            relative_path: self.best_contents.get(relative_path, baseline)
+            for relative_path, baseline in self.baseline_contents.items()
+        }
+        contents.update(self.pre_apply_contents)
+        self.pre_final_best_contents = contents
+
+    def restore_pre_final_best(self) -> None:
+        if self.pre_final_best_contents is None:
+            raise RuntimeError("pre-final best snapshot has not been captured")
+        self.restore(self.pre_final_best_contents)
+        self.best_contents = {
+            relative_path: content
+            for relative_path, content in self.pre_final_best_contents.items()
             if content != self.baseline_contents[relative_path]
         }
 
