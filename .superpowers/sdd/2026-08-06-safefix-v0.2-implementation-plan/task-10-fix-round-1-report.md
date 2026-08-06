@@ -60,7 +60,9 @@ managed; no cleanup or integration action was taken.
 ## Commits and immutable state
 
 - Implementation: `aa60bbc` — `fix: enforce v2 frozen manifest runner scope`.
-- Audit/closure documentation commit: to be recorded after this report and
-  `AGENT_LOG.md` are committed.
+- Audit documentation commit: `563061f` — `docs: record Task 10 review fix
+  audit`.
+- Closure documentation commit: this final documentation commit records the
+  audit hash in the report and log.
 - `v0.1.0^{}` remains
   `4fc3d6bfd61ad6b4057de66abcf13605af3c2b9c`.

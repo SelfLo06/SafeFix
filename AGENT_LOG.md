@@ -2604,3 +2604,6 @@
   task-10-fix-round-1-report.md`.
 - Implementation commit: `aa60bbc` — `fix: enforce v2 frozen manifest runner
   scope`.
+- Audit documentation commit: `563061f` — `docs: record Task 10 review fix
+  audit`.
+- Closure documentation commit: pending until this hash is created.
