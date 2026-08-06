@@ -1714,3 +1714,42 @@
 - Post-commit verification: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python
   -m pytest tests -q` — `339 passed`; compileall, `git diff --check`, and the
   immutable `v0.1.0^{}` check also passed.
+
+## v0.2 Task 5 — fix round 1
+
+- Date: 2026-08-06. Scope is limited to the five findings in
+  `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/task-5-review.md`:
+  bounded JSON recursion handling; aliased/indirect production filesystem
+  write protection; forbidden AST-family aliases and both-side performance
+  comparisons; narrow in-memory `replace`/`remove` handling; and adversarial
+  regression tests. No candidate source was executed and validation remained
+  read-only. No stability/workspace/orchestration, dependency, SPEC/PLAN,
+  or v0.1.0 tag change was made.
+- Skills: `using-superpowers`, `using-git-worktrees` (verified the supplied
+  linked worktree), `subagent-driven-development`, `receiving-code-review`,
+  `systematic-debugging`, `test-driven-development`,
+  `requesting-code-review`, and `verification-before-completion`.
+  No callable subagent-dispatch capability is exposed in this session, so
+  specification-compliance and code-quality reviews were completed as
+  separate coordinator passes and recorded in the scoped re-review artifact.
+  `finishing-a-development-branch` remains deferred because the approved
+  v0.2 branch is still in progress and this worktree is externally managed.
+- TDD red: initial focused parser/rules command — `17 failed, 32 passed`,
+  including the expected uncaught `RecursionError`; the later dynamic-import
+  regression also red-failed alone with `1 failed, 35 passed`.
+- TDD green: focused parser/rules — `53 passed`; related parser/rules/parse/
+  paths — `95 passed`; full `tests` suite — `362 passed`.
+- Verification: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m compileall
+  -q src` passed; `git diff --check` passed; `v0.1.0^{}` remained
+  `4fc3d6bfd61ad6b4057de66abcf13605af3c2b9c`.
+- Specification-compliance review: PASS. All five review findings are
+  addressed with deterministic rejection codes/messages, bounded alias
+  analysis, and no candidate execution or filesystem writes.
+- Code-quality review: PASS. The implementation is explicit and bounded,
+  with no broad catches, speculative fallback, duplicate boundary
+  validation, dead code, or scope expansion.
+- Implementation commit: `6a33e1a77eec8cb3f8e93b293a1c3f07c1c30262` —
+  `fix: close Task 5 static-rule review findings`.
+- Fix report: `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/
+  task-5-fix-round-1-report.md`; scoped re-review:
+  `task-5-re-review-round-1.md`.
