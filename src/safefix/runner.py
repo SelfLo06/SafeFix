@@ -30,7 +30,7 @@ from .parse import ActionParser, ParseError
 from .paths import compute_writable_py_files
 from .session_state import SessionState
 from .snapshot import SnapshotStore
-from .session_setup import SessionSetup, manifest_from_entries
+from .session_setup import SessionSetup, manifest_from_entries, runner_for
 from .testprep.service import TestPreparationService
 from .testrunner import TestRunResult, TestRunner
 from .tools.dispatch import dispatch
@@ -80,6 +80,11 @@ class SessionRunner:
         self._context_builder = ContextBuilder(self._memory_store)
         self._preparation_factory = preparation_factory
         self._manifest_factory = manifest_factory
+        self._setup_selected = (
+            self._test_runner_factory is TestRunner
+            or self._preparation_factory is not None
+            or self._manifest_factory is not None
+        )
         self.config: Config | None = None
         self.writable_paths: set[Path] = set()
         self.state: SessionState | None = None
@@ -90,11 +95,7 @@ class SessionRunner:
         """Run INIT and return an early stop, or prepare later phases."""
         if not self.project_root.is_dir():
             return SessionResult(stop_reason=StopReason.CONFIG_ERROR)
-        if (
-            self._test_runner_factory is TestRunner
-            or self._preparation_factory is not None
-            or self._manifest_factory is not None
-        ):
+        if self._setup_selected:
             return self._initialize_with_setup()
         return self._initialize_legacy()
 
@@ -315,8 +316,9 @@ class SessionRunner:
 
     def _evaluation_runner(self) -> BaselineRunner:
         assert self.config is not None
-        if self.manifest is not None and self._test_runner_factory is TestRunner:
-            return TestRunner(
+        if self.manifest is not None:
+            return runner_for(
+                self._test_runner_factory,
                 self.project_root,
                 self.config.pytest_args,
                 target_paths=tuple(entry.path for entry in self.manifest.entries),

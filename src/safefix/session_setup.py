@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 import secrets
-from typing import Callable, Sequence
+from typing import Callable, Protocol, Sequence
 
 from .config import ConfigError
 from .credentials import CredentialError, CredentialsResolver
@@ -25,10 +25,29 @@ from .testprep.service import (
     TestPreparationService,
 )
 from .testprep.workspace import CandidateWorkspace
-from .testrunner import TestRunResult, TestRunner
+from .testrunner import TestRunResult
 
 
-RunnerFactory = Callable[[Path, list[str]], object]
+class V2RunnerFactory(Protocol):
+    """Build a runner bound to the supplied pytest scope.
+
+    V2 setup factories must accept both keyword arguments and return a runner
+    exposing matching ``target_paths`` and ``allow_empty`` attributes.  The
+    adapter below validates that contract before the runner can execute.
+    """
+
+    def __call__(
+        self,
+        project_root: Path,
+        pytest_args: list[str],
+        *,
+        target_paths: tuple[str, ...],
+        allow_empty: bool,
+    ) -> object:
+        ...
+
+
+RunnerFactory = V2RunnerFactory
 ConfigLoader = Callable[..., Config]
 PreparationFactory = Callable[[PreparationRequest], PreparationResult]
 ManifestFactory = Callable[
@@ -101,14 +120,14 @@ class SessionSetup:
             return self._early(None, None, None, (), StopReason.CONFIG_ERROR)
 
         try:
-            discovery_runner = _runner_for(
+            discovery_runner = runner_for(
                 self._existing_runner_factory,
                 self.project_root,
                 config.pytest_args,
                 allow_empty=True,
             )
             discovery = discover_existing_tests(self.project_root, discovery_runner)
-        except (OSError, ValueError, AttributeError):
+        except (OSError, TypeError, ValueError, AttributeError):
             return self._early(config, None, None, writable_paths, StopReason.ERROR)
         if not discovery.result.valid:
             reason = (
@@ -178,14 +197,14 @@ class SessionSetup:
             )
 
         try:
-            baseline_runner = _runner_for(
+            baseline_runner = runner_for(
                 self._existing_runner_factory,
                 self.project_root,
                 config.pytest_args,
                 target_paths=tuple(entry.path for entry in manifest.entries),
             )
             baseline = baseline_runner.run()
-        except (OSError, ValueError, AttributeError):
+        except (OSError, TypeError, ValueError, AttributeError):
             return self._early(
                 config,
                 manifest,
@@ -300,7 +319,7 @@ def manifest_from_entries(
     )
 
 
-def _runner_for(
+def runner_for(
     factory: RunnerFactory,
     project_root: Path,
     pytest_args: Sequence[str],
@@ -308,14 +327,22 @@ def _runner_for(
     target_paths: Sequence[str] = (),
     allow_empty: bool = False,
 ) -> object:
-    if factory is TestRunner:
-        return TestRunner(
-            project_root,
-            pytest_args,
-            target_paths=target_paths,
-            allow_empty=allow_empty,
-        )
-    return factory(project_root, list(pytest_args))
+    expected_paths = tuple(str(path) for path in target_paths)
+    runner = factory(
+        project_root,
+        list(pytest_args),
+        target_paths=expected_paths,
+        allow_empty=allow_empty,
+    )
+    actual_paths = getattr(runner, "target_paths", None)
+    if actual_paths is None:
+        raise TypeError("v2 runner must expose target_paths")
+    if tuple(str(path) for path in actual_paths) != expected_paths:
+        raise ValueError("v2 runner target_paths do not match requested scope")
+    actual_allow_empty = getattr(runner, "allow_empty", None)
+    if actual_allow_empty is not allow_empty:
+        raise ValueError("v2 runner allow_empty does not match requested scope")
+    return runner
 
 
 def _has_collected_tests(result: TestRunResult) -> bool:

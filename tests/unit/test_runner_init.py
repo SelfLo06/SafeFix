@@ -256,6 +256,10 @@ def test_runner_accepts_v02_setup_factory_and_freezes_formal_f0(tmp_path: Path) 
     formal_calls = 0
 
     class Runner:
+        def __init__(self, target_paths: tuple[str, ...], allow_empty: bool) -> None:
+            self.target_paths = target_paths
+            self.allow_empty = allow_empty
+
         def run(self):
             nonlocal formal_calls
             formal_calls += 1
@@ -273,7 +277,9 @@ def test_runner_accepts_v02_setup_factory_and_freezes_formal_f0(tmp_path: Path) 
     runner = SessionRunner(
         tmp_path,
         credentials=FakeCredentials(),
-        test_runner_factory=lambda *_args: Runner(),
+        test_runner_factory=lambda _root, _args, *, target_paths, allow_empty: Runner(
+            tuple(target_paths), allow_empty
+        ),
         config_loader=lambda *_args, **_kwargs: Config(
             base_url="https://example.invalid", model="test-model"
         ),
@@ -286,3 +292,255 @@ def test_runner_accepts_v02_setup_factory_and_freezes_formal_f0(tmp_path: Path) 
     assert runner.state is not None
     assert runner.state.F0.ids == frozenset({"tests.test_existing::test_existing"})
     assert runner.state.repair_required is True
+
+
+def test_v02_runner_factory_uses_frozen_targets_for_formal_and_evaluation(
+    tmp_path: Path,
+) -> None:
+    from safefix.llm.mock import MockLLM
+    from safefix.models import BaselineSource, Config
+    from safefix.session_setup import manifest_from_entries
+    from safefix.test_manifest import ManifestEntry
+    from safefix.testprep.service import PreparationResult, PreparationSummary
+    from safefix.runner import SessionRunner
+
+    _project(tmp_path)
+    (tmp_path / "tests").mkdir()
+    test_path = "tests/test_existing.py"
+    (tmp_path / test_path).write_text(
+        "def test_existing():\n    assert False\n", encoding="utf-8"
+    )
+    baseline = _TestRunResult(
+        exit_code=1,
+        cases=(
+            _TestCaseResult(
+                "tests.test_existing::test_existing",
+                "tests.test_existing",
+                "test_existing",
+                "failed",
+            ),
+        ),
+        valid=True,
+    )
+    evaluation = _TestRunResult(
+        exit_code=1,
+        cases=(
+            _TestCaseResult(
+                "tests.test_existing::test_existing",
+                "tests.test_existing",
+                "test_existing",
+                "failed",
+            ),
+        ),
+        valid=True,
+    )
+    supplied: list[tuple[str, ...]] = []
+    used: list[tuple[str, ...]] = []
+
+    class CapturingRunner:
+        def __init__(self, target_paths: tuple[str, ...], result: _TestRunResult):
+            self.target_paths = target_paths
+            self.allow_empty = False
+            self._result = result
+
+        def run(self) -> _TestRunResult:
+            used.append(self.target_paths)
+            return self._result
+
+        def collect_test_paths(self) -> tuple[str, ...]:
+            return (test_path,)
+
+    def runner_factory(
+        project_root: Path,
+        pytest_args: list[str],
+        *,
+        target_paths: tuple[str, ...],
+        allow_empty: bool,
+    ) -> CapturingRunner:
+        del project_root, pytest_args
+        supplied.append(tuple(target_paths))
+        if not target_paths:
+            runner = CapturingRunner((), _TestRunResult(0, (), valid=True))
+            runner.allow_empty = allow_empty
+            return runner
+        result = baseline if supplied.count((test_path,)) == 1 else evaluation
+        runner = CapturingRunner(tuple(target_paths), result)
+        runner.allow_empty = allow_empty
+        return runner
+
+    def preparation_factory(request):
+        return PreparationResult(
+            (ManifestEntry(test_path, "0" * 64, BaselineSource.EXISTING),),
+            PreparationSummary(BaselineSource.EXISTING, existing_test_count=1),
+        )
+
+    runner = SessionRunner(
+        tmp_path,
+        credentials=FakeCredentials(),
+        llm_client=MockLLM(
+            [
+                '{"tool": "apply_patch", "changes": [{"path": "src/app.py", "old_text": "value = 1", "new_text": "value = 2"}]}',
+                '{"tool": "finish", "reason": "done"}',
+            ]
+        ),
+        test_runner_factory=runner_factory,
+        config_loader=lambda *_args, **_kwargs: Config(
+            base_url="https://example.invalid", model="test-model"
+        ),
+        preparation_factory=preparation_factory,
+        manifest_factory=manifest_from_entries,
+    )
+
+    result = runner.run()
+
+    assert result.stop_reason is StopReason.REQUESTED
+    assert supplied == [(), (test_path,), (test_path,)]
+    assert used == supplied
+    assert runner.state is not None
+    assert runner.state.F0.ids == frozenset({"tests.test_existing::test_existing"})
+
+
+def test_v02_runner_factory_cannot_report_a_scope_different_from_manifest(
+    tmp_path: Path,
+) -> None:
+    from safefix.models import BaselineSource, Config
+    from safefix.session_setup import manifest_from_entries
+    from safefix.test_manifest import ManifestEntry
+    from safefix.testprep.service import PreparationResult, PreparationSummary
+    from safefix.runner import SessionRunner
+
+    _project(tmp_path)
+    (tmp_path / "tests").mkdir()
+    test_path = "tests/test_existing.py"
+    (tmp_path / test_path).write_text(
+        "def test_existing():\n    assert False\n", encoding="utf-8"
+    )
+
+    class ScopeIgnoringRunner:
+        target_paths = ()
+        allow_empty = False
+
+        def run(self) -> _TestRunResult:
+            return _TestRunResult(0, (), valid=True)
+
+        def collect_test_paths(self) -> tuple[str, ...]:
+            return (test_path,)
+
+    def runner_factory(
+        project_root: Path,
+        pytest_args: list[str],
+        *,
+        target_paths: tuple[str, ...],
+        allow_empty: bool,
+    ) -> ScopeIgnoringRunner:
+        del project_root, pytest_args, target_paths, allow_empty
+        return ScopeIgnoringRunner()
+
+    def preparation_factory(request):
+        return PreparationResult(
+            (ManifestEntry(test_path, "0" * 64, BaselineSource.EXISTING),),
+            PreparationSummary(BaselineSource.EXISTING, existing_test_count=1),
+        )
+
+    runner = SessionRunner(
+        tmp_path,
+        credentials=FakeCredentials(),
+        test_runner_factory=runner_factory,
+        config_loader=lambda *_args, **_kwargs: Config(
+            base_url="https://example.invalid", model="test-model"
+        ),
+        preparation_factory=preparation_factory,
+        manifest_factory=manifest_from_entries,
+    )
+
+    result = runner.initialize()
+
+    assert result is not None
+    assert result.stop_reason is StopReason.ERROR
+    assert runner.state is None
+
+
+@pytest.mark.parametrize("mutation", ["change", "remove"])
+def test_post_freeze_manifest_mutation_stops_before_evaluation_and_f0_stays_fixed(
+    tmp_path: Path, mutation: str
+) -> None:
+    from safefix.models import BaselineSource, Config
+    from safefix.session_setup import manifest_from_entries
+    from safefix.test_manifest import ManifestEntry
+    from safefix.testprep.service import PreparationResult, PreparationSummary
+    from safefix.runner import SessionRunner
+
+    _project(tmp_path)
+    (tmp_path / "tests").mkdir()
+    test_path = "tests/test_existing.py"
+    test_file = tmp_path / test_path
+    test_file.write_text("def test_existing():\n    assert False\n", encoding="utf-8")
+    baseline = _TestRunResult(
+        1,
+        (_TestCaseResult("tests.test_existing::test_existing", "tests.test_existing", "test_existing", "failed"),),
+        valid=True,
+    )
+    supplied: list[tuple[str, ...]] = []
+
+    class Runner:
+        def __init__(self, target_paths: tuple[str, ...], allow_empty: bool):
+            self.target_paths = target_paths
+            self.allow_empty = allow_empty
+
+        def run(self) -> _TestRunResult:
+            if self.target_paths:
+                return baseline
+            return _TestRunResult(0, (), valid=True)
+
+        def collect_test_paths(self) -> tuple[str, ...]:
+            return (test_path,)
+
+    def runner_factory(
+        project_root: Path,
+        pytest_args: list[str],
+        *,
+        target_paths: tuple[str, ...],
+        allow_empty: bool,
+    ) -> Runner:
+        del project_root, pytest_args
+        supplied.append(tuple(target_paths))
+        return Runner(tuple(target_paths), allow_empty)
+
+    def preparation_factory(request):
+        return PreparationResult(
+            (ManifestEntry(test_path, "0" * 64, BaselineSource.EXISTING),),
+            PreparationSummary(BaselineSource.EXISTING, existing_test_count=1),
+        )
+
+    class MutatingLLM:
+        def complete(self, prompt: str) -> str:
+            del prompt
+            if mutation == "remove":
+                test_file.unlink()
+            else:
+                test_file.write_text(
+                    "def test_existing():\n    assert True\n", encoding="utf-8"
+                )
+            return (
+                '{"tool": "apply_patch", "changes": [{"path": "src/app.py", '
+                '"old_text": "value = 1", "new_text": "value = 2"}]}'
+            )
+
+    runner = SessionRunner(
+        tmp_path,
+        credentials=FakeCredentials(),
+        llm_client=MutatingLLM(),
+        test_runner_factory=runner_factory,
+        config_loader=lambda *_args, **_kwargs: Config(
+            base_url="https://example.invalid", model="test-model"
+        ),
+        preparation_factory=preparation_factory,
+        manifest_factory=manifest_from_entries,
+    )
+
+    result = runner.run()
+
+    assert result.stop_reason is StopReason.ERROR
+    assert supplied == [(), (test_path,)]
+    assert runner.state is not None
+    assert runner.state.F0.ids == frozenset({"tests.test_existing::test_existing"})

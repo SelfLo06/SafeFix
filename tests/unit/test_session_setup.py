@@ -5,6 +5,7 @@ from safefix.models import BaselineSource, Config, StopReason
 from safefix.test_manifest import ManifestEntry
 from safefix.testprep.service import PreparationResult, PreparationSummary
 from safefix.testrunner import TestRunResult as _TestRunResult
+from safefix.session_setup import SessionSetup, manifest_from_entries
 
 
 class FakeCredentials:
@@ -12,10 +13,36 @@ class FakeCredentials:
         return "test-api-key"
 
 
+class FakeTestClient:
+    def __init__(self, response: str) -> None:
+        self.response = response
+        self.closed = False
+
+    def complete(self, prompt: str) -> str:
+        del prompt
+        return self.response
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def _case(test_id: str, status: str) -> _TestCaseResult:
+    return _TestCaseResult(test_id, "tests.test_existing", test_id.rsplit("::", 1)[-1], status)
+
+
 class FakeRunner:
-    def __init__(self, result: _TestRunResult, paths: tuple[str, ...] = ()) -> None:
+    def __init__(
+        self,
+        result: _TestRunResult,
+        paths: tuple[str, ...] = (),
+        *,
+        target_paths: tuple[str, ...] = (),
+        allow_empty: bool = False,
+    ) -> None:
         self.result = result
         self.paths = paths
+        self.target_paths = target_paths
+        self.allow_empty = allow_empty
 
     def run(self) -> _TestRunResult:
         return self.result
@@ -77,6 +104,17 @@ def _setup(
         ]
     )
 
+    def runner_factory(
+        _root, _args, *, target_paths, allow_empty
+    ):
+        selected = next(runners)
+        return FakeRunner(
+            selected.result,
+            selected.paths,
+            target_paths=tuple(target_paths),
+            allow_empty=allow_empty,
+        )
+
     def preparation_factory(request):
         entries = tuple(
             _entry(path, BaselineSource.EXISTING) for path in existing_paths
@@ -101,7 +139,7 @@ def _setup(
         tmp_path,
         lambda *_args, **_kwargs: config,
         FakeCredentials(),
-        lambda *_args: next(runners),
+        runner_factory,
         preparation_factory,
         manifest_factory,
     )
@@ -174,3 +212,78 @@ def test_setup_rejects_generated_only_with_existing_tests(tmp_path: Path):
     assert result.early_stop is not None
     assert result.early_stop.stop_reason is StopReason.CONFIG_ERROR
     assert result.baseline is None
+
+
+def test_setup_closes_test_model_before_formal_baseline(tmp_path: Path):
+    from safefix.models import AcceptanceMode
+    from safefix.testprep.service import TestPreparationService
+
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "app.py").write_text("value = 1\n", encoding="utf-8")
+    client = FakeTestClient(
+        '{"candidates":[{"candidate_id":"c1",'
+        '"test_source":"def test_generated():\\n    assert True\\n",'
+        '"basis":"The public contract requires this behavior.",'
+        '"sources":["src/app.py"],"touched_existing_tests":[]}]} '
+    )
+    formal_calls: list[tuple[str, ...]] = []
+
+    baseline = _TestRunResult(
+        1,
+        (_case("generated::test_generated", "failed"),),
+        valid=True,
+    )
+
+    class Runner:
+        def __init__(self, target_paths: tuple[str, ...], allow_empty: bool):
+            self.target_paths = target_paths
+            self.allow_empty = allow_empty
+
+        def run(self) -> _TestRunResult:
+            formal_calls.append(self.target_paths)
+            if self.target_paths:
+                assert client.closed
+                return baseline
+            return _TestRunResult(0, (), valid=True)
+
+        def collect_test_paths(self) -> tuple[str, ...]:
+            return ()
+
+    def runner_factory(
+        project_root: Path,
+        pytest_args: list[str],
+        *,
+        target_paths: tuple[str, ...],
+        allow_empty: bool,
+    ) -> Runner:
+        del project_root, pytest_args
+        return Runner(tuple(target_paths), allow_empty)
+
+    config = Config(
+        base_url="https://repair.example",
+        model="repair-model",
+        baseline_source=BaselineSource.GENERATED,
+        generate_tests=True,
+        acceptance_mode=AcceptanceMode.STANDARD,
+        test_base_url="https://test.example",
+        test_model="test-model",
+    )
+    setup = SessionSetup(
+        tmp_path,
+        lambda *_args, **_kwargs: config,
+        FakeCredentials(),
+        runner_factory,
+        TestPreparationService(candidate_runner=lambda path: _TestRunResult(
+            0, (_case("candidate::test_generated", "passed"),), valid=True
+        )),
+        manifest_from_entries,
+        test_client=client,
+    )
+
+    result = setup.prepare()
+
+    assert result.early_stop is None
+    assert client.closed
+    assert len(formal_calls) == 2
+    assert result.manifest is not None
+    assert result.baseline is baseline
