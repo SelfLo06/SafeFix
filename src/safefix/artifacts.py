@@ -9,6 +9,7 @@ import tempfile
 
 from .models import AcceptanceMode, BaselineSource, SessionResult
 from .review import ReviewResult
+from .events import sanitize_untrusted
 from .session_state import SessionState, SessionStateBoundaryError, safe_summary
 from .testprep.service import PreparationSummary
 
@@ -47,7 +48,7 @@ class ArtifactWriter:
         current = state.last_evaluated or state.F
         preparation = state.preparation_summary
         review = state.review_result
-        return {
+        payload = {
             "counters": {
                 "steps": state.steps,
                 "rounds": state.rounds,
@@ -118,6 +119,10 @@ class ArtifactWriter:
                 else bool(state.F0.ids)
             ),
         }
+        sanitized = sanitize_untrusted(payload)
+        if not isinstance(sanitized, dict):
+            raise SessionStateBoundaryError("invalid session artifact payload")
+        return sanitized
 
 
 def _preparation_value(preparation: PreparationSummary | None, name: str) -> object:

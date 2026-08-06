@@ -1,5 +1,6 @@
 """Bounded, source-free repair context."""
 
+from .events import sanitize_untrusted
 from .memory import ProjectMemoryStore
 from .session_state import SessionState, safe_summary
 
@@ -14,8 +15,14 @@ class ContextBuilder:
         self._memory_store = memory_store
 
     def build(self, state: SessionState, *, use_memory: bool = False) -> dict[str, object]:
-        current_failures = sorted(state.F.ids & state.F0.ids)[:MAX_CONTEXT_FAILURES]
-        best_failures = sorted(state.U_best.ids)[:MAX_CONTEXT_FAILURES]
+        current_failures = [
+            safe_summary(failure_id)
+            for failure_id in sorted(state.F.ids & state.F0.ids)[:MAX_CONTEXT_FAILURES]
+        ]
+        best_failures = [
+            safe_summary(failure_id)
+            for failure_id in sorted(state.U_best.ids)[:MAX_CONTEXT_FAILURES]
+        ]
         context: dict[str, object] = {
             "current_failures": current_failures,
             "best_summary": {
@@ -25,12 +32,9 @@ class ContextBuilder:
             "recent_tool_feedback": [
                 {
                     "tool": call.tool.value,
-                    "outcome": feedback.outcome,
+                    "outcome": safe_summary(feedback.outcome),
                     "summary": safe_summary(feedback.summary),
-                    "labels": {
-                        safe_summary(key): safe_summary(value)
-                        for key, value in feedback.labels.items()
-                    },
+                    "labels": sanitize_untrusted(feedback.labels),
                 }
                 for call, feedback in state.recent_tool_events
             ],
@@ -38,7 +42,9 @@ class ContextBuilder:
                 {"tool": call.tool.value, "decision": decision.value}
                 for call, decision in state.recent_guard_events
             ],
-            "guidance_event_summaries": list(state.guidance_event_summaries),
+            "guidance_event_summaries": [
+                safe_summary(summary) for summary in state.guidance_event_summaries
+            ],
         }
         if state.review_result is not None:
             review = state.review_result
@@ -53,6 +59,7 @@ class ContextBuilder:
                 for summary in self._memory_store.load(use_memory=True)
             ]
             context["project_memory_fingerprints"] = list(
-                self._memory_store.load_fingerprints(use_memory=True)
+                safe_summary(fingerprint)
+                for fingerprint in self._memory_store.load_fingerprints(use_memory=True)
             )
         return context

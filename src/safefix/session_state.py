@@ -1,9 +1,14 @@
 from collections.abc import Mapping
-from copy import deepcopy
 from dataclasses import asdict, dataclass, field, replace
+from types import MappingProxyType
 from typing import TypeAlias, TypeVar
 
-from .events import SessionEvent, sanitize_model_identity, sanitize_summary
+from .events import (
+    SessionEvent,
+    sanitize_model_identity,
+    sanitize_summary,
+    sanitize_untrusted,
+)
 from .models import (
     AcceptanceMode,
     BaselineSource,
@@ -67,7 +72,7 @@ class SessionState:
     _guidance_event_summaries: tuple[str, ...] = field(
         default_factory=tuple, init=False, repr=False
     )
-    _high_risk_confirmation: dict[str, SafeValue] | None = field(
+    _high_risk_confirmation: Mapping[str, SafeValue] | None = field(
         default=None, init=False, repr=False
     )
 
@@ -96,7 +101,7 @@ class SessionState:
         return (
             None
             if self._high_risk_confirmation is None
-            else deepcopy(self._high_risk_confirmation)
+            else _thaw(self._high_risk_confirmation)
         )
 
     @property
@@ -132,6 +137,8 @@ class SessionState:
     def __setattr__(self, name: str, value: object) -> None:
         if name == "F0" and hasattr(self, "F0"):
             raise AttributeError("F0 is immutable")
+        if name == "last_feedback" and value is not None:
+            value = _sanitize_feedback(value)
         if name in {
             "preparation_summary",
             "baseline_source",
@@ -169,6 +176,7 @@ class SessionState:
             "manifest_hash",
             "stability_runs",
             "review_result",
+            "_high_risk_confirmation",
         }:
             raise AttributeError(f"{name} is immutable")
         super(SessionState, self).__delattr__(name)
@@ -186,6 +194,7 @@ class SessionState:
         self.no_progress_rounds = 0
 
     def record_tool_event(self, call: ToolCall, feedback: Feedback) -> None:
+        feedback = _sanitize_feedback(feedback)
         self._recent_tool_events = self._append_recent(
             self._recent_tool_events, (call, feedback)
         )
@@ -196,7 +205,13 @@ class SessionState:
         )
 
     def record_patch_fingerprint(self, fingerprint: str) -> None:
-        self._patch_fingerprints = self._patch_fingerprints | {fingerprint}
+        try:
+            safe_fingerprint = sanitize_summary(fingerprint)
+        except (TypeError, ValueError) as exc:
+            raise SessionStateBoundaryError(
+                "invalid session metadata: patch fingerprint"
+            ) from exc
+        self._patch_fingerprints = self._patch_fingerprints | {safe_fingerprint}
 
     def record_event(self, event: SessionEvent) -> None:
         if not isinstance(event, SessionEvent):
@@ -245,9 +260,13 @@ class SessionState:
             raise SessionStateBoundaryError("invalid session metadata: stability_runs")
         if not isinstance(manifest.manifest_hash, str):
             raise SessionStateBoundaryError("invalid session metadata: manifest_hash")
+        try:
+            safe_manifest_hash = sanitize_summary(manifest.manifest_hash)
+        except (TypeError, ValueError) as exc:
+            raise SessionStateBoundaryError("invalid session metadata: manifest_hash") from exc
         object.__setattr__(self, "preparation_summary", summary)
         object.__setattr__(self, "baseline_source", manifest.baseline_source)
-        object.__setattr__(self, "manifest_hash", manifest.manifest_hash)
+        object.__setattr__(self, "manifest_hash", safe_manifest_hash)
         object.__setattr__(self, "stability_runs", manifest.stability_runs)
 
     def set_review(self, review_result: ReviewResult) -> None:
@@ -293,7 +312,7 @@ class SessionState:
             kind="control",
             safe_payload=record,
         ).safe_payload
-        object.__setattr__(self, "_high_risk_confirmation", sanitized)
+        object.__setattr__(self, "_high_risk_confirmation", _freeze(sanitized))
 
     def update_best_checkpoint(self, failures: FailureSet) -> None:
         self.F = failures
@@ -318,6 +337,35 @@ class SessionState:
 
 def safe_summary(summary: str) -> str:
     return sanitize_summary(summary, max_chars=MAX_GUIDANCE_CHARS)
+
+
+def _sanitize_feedback(value: object) -> Feedback:
+    if not isinstance(value, Feedback):
+        raise TypeError("feedback must be a Feedback")
+    safe_labels = sanitize_untrusted(value.labels)
+    if not isinstance(safe_labels, dict):
+        raise SessionStateBoundaryError("invalid session metadata: feedback labels")
+    return Feedback(
+        outcome=safe_summary(value.outcome),
+        summary=safe_summary(value.summary),
+        labels=safe_labels,
+    )
+
+
+def _freeze(value: object) -> object:
+    if isinstance(value, dict):
+        return MappingProxyType({key: _freeze(item) for key, item in value.items()})
+    if isinstance(value, list):
+        return tuple(_freeze(item) for item in value)
+    return value
+
+
+def _thaw(value: object) -> object:
+    if isinstance(value, Mapping):
+        return {key: _thaw(item) for key, item in value.items()}
+    if isinstance(value, tuple):
+        return [_thaw(item) for item in value]
+    return value
 
 
 def _normalize_identity(value: str | ModelRoleConfig | None) -> str | None:

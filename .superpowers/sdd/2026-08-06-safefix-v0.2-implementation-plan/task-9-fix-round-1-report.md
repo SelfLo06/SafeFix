@@ -1,7 +1,7 @@
 # Task 9 fix round 1 report
 
-Date: 2026-08-06  
-Worktree: `.worktrees/safefix-v0.2`  
+Date: 2026-08-06
+Worktree: `.worktrees/safefix-v0.2`
 Implementation commit: `eed23ad91e46611c93525a06fba0558d1490e618`
 
 ## Findings addressed

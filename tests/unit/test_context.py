@@ -124,3 +124,45 @@ def test_context_never_retains_code_like_review_source_or_url_data(tmp_path):
     assert "user:pass" not in rendered
     assert "/private" not in rendered
     assert "query=secret" not in rendered
+
+
+def test_context_sanitizes_unkeyed_secret_code_traceback_and_outcome_values(tmp_path):
+    state = SessionState(failures("case-a"))
+    call = ToolCall(tool=ToolName.APPLY_PATCH)
+    state.record_tool_event(
+        call,
+        Feedback(
+            outcome="Traceback(TOKENSECRET)",
+            summary="print(SOURCESECRET)",
+            labels={"detail": "API key/TOKENSECRET"},
+        ),
+    )
+    state.record_event(
+        SessionEvent(
+            sequence=2,
+            timestamp="2026-08-06T00:00:00Z",
+            phase=Phase.READY,
+            kind="tool",
+            safe_payload={"unkeyed": "TOKENSECRET"},
+        )
+    )
+    state.record_guidance("Bearer TOKENSECRET")
+    state.record_patch_fingerprint("Bearer TOKENSECRET")
+    state.set_review(
+        ReviewResult(
+            verdict=ReviewVerdict.WARN,
+            basis_supported=True,
+            invented_behavior=False,
+            implementation_coupling=False,
+            risk="Exception(TOKENSECRET)",
+            summary="API key/TOKENSECRET",
+        )
+    )
+
+    context = ContextBuilder(
+        ProjectMemoryStore(tmp_path / "project", data_dir=tmp_path / "data")
+    ).build(state)
+    rendered = repr(context)
+
+    for secret in ("TOKENSECRET", "SOURCESECRET", "Traceback", "Exception", "print("):
+        assert secret not in rendered

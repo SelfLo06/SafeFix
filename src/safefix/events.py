@@ -62,11 +62,24 @@ _SENSITIVE_KEY_PARTS = _SECRET_KEY_PARTS + (
 _SECRET_TEXT_RE = re.compile(
     r"(?i)(?:bearer\s+|(?:api[_ -]?key|access[_ -]?token|password|secret)\s*[:=]\s*|sk-[a-z0-9_-]{8,})\S*"
 )
+_SENSITIVE_TEXT_RE = re.compile(
+    r"(?i)\b(?:bearer|password|secret|token|credential|authorization|"
+    r"api[_ -]?key|access[_ -]?token|refresh[_ -]?token)\b|"
+    r"raw[-_ ]?response|traceback|exception"
+)
+_UNMARKED_SECRET_RE = re.compile(
+    r"(?i:(?:\b(?:token|secret|source|apikey|api_key|bearer|password|credential)"
+    r"[A-Z0-9_-]{2,}\b|\b[A-Z0-9_-]{2,}(?:token|secret|apikey|password)\b))|"
+    r"\b[A-Z]{8,}\b"
+)
 _SENSITIVE_ASSIGNMENT_RE = re.compile(
     r"(?i)\b(?:token|secret|auth(?:entication|orization)?|endpoint|query|userinfo)\s*[:=]\s*\S+"
 )
 _QUERY_RE = re.compile(r"(?:[?&][A-Za-z0-9_.-]+=[^\s&]+)")
 _USERINFO_RE = re.compile(r"\b[^\s/:@]+:[^\s/@]+@")
+_SAFE_IDENTITY_RE = re.compile(
+    r"^(?:test|repair|review):https?://[a-z0-9.-]+(?::\d+)?:[a-z0-9_.-]+$"
+)
 
 
 class _ImmutableMapping(tuple, Mapping[str, object]):
@@ -200,16 +213,26 @@ class SessionEvent:
 
 
 def sanitize_summary(text: str, *, max_chars: int = MAX_SAFE_SUMMARY_CHARS) -> str:
-    """Return a bounded summary without source, URL, or credential material."""
+    """Return a bounded conservative projection of untrusted text."""
     if not isinstance(text, str):
         raise TypeError("summary must be a string")
     if max_chars <= 0:
         raise ValueError("max_chars must be positive")
-    if "\n" in text or "\r" in text:
-        return _REDACTED
-    if _looks_like_code(text) or _looks_like_url(text):
+    if _SAFE_IDENTITY_RE.fullmatch(text):
+        return text
+    text = re.sub(r"[\r\n]+", " ", text).strip()
+    if (
+        _looks_like_code(text)
+        or _looks_like_url(text)
+        or _looks_like_traceback(text)
+        or _looks_like_raw_response(text)
+    ):
         return _REDACTED
     if _QUERY_RE.search(text) or _USERINFO_RE.search(text):
+        return _REDACTED
+    if _UNMARKED_SECRET_RE.search(text):
+        return _REDACTED
+    if _SENSITIVE_TEXT_RE.search(text):
         return _REDACTED
     redacted = _SECRET_TEXT_RE.sub(_REDACTED, text)
     redacted = _SENSITIVE_ASSIGNMENT_RE.sub(_REDACTED, redacted)
@@ -261,12 +284,17 @@ def _materialize_value(value: object) -> object:
         return _materialize_mapping(value)
     if isinstance(value, tuple):
         return [_materialize_value(item) for item in value]
+    if isinstance(value, list):
+        return [_materialize_value(item) for item in value]
     return value
 
 
 def _sanitize_key(key: object) -> str:
     if not isinstance(key, str):
         return _REDACTED
+    normalized = key.lower().replace("-", "_").replace(" ", "_")
+    if any(part in normalized for part in _SENSITIVE_KEY_PARTS):
+        return key[:MAX_SAFE_SUMMARY_CHARS]
     return sanitize_summary(key)
 
 
@@ -323,15 +351,32 @@ def _sanitize_value(value: object, depth: int) -> object:
     return _REDACTED
 
 
+def sanitize_untrusted(value: object) -> object:
+    """Sanitize one untrusted JSON-like value recursively.
+
+    Safe scalar types remain available for counters, flags, and enum values;
+    untrusted strings and unknown objects go through the same text policy.
+    """
+    return _materialize_value(_sanitize_value(value, 0))
+
+
 def _looks_like_code(value: str) -> bool:
     return bool(
         re.search(
             r"(?i)(?:^|\s)(?:def|class|import|from|async|await|function)\s+|"
             r"(?:^|\s)return\s+(?:['\"`]|[-+]?\d|[A-Za-z_]\w*\s*[([{=])|"
-            r"(?:=>|```|[{};])",
+            r"(?:=>|```|[{};])|(?:\bprint|pprint)\s*\(",
             value,
         )
     )
+
+
+def _looks_like_traceback(value: str) -> bool:
+    return bool(re.search(r"(?i)\b(?:traceback|[a-z_]\w*(?:error|exception))\s*[(\[]", value))
+
+
+def _looks_like_raw_response(value: str) -> bool:
+    return bool(re.search(r"(?i)\b(?:raw|full|unredacted)[-_ ]?(?:model[-_ ]?)?response\b", value))
 
 
 def _looks_like_url(value: str) -> bool:

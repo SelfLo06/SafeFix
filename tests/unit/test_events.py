@@ -90,6 +90,28 @@ def test_session_event_redacts_sensitive_keys_values_urls_and_timestamps() -> No
     assert event.safe_payload["nested"]["safe"] == "bounded status"
 
 
+def test_session_event_redacts_unkeyed_secret_code_and_exception_values() -> None:
+    event = SessionEvent(
+        sequence=12,
+        timestamp="2026-08-06T12:00:00Z",
+        phase=Phase.DISPATCH,
+        kind="tool",
+        safe_payload={
+            "status": "TOKENSECRET",
+            "source": "SOURCESECRET",
+            "output": "print(SOURCESECRET)",
+            "error": "Traceback(TOKENSECRET)",
+            "exception": "Exception(TOKENSECRET)",
+            "safe_count": 2,
+        },
+    )
+
+    rendered = repr(event)
+    for secret in ("TOKENSECRET", "SOURCESECRET", "print(", "Traceback", "Exception"):
+        assert secret not in rendered
+    assert event.safe_payload["safe_count"] == 2
+
+
 def test_session_event_redacts_bytes() -> None:
     event = SessionEvent(
         sequence=2,

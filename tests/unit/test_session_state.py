@@ -75,6 +75,18 @@ def test_session_state_records_tool_and_guard_events():
     ) * RECENT_EVENT_LIMIT
 
 
+def test_last_feedback_is_sanitized_at_the_state_boundary():
+    state = SessionState(failures("case-a"))
+
+    state.last_feedback = Feedback(
+        outcome="Traceback(TOKENSECRET)",
+        summary="print(SOURCESECRET)",
+    )
+
+    assert state.last_feedback.outcome == "[REDACTED]"
+    assert state.last_feedback.summary == "[REDACTED]"
+
+
 def test_session_state_exposes_bounded_histories_as_read_only():
     state = SessionState(failures("case-a"))
     events = [
@@ -194,6 +206,24 @@ def test_high_risk_confirmation_is_not_mutable_through_nested_values():
         "confirmed": True,
         "details": {"operator": "human"},
     }
+
+
+def test_high_risk_confirmation_cannot_be_deleted_reset_or_mutated_after_set():
+    state = SessionState(failures("case-a"))
+    state.set_high_risk_confirmation(
+        {"confirmed": True, "details": {"operator": "human"}}
+    )
+
+    with pytest.raises(AttributeError):
+        del state._high_risk_confirmation
+    with pytest.raises(AttributeError):
+        state._high_risk_confirmation = None
+    with pytest.raises(TypeError):
+        state._high_risk_confirmation["confirmed"] = False
+    with pytest.raises(AttributeError):
+        state.set_high_risk_confirmation({"confirmed": False})
+
+    assert state.high_risk_confirmation["confirmed"] is True
 
 
 def test_review_is_sanitized_before_storage_and_repr():

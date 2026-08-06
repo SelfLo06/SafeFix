@@ -200,3 +200,43 @@ def test_artifact_rejects_malformed_preparation_state_instead_of_inventing_count
         ArtifactWriter(tmp_path / "session.json").write(
             state, SessionResult(stop_reason=StopReason.ERROR)
         )
+
+
+def test_artifact_sanitizes_unkeyed_outcomes_fingerprints_hashes_and_review_text(tmp_path):
+    state = SessionState(failures("case-a"))
+    state.set_preparation(
+        PreparationSummary(baseline_source=BaselineSource.EXISTING),
+        FrozenTestManifest(
+            session_id="session-1",
+            baseline_source=BaselineSource.EXISTING,
+            entries=(ManifestEntry("tests/test_app.py", "hash", BaselineSource.EXISTING),),
+            stability_runs=1,
+            manifest_hash="TOKENSECRET",
+        ),
+    )
+    state.record_tool_event(
+        ToolCall(tool=ToolName.APPLY_PATCH),
+        Feedback(
+            outcome="Traceback(TOKENSECRET)",
+            summary="print(SOURCESECRET)",
+        ),
+    )
+    state.record_patch_fingerprint("Bearer TOKENSECRET")
+    state.set_review(
+        ReviewResult(
+            verdict=ReviewVerdict.WARN,
+            basis_supported=True,
+            invented_behavior=False,
+            implementation_coupling=False,
+            risk="Exception(TOKENSECRET)",
+            summary="API key/TOKENSECRET",
+        )
+    )
+    ArtifactWriter(tmp_path / "session.json").write(
+        state, SessionResult(stop_reason=StopReason.ERROR)
+    )
+
+    rendered = (tmp_path / "session.json").read_text()
+    assert '"baseline_manifest_hash": "[REDACTED]"' in rendered
+    for secret in ("TOKENSECRET", "SOURCESECRET", "Traceback", "Exception", "print("):
+        assert secret not in rendered
