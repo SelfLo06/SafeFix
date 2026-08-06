@@ -2825,3 +2825,26 @@
 - Detailed report:
   `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/
   task-12-fix-round-1-report.md`.
+
+### v0.2 design revision — Rich + prompt_toolkit Guided Repair Console
+
+- Date: 2026-08-06. The user approved a design-only revision while Task 13 is
+  paused. Skills used: using-superpowers, brainstorming, and
+  using-git-worktrees. The existing linked worktree was verified; no
+  implementer was resumed.
+- Read and audited AGENTS.md, the v0.2 design spec, decision record, existing
+  implementation plan, this plan's SDD workspace/ledger, Task 13 brief,
+  current diff, and recent commits. Task 13 has no committed or uncommitted
+  production, test, package, or dependency change. The only uncommitted file
+  is the pre-existing SDD progress ledger; it was preserved without alteration.
+- Revised only the v0.2 formal design and decision record to select
+  prompt_toolkit plus Rich, scrollback-first interaction, TTY animation and
+  fallback rules, Adapter/thread boundaries, semantic-only artifact policy,
+  dependency/packaging requirements, and the Task 13 re-entry gate. The plan,
+  production code, tests, pyproject, README, dependencies, root PLAN.md, and
+  ledger completion status were not modified.
+- No production tests were run because this is documentation-only work and the
+  requested scope prohibits implementation changes. A document self-review
+  checks placeholders, stdlib/dependency consistency, one-way architecture,
+  scrollback-first interaction, animation rules, non-TTY compatibility, scope,
+  deterministic tests, packaging verification, and interrupted Task 13 state.
