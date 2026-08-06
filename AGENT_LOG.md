@@ -2645,5 +2645,5 @@
   scope was added. Tests assert observable prompts, events, target paths,
   rollback, and state invariants rather than implementation details.
 - Implementation commit: `ba54550` — `feat: queue operator guidance and safe stop`.
-- Documentation/report commit: recorded below after the report and ledger
-  closure are committed.
+- Documentation/report commit: `945b987` — `docs: close Task 11 repair loop
+  audit`.

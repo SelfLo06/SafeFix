@@ -29,15 +29,14 @@
 - Full suite: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests -q` — 536 passed.
 - `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m compileall -q src` — passed.
 - `git diff --check` — passed.
-- `git rev-parse v0.1.0^{}` — `4fc3d6bfd61ad6b4057de66abcf13605af3c2b9c9`, unchanged.
+- `git rev-parse v0.1.0^{}` — `4fc3d6bfd61ad6b4057de66abcf13605af3c2b9c`, unchanged.
 - Specification-compliance review: PASS; code-quality review: PASS. Details:
   [task-11-review.md](task-11-review.md).
 
 ## Commits
 
 - Implementation: `ba54550` — `feat: queue operator guidance and safe stop`.
-- Documentation/report closure: recorded in the final AGENT_LOG entry after
-  the documentation commit.
+- Documentation/report closure: `945b987` — `docs: close Task 11 repair loop audit`.
 
 ## Workflow deviation
 
