@@ -1973,3 +1973,52 @@
   `fix: bind stability to live candidate workspaces`.
 - Fix report: `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/
   task-6-fix-round-2-report.md`.
+
+## v0.2 Task 6 — fix round 3/5
+
+- Date: 2026-08-06. Fixed only the remaining HIGH ownership-lifecycle issue:
+  `StabilityRunner.evaluate()` now revalidates the live candidate workspace
+  before reading or invoking the injected runner. The runner remains bound to
+  the exact workspace instance created at construction, and each owned session
+  directory records a filesystem identity so replacement cannot reuse a copied
+  marker.
+- Added adversarial tests for owner-marker removal and same-session workspace
+  replacement after runner construction; both assert that the injected
+  callback is not executed. Existing pristine-run, containment, cleanup,
+  classification, bounded-count, and v0.1 runner behavior remain unchanged.
+- Scope: modified only `src/safefix/testprep/workspace.py`,
+  `src/safefix/testprep/stability.py`, this Task 6 stability test,
+  `AGENT_LOG.md`, the SDD progress ledger, and the requested fix report. No
+  candidate code was executed, no source/existing tests were written, no
+  dependencies or unrelated scope were added, and the immutable `v0.1.0` tag
+  was not changed.
+- Skills: `using-superpowers`, `using-git-worktrees` (verified the supplied
+  linked worktree), `subagent-driven-development`,
+  `test-driven-development`, `receiving-code-review`,
+  `requesting-code-review`, and `verification-before-completion`. No callable
+  subagent-dispatch capability is exposed, so the fresh-implementer work and
+  separate specification-compliance/code-quality reviews were performed as
+  coordinator passes; this deviation is recorded rather than silently
+  skipping the gates. `finishing-a-development-branch` remains deferred
+  because the v0.2 branch is still in progress and this worktree is externally
+  managed.
+- TDD red: the two new lifecycle tests failed with `DID NOT RAISE`, proving
+  the pre-fix `evaluate()` path reached the vulnerable behavior. TDD green:
+  the two focused tests passed with 2 tests; the focused Task 6 suite passed
+  with 19 tests; the related manifest/runner suite passed with 35 tests.
+- Specification-compliance review: PASS. Evaluation-time validation rejects
+  marker removal, cleanup/unregistration, exact-session replacement,
+  symlink replacement, and forged roots before callback invocation while
+  retaining genuine workspace evaluation and all Task 6 classification and
+  cleanup semantics.
+- Code-quality review: PASS. The fix is explicit and local, uses the existing
+  ownership registry and boundary validation, adds only a small filesystem
+  identity invariant, catches only the relevant filesystem error, and adds no
+  speculative fallback or abstraction.
+- Verification: full repository **399 passed**; `compileall -q src`,
+  `git diff --check`, and `git rev-parse 'v0.1.0^{}'` passed. The immutable tag
+  remains `4fc3d6bfd61ad6b4057de66abcf13605af3c2b9c`.
+- Implementation commit: `08a1eeaed0a5ce5e6e1e3ef78172f590969fc44f` —
+  `fix: revalidate candidate workspace ownership at evaluation`.
+- Fix report: `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/
+  task-6-fix-round-3-report.md`.
