@@ -1665,3 +1665,46 @@
   behavior rather than implementation details.
 - Implementation commit: `dbe73ba` (`fix: close Task 4 review findings`); full report:
   `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/task-4-fix-round-1-report.md`.
+
+## v0.2 Task 5 — generated-test candidate contract and static rules
+
+- Date: 2026-08-06. Scope is limited to the new `safefix.testprep` contract,
+  bounded candidate parser, deterministic AST/path rules, and isolated unit
+  tests. No stability runner, workspace orchestration, acceptance policy,
+  session integration, dependency, `SPEC.md`, `PLAN.md`, or `v0.1.0` tag
+  change was made. Full report:
+  `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/task-5-implementer-report.md`.
+- Skills: `using-superpowers`, `using-git-worktrees` (verified the supplied
+  linked worktree), `subagent-driven-development`, `test-driven-development`,
+  `requesting-code-review`, `receiving-code-review`, and
+  `verification-before-completion`. No callable subagent-dispatch capability
+  is exposed in this session, so the fresh-implementer work and the required
+  specification-compliance and code-quality reviews were performed as
+  separate coordinator passes; this process deviation is recorded rather than
+  silently skipped. `finishing-a-development-branch` is deferred because the
+  v0.2 branch remains in progress and this worktree is externally managed.
+- TDD red: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest
+  tests/unit/test_testprep_parser.py tests/unit/test_testprep_rules.py -q`
+  failed during collection with `ModuleNotFoundError: safefix.testprep`, as
+  required before production implementation.
+- TDD green/refactor: the focused command passed with 30 tests. The related
+  command `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest
+  tests/unit/test_testprep_parser.py tests/unit/test_testprep_rules.py
+  tests/unit/test_parse.py tests/unit/test_paths.py -q` passed with 72 tests.
+  The final fresh full command `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src
+  python -m pytest tests -q` is the completion gate recorded below.
+- Specification-compliance review: PASS. The parser accepts exactly one
+  bounded candidate-list object, enforces required basis/source references,
+  unique IDs, normalized project-relative source references, empty existing-
+  test touch lists, and deterministic structural errors. Rules return stable
+  sorted `RuleViolation`s for path escapes, existing-test writes, private
+  implementation assertions, unsupported exception guesses, network/time/
+  random behavior, performance thresholds, complex snapshots, excessive
+  mocking, undeclared imports, invalid tests, and non-test source edits.
+  Validation performs reads/AST inspection only; isolation tests prove source
+  and existing-test bytes remain unchanged.
+- Code-quality review: PASS. Validation occurs at the parser/filesystem/AST
+  boundaries; internal typed candidates are not repeatedly revalidated. No
+  broad exception handling, invented defaults, speculative fallback, LLM
+  call, unnecessary abstraction, dead code, or scope expansion was found.
+- Required implementation commit subject: `feat: validate generated test candidates`.
