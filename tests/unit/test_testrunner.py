@@ -26,13 +26,54 @@ def test_runner_executes_python_pytest_without_a_shell(tmp_path: Path, monkeypat
     runner = Runner(tmp_path)
     result = runner.run()
 
-    assert calls[0][0][:3] == [sys.executable, "-m", "pytest"]
+    command = calls[0][0]
+    assert command[:3] == [sys.executable, "-m", "pytest"]
+    assert command[3:-1] == []
     assert calls[0][1]["shell"] is False
     assert calls[0][1]["cwd"] == tmp_path
     assert result.exit_code == 0
     assert result.failure_ids == frozenset()
     assert result.valid is False
     assert not report_paths[0].exists()
+
+
+def test_runner_orders_display_args_before_all_internal_target_paths(
+    tmp_path: Path, monkeypatch
+):
+    commands = []
+
+    def fake_run(command, **kwargs):
+        commands.append(command)
+        report = Path(
+            next(arg.split("=", 1)[1] for arg in command if arg.startswith("--junitxml="))
+        )
+        report.write_text(
+            '<testsuites><testsuite name="pytest" tests="1">'
+            '<testcase classname="tests.test_app" name="test_ok" />'
+            "</testsuite></testsuites>",
+            encoding="utf-8",
+        )
+        return type("Completed", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+    monkeypatch.setattr("safefix.testrunner.subprocess.run", fake_run)
+
+    result = Runner(
+        tmp_path,
+        pytest_args=("-q", "--disable-warnings"),
+        target_paths=(Path("tests/a.py"), Path("tests/b.py")),
+    ).run()
+
+    assert result.valid is True
+    assert commands[0][:7] == [
+        sys.executable,
+        "-m",
+        "pytest",
+        "-q",
+        "--disable-warnings",
+        "tests/a.py",
+        "tests/b.py",
+    ]
+    assert commands[0][-1].startswith("--junitxml=")
 
 
 def test_empty_result_is_invalid_by_default():

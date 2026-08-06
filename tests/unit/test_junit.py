@@ -55,3 +55,20 @@ def test_collection_error_is_distinct_from_collected_testcase():
 
     assert collection_error.is_collection_error is True
     assert collected.is_collection_error is False
+
+
+def test_valid_testcase_with_collection_error_classname_is_not_synthetic(
+    tmp_path: Path,
+):
+    report = tmp_path / "junit.xml"
+    report.write_text(
+        '<testsuites><testsuite name="pytest" tests="1">'
+        '<testcase classname="collection_error" name="test_real" />'
+        "</testsuite></testsuites>",
+        encoding="utf-8",
+    )
+
+    case = parse_junit_report(report)[0]
+
+    assert case.failure_id == "collection_error::test_real"
+    assert case.is_collection_error is False

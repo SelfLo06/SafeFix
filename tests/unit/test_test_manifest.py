@@ -101,6 +101,17 @@ def test_formal_manifest_rejects_empty_entries(tmp_path: Path):
         )
 
 
+def test_direct_manifest_constructor_rejects_empty_entries():
+    with pytest.raises(ManifestError, match="empty"):
+        FrozenTestManifest(
+            session_id="session",
+            baseline_source=BaselineSource.EXISTING,
+            entries=(),
+            stability_runs=3,
+            manifest_hash="0" * 64,
+        )
+
+
 def test_existing_test_discovery_distinguishes_no_tests_from_collection_error(
     tmp_path: Path,
 ):

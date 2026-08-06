@@ -41,7 +41,10 @@ class FrozenTestManifest:
     manifest_hash: str
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "entries", tuple(self.entries))
+        entries = tuple(self.entries)
+        if not entries:
+            raise ManifestError("formal test manifest cannot be empty")
+        object.__setattr__(self, "entries", entries)
 
     @classmethod
     def from_paths(
@@ -74,6 +77,8 @@ class FrozenTestManifest:
         )
 
     def verify(self, project_root: str | Path) -> None:
+        if not self.entries:
+            raise ManifestError("formal test manifest cannot be empty")
         expected_hash = _manifest_hash(
             self.baseline_source, self.entries, self.stability_runs
         )

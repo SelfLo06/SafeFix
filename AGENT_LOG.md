@@ -1623,3 +1623,45 @@
 - Implementation commit: `c2cb5cce1231dc3e674b22ba458a64a423b27a7d` —
   `feat: freeze and verify test manifests`. Full report:
   `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/task-4-implementer-report.md`.
+
+## v0.2 Task 4 — fix round 1
+
+- Date: 2026-08-06. Scope: address only the HIGH collection-error ID
+  collision, MEDIUM direct empty-manifest invariant, and LOW exact-target
+  TestRunner coverage from `task-4-review.md`. Candidate/runner setup layers,
+  dependencies, v0.1 behavior, and the immutable `v0.1.0` tag were preserved.
+- Skills: `using-superpowers`, `using-git-worktrees`,
+  `subagent-driven-development`, `receiving-code-review`,
+  `test-driven-development`, `requesting-code-review`, and
+  `verification-before-completion`. No callable subagent-dispatch tool is
+  available in this session; specification-compliance and code-quality review
+  were therefore completed as separate coordinator checklist passes and this
+  deviation is recorded here.
+- TDD red: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest -p
+  no:cacheprovider tests/unit/test_test_manifest.py tests/unit/test_testrunner.py
+  tests/unit/test_junit.py -q` — `2 failed, 20 passed`; failures were the
+  direct empty-manifest constructor and valid `collection_error` classname
+  regressions.
+- TDD green/focused: the same command — `22 passed`.
+- Related regression: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m
+  pytest -p no:cacheprovider tests/unit/test_test_manifest.py
+  tests/unit/test_testrunner.py tests/unit/test_junit.py
+  tests/unit/test_runner_init.py tests/unit/test_runner_evaluate.py
+  tests/unit/test_runner_dispatch.py tests/unit/test_runner_limits.py -q` —
+  `67 passed`.
+- Full verification: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m
+  pytest -p no:cacheprovider tests -q` — `309 passed`; compileall passed;
+  `git diff --check` passed; `v0.1.0` still points to
+  `277bf09932e58f8950aaf5eacf4155def164e9ba`.
+- Specification-compliance review: PASS. Collection-error classification is
+  explicit and no longer derived from a colliding ID prefix; synthetic IDs
+  remain unchanged and stable. `FrozenTestManifest` rejects empty entries at
+  direct construction and verification, while `allow_empty=True` discovery
+  remains valid for a no-tests project. The TestRunner tests now prove exact
+  display-argument/target ordering and empty-target full-suite invocation.
+- Code-quality review: PASS. The patch is limited to the three reported
+  defects, uses no broad exception handling or speculative fallback, retains
+  the existing public constructor positional compatibility, and tests public
+  behavior rather than implementation details.
+- Implementation commit: pending; full report:
+  `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/task-4-fix-round-1-report.md`.

@@ -16,6 +16,7 @@ class TestCaseResult:
     name: str
     status: str
     message: str = ""
+    collection_error: bool = False
 
     @property
     def is_failure(self) -> bool:
@@ -23,7 +24,7 @@ class TestCaseResult:
 
     @property
     def is_collection_error(self) -> bool:
-        return self.failure_id.startswith("collection_error::")
+        return self.collection_error
 
 
 def parse_junit_report(report_path: str | Path) -> tuple[TestCaseResult, ...]:
@@ -106,4 +107,5 @@ def _collection_error(suite: str, message: str) -> TestCaseResult:
         name="",
         status="error",
         message=normalized,
+        collection_error=True,
     )
