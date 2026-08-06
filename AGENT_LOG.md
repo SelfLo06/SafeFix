@@ -1378,3 +1378,61 @@
 - The implementation commit includes the Task 3 modules, focused tests, and
   the complete TDD/review/verification evidence above. The requested full
   report is `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/task-3-implementer-report.md`.
+
+## v0.2 Task 3 — fix round 1
+
+- Date: 2026-08-06. Scope: addressed exactly the two load-bearing findings in
+  `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/task-3-review.md`.
+  Only the typed event boundary and its tests changed; `runner.py`, CLI,
+  operator commands, F0, configuration, pytest execution, SUCCESS authority,
+  dependencies, and the immutable `v0.1.0` tag were not changed.
+- Skills: `using-superpowers`, `using-git-worktrees` (verified the supplied
+  linked worktree), `subagent-driven-development`, `receiving-code-review`,
+  `systematic-debugging`, `test-driven-development`, `requesting-code-review`,
+  and `verification-before-completion`. No subagent-dispatch capability is
+  available in this session, so the required specification-compliance and
+  code-quality reviews were completed as separate documented checklist passes.
+  `finishing-a-development-branch` is deferred because the approved 15-task
+  v0.2 branch remains in progress and this requested fix round does not
+  authorize integration.
+- Root cause: the typed protocol had no callable bridge for the unchanged
+  `SessionRunner.event_sink` seam, and `SessionEvent` froze only its field
+  reference while retaining a mutable dictionary that accepted unsupported
+  raw values.
+- TDD red (payload): `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m
+  pytest tests/unit/test_events.py -q` — `3 failed, 3 passed`; bytes and an
+  unknown object's secret-bearing representation were retained, and mutation
+  of `safe_payload` did not raise.
+- TDD green (payload): the same focused command — `6 passed`.
+- TDD red (adapter): `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m
+  pytest tests/unit/test_runner_dispatch.py::test_legacy_event_sink_adapter_bridges_runner_text_events -q`
+  — `1 failed`, expected missing `LegacyEventSinkAdapter` import.
+- TDD green (adapter): that command — `1 passed`; event tests remained
+  `6 passed`.
+- TDD red (JSON-shaped payload): `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src
+  python -m pytest tests/unit/test_events.py::test_session_event_safe_payload_remains_json_compatible -q`
+  — `1 failed`, because `mappingproxy` is not JSON serializable.
+- TDD green (JSON-shaped payload): focused event tests — `7 passed`; focused
+  bridge test — `1 passed`.
+- Related regression: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m
+  pytest tests/unit/test_events.py tests/unit/test_operator.py
+  tests/unit/test_session_state.py tests/unit/test_runner_dispatch.py -q` —
+  `26 passed` (rerun after the bounded-iteration refactor: `26 passed`).
+- Full regression: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest
+  tests -q` — `293 passed`; `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python
+  -m compileall -q src` — passed; `git diff --check` — passed.
+- Specification-compliance review: PASS. `LegacyEventSinkAdapter` is a
+  one-way callable bridge from existing runner text events to typed,
+  sanitized `SessionEvent` records, preserving the plain callable path.
+  Payload construction now accepts only bounded JSON-like scalar/mapping/
+  sequence data, redacts bytes and unknown values without rendering them, and
+  blocks ordinary post-construction mutation. The runner remains the only
+  Harness authority; no second event bus or Task 11 control behavior exists.
+- Code-quality review: PASS. The change is stdlib-only and bounded with
+  `islice`; it adds no broad exception handling, duplicate downstream
+  validation, speculative fallback, dead code, authority expansion, or
+  implementation-coupled tests. The tests observe the public event and
+  runner seam contracts.
+- Implementation commit: `be2cb39a9590c13d43725a8e5ef44dcdb68b407c` —
+  `fix: secure typed event payloads`; full report:
+  `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/task-3-fix-round-1-report.md`.
