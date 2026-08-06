@@ -1932,3 +1932,44 @@
   and `git diff --check` passed.
 - Implementation commit: `94efff5` — `fix: harden Task 6 candidate stability
   boundaries`.
+
+## v0.2 Task 6 — fix round 2/5
+
+- Date: 2026-08-06. Fixed only the remaining HIGH forged candidate-root
+  ownership bypass. `StabilityRunner` now accepts a candidate root only when
+  it is registered to a live `CandidateWorkspace` instance whose private
+  token-bound marker still validates. A caller-created external directory
+  with a forged `.session-owner` marker is rejected before the injected runner
+  is called. Cleanup unregisters the workspace after successful removal.
+- Scope: modified only `src/safefix/testprep/workspace.py`,
+  `src/safefix/testprep/stability.py`,
+  `tests/unit/test_testprep_stability.py`, this log, and the requested fix
+  report. No candidate production code was executed or written; no existing
+  source/tests, dependencies, orchestration, `TestRunner`, SPEC/PLAN, or
+  immutable `v0.1.0` tag were changed.
+- Skills: `using-superpowers`, `using-git-worktrees` (verified the supplied
+  linked worktree), `subagent-driven-development`, `test-driven-development`,
+  `receiving-code-review`, `requesting-code-review`, and
+  `verification-before-completion`. No callable subagent-dispatch capability
+  is exposed, so the required specification-compliance and code-quality
+  reviews were performed as separate coordinator passes; this deviation is
+  recorded rather than silently skipped. `finishing-a-development-branch`
+  remains deferred because this is an externally managed in-progress branch.
+- TDD red: the new forged-marker regression failed with `DID NOT RAISE` under
+  the marker-only implementation. TDD green: the focused Task 6 command passed
+  with 17 tests after the registry/token binding was added.
+- Verification: focused Task 6 tests **17 passed**; related manifest/runner
+  tests **33 passed**; full repository **397 passed**; `compileall -q src`,
+  `git diff --check`, and `git rev-parse 'v0.1.0^{}'` passed. The immutable
+  tag remains `4fc3d6bfd61ad6b4057de66abcf13605af3c2b9c`.
+- Specification-compliance review: PASS. Forged marker/outside roots are
+  rejected before execution, genuine workspace roots remain accepted, and
+  path/symlink/cleanup safety, pristine runs, classification, and v0.1
+  behavior remain intact.
+- Code-quality review: PASS. The change is small and explicit, establishes
+  ownership once at the boundary, adds no broad exception handling or
+  fallback, and does not expand scope.
+- Implementation commit: `d7d4c7dbe2e3f5017df03961910538ed1d9bd2b8` —
+  `fix: bind stability to live candidate workspaces`.
+- Fix report: `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/
+  task-6-fix-round-2-report.md`.
