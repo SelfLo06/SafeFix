@@ -2848,3 +2848,5 @@
   checks placeholders, stdlib/dependency consistency, one-way architecture,
   scrollback-first interaction, animation rules, non-TTY compatibility, scope,
   deterministic tests, packaging verification, and interrupted Task 13 state.
+- Design revision commit: `838a57c` — `docs: revise v0.2 guided console
+  design`.
