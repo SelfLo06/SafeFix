@@ -1736,9 +1736,11 @@
   v0.2 branch is still in progress and this worktree is externally managed.
 - TDD red: initial focused parser/rules command — `17 failed, 32 passed`,
   including the expected uncaught `RecursionError`; the later dynamic-import
-  regression also red-failed alone with `1 failed, 35 passed`.
-- TDD green: focused parser/rules — `53 passed`; related parser/rules/parse/
-  paths — `95 passed`; full `tests` suite — `362 passed`.
+  regression also red-failed alone with `1 failed, 35 passed`. A further
+  call-based dynamic-import regression red-failed with `1 failed, 36 passed`
+  before its canonical module-import fix.
+- TDD green: focused parser/rules — `54 passed`; related parser/rules/parse/
+  paths — `96 passed`; full `tests` suite — `363 passed`.
 - Verification: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m compileall
   -q src` passed; `git diff --check` passed; `v0.1.0^{}` remained
   `4fc3d6bfd61ad6b4057de66abcf13605af3c2b9c`.
@@ -1750,6 +1752,9 @@
   validation, dead code, or scope expansion.
 - Implementation commit: `6a33e1a77eec8cb3f8e93b293a1c3f07c1c30262` —
   `fix: close Task 5 static-rule review findings`.
+- Additional same-round implementation commit:
+  `b02895fcdfd9b514df9aebc5f3c178f748c6c01c` —
+  `fix: cover dynamic module write aliases`.
 - Fix report: `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/
   task-5-fix-round-1-report.md`; scoped re-review:
   `task-5-re-review-round-1.md`.
