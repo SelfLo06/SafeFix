@@ -84,6 +84,22 @@ _PERFORMANCE_CALL_NAMES = {
     "timeit",
     "pedantic",
 }
+_TRACKED_CALLABLE_NAMES = (
+    _NONDETERMINISTIC_CALLS
+    | _MOCK_CALLS
+    | _SOURCE_WRITE_CALLS
+    | _PERFORMANCE_CALL_NAMES
+    | {
+        "getattr",
+        "builtins.getattr",
+        "__import__",
+        "import_module",
+        "importlib.import_module",
+        "builtins.open",
+        "pathlib.Path.open",
+        "pathlib.Path.touch",
+    }
+)
 
 
 def validate_candidate(
@@ -162,6 +178,10 @@ def _contains_test(tree: ast.AST) -> bool:
 
 
 def _has_private_reference(tree: ast.AST) -> bool:
+    module_aliases, callable_aliases = _import_bindings(tree)
+    callable_aliases = _with_assigned_callable_aliases(
+        tree, module_aliases, callable_aliases
+    )
     for node in ast.walk(tree):
         if isinstance(node, ast.Attribute) and node.attr.startswith("_"):
             return True
@@ -169,8 +189,8 @@ def _has_private_reference(tree: ast.AST) -> bool:
             return True
         if (
             isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
-            and node.func.id == "getattr"
+            and _canonical_callable_name(node.func, module_aliases, callable_aliases)
+            in {"getattr", "builtins.getattr"}
             and len(node.args) >= 2
             and isinstance(node.args[1], ast.Constant)
             and isinstance(node.args[1].value, str)
@@ -242,6 +262,9 @@ def _has_performance_threshold(tree: ast.AST) -> bool:
     callable_aliases = _with_assigned_callable_aliases(
         tree, module_aliases, callable_aliases
     )
+    performance_aliases = _performance_aliases(
+        tree, module_aliases
+    )
     for node in ast.walk(tree):
         if isinstance(node, ast.Call):
             callable_name = _canonical_callable_name(
@@ -257,7 +280,7 @@ def _has_performance_threshold(tree: ast.AST) -> bool:
         if isinstance(node, ast.Compare):
             operands = (node.left, *node.comparators)
             names = {
-                child.id.lower()
+                performance_aliases.get(child.id, child.id).lower()
                 for operand in operands
                 for child in ast.walk(operand)
                 if isinstance(child, ast.Name)
@@ -324,6 +347,11 @@ def _has_source_write(tree: ast.AST) -> bool:
             return True
         if callable_name in _SOURCE_WRITE_CALLS:
             return True
+        if callable_name == "pathlib.Path.touch":
+            return True
+        if callable_name in {"builtins.open", "pathlib.Path.open"}:
+            if _write_mode(node):
+                return True
         if isinstance(node.func, ast.Name) and node.func.id == "open":
             if _write_mode(node):
                 return True
@@ -408,7 +436,10 @@ def _dynamic_callable_name(
     module_aliases: dict[str, str],
     callable_aliases: dict[str, str],
 ) -> str | None:
-    if not isinstance(node.func, ast.Name) or node.func.id != "getattr":
+    if _canonical_callable_name(node.func, module_aliases, callable_aliases) not in {
+        "getattr",
+        "builtins.getattr",
+    }:
         return None
     if len(node.args) < 2 or not isinstance(node.args[1], ast.Constant):
         return None
@@ -438,25 +469,44 @@ def _with_assigned_callable_aliases(
     callable_aliases: dict[str, str],
 ) -> dict[str, str]:
     aliases = dict(callable_aliases)
-    changed = True
-    while changed:
-        changed = False
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Assign):
-                targets = node.targets
-            elif isinstance(node, ast.AnnAssign):
-                targets = (node.target,)
-            else:
-                continue
-            value_name = _canonical_callable_name(
-                node.value, module_aliases, aliases
-            ) if isinstance(node, (ast.Assign, ast.AnnAssign)) and node.value else ""
-            if not value_name:
-                continue
-            for target in targets:
-                if isinstance(target, ast.Name) and aliases.get(target.id) != value_name:
-                    aliases[target.id] = value_name
-                    changed = True
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+            value = node.value
+        elif isinstance(node, ast.AnnAssign):
+            targets = (node.target,)
+            value = node.value
+        else:
+            continue
+        value_name = _canonical_callable_name(value, module_aliases, aliases) if value else ""
+        if not value_name or value_name not in _TRACKED_CALLABLE_NAMES:
+            continue
+        for target in targets:
+            if isinstance(target, ast.Name):
+                aliases[target.id] = value_name
+    return aliases
+
+
+def _performance_aliases(
+    tree: ast.AST,
+    module_aliases: dict[str, str],
+) -> dict[str, str]:
+    aliases: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+            value = node.value
+        elif isinstance(node, ast.AnnAssign):
+            targets = (node.target,)
+            value = node.value
+        else:
+            continue
+        value_name = _canonical_callable_name(value, module_aliases, aliases) if value else ""
+        if value_name.lower() not in _PERFORMANCE_NAMES:
+            continue
+        for target in targets:
+            if isinstance(target, ast.Name):
+                aliases[target.id] = value_name
     return aliases
 
 

@@ -242,3 +242,59 @@ def test_still_rejects_filesystem_mutation_methods(project, source):
             "candidate must not write production or existing test files",
         ),
     )
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "from pathlib import Path\n\ntouch = Path.touch\n\ndef test_write():\n    touch(Path('src/app.py'))\n",
+        "from pathlib import Path\n\nop = Path.open\n\ndef test_write():\n    op(Path('src/app.py'), 'w')\n",
+        "from builtins import open as fopen\n\ndef test_write():\n    fopen('src/app.py', 'w')\n",
+        "import os\n\ng = getattr\n\ndef test_write():\n    g(os, 'system')('touch src/app.py')\n",
+        "import importlib\n\ng = getattr\n\ndef test_write():\n    g(importlib.import_module('shutil'), 'copyfile')('src/app.py', 'tests/test_existing.py')\n",
+    ],
+)
+def test_rejects_callable_aliases_that_can_write_files(project, source):
+    assert validate_candidate(make_candidate(source), project) == (
+        RuleViolation(
+            "non_test_source_edit",
+            "candidate must not write production or existing test files",
+        ),
+    )
+
+
+@pytest.mark.parametrize(
+    ("source", "violation"),
+    [
+        (
+            "import os\n\ng = getattr\n\ndef test_random():\n    assert g(os, 'urandom')(1)\n",
+            RuleViolation(
+                "nondeterministic_behavior",
+                "candidate must not depend on network, time, or randomness",
+            ),
+        ),
+        (
+            "g = getattr\n\ndef test_private():\n    assert g(object(), '_private') == 1\n",
+            RuleViolation(
+                "private_implementation",
+                "candidate must assert public behavior, not private details",
+            ),
+        ),
+        (
+            "import unittest.mock as um\n\ng = getattr\n\ndef test_mocking():\n    g(um, 'Mock')(); g(um, 'Mock')(); g(um, 'Mock')()\n",
+            RuleViolation(
+                "excessive_mocking",
+                "candidate uses more than two mock operations",
+            ),
+        ),
+        (
+            "runtime = 1\n\nr = runtime\n\ndef test_speed():\n    assert 10 > r\n",
+            RuleViolation(
+                "performance_threshold",
+                "candidate must not assert a performance threshold",
+            ),
+        ),
+    ],
+)
+def test_rejects_getattr_and_performance_aliases(project, source, violation):
+    assert validate_candidate(make_candidate(source), project) == (violation,)
