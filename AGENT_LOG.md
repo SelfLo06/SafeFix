@@ -1152,3 +1152,16 @@
   correction was escaping the initial placeholder-scan regex; no document
   content depended on that failed command.
 - Design commit: `f44f286` (`docs: design SafeFix v0.2 architecture`).
+
+## v0.2 decision record preservation
+
+- Date: 2026-08-06. Preserved the user's rationale-first brainstorming record
+  at `docs/decision-records/2026-08-06-safefix-v0.2-decisions.md` without
+  replacing the formal design spec.
+- The record is intentionally historical and retains the unqualified three
+  baseline-source labels. The formal design's compatibility correction for
+  existing tests remains a separate review item; no silent semantic rewrite
+  was made.
+- Self-review: marker scan passed; after removing one Markdown date-spacing
+  artifact and one extra EOF blank line, the no-index whitespace check passed.
+- No production code, implementation plan, dependency, or v0.1 tag changed.
