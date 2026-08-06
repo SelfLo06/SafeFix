@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from itertools import islice
@@ -32,6 +32,7 @@ EVENT_KINDS = frozenset(
 )
 MAX_SAFE_SUMMARY_CHARS = 512
 MAX_SAFE_COLLECTION_ITEMS = 32
+MAX_SAFE_NUMERIC_MAGNITUDE = 10**12
 _REDACTED = "[REDACTED]"
 _SECRET_KEY_PARTS = (
     "api_key",
@@ -55,18 +56,31 @@ _SECRET_TEXT_RE = re.compile(
 )
 
 
-class _FrozenDict(dict[str, object]):
-    def _immutable(self, *args: object, **kwargs: object) -> None:
+class _ImmutableMapping(Mapping[str, object]):
+    """A mapping whose storage is not a mutable built-in container."""
+
+    __slots__ = ("_items",)
+
+    def __init__(self, items: tuple[tuple[str, object], ...]) -> None:
+        object.__setattr__(self, "_items", items)
+
+    def __setattr__(self, name: str, value: object) -> None:
         raise TypeError("event safe_payload is immutable")
 
-    __setitem__ = _immutable
-    __delitem__ = _immutable
-    clear = _immutable
-    pop = _immutable
-    popitem = _immutable
-    setdefault = _immutable
-    update = _immutable
-    __ior__ = _immutable
+    def __delattr__(self, name: str) -> None:
+        raise TypeError("event safe_payload is immutable")
+
+    def __getitem__(self, key: str) -> object:
+        for item_key, value in self._items:
+            if item_key == key:
+                return value
+        raise KeyError(key)
+
+    def __iter__(self) -> Iterator[str]:
+        return (key for key, _ in self._items)
+
+    def __len__(self) -> int:
+        return len(self._items)
 
 
 @runtime_checkable
@@ -101,7 +115,7 @@ class SessionEvent:
     timestamp: str
     phase: Phase
     kind: str
-    safe_payload: dict[str, object]
+    safe_payload: Mapping[str, object]
 
     def __post_init__(self) -> None:
         if isinstance(self.sequence, bool) or not isinstance(self.sequence, int):
@@ -112,8 +126,8 @@ class SessionEvent:
             raise TypeError("event phase must be a Phase")
         if self.kind not in EVENT_KINDS:
             raise ValueError(f"unsupported event kind: {self.kind}")
-        if not isinstance(self.safe_payload, dict):
-            raise TypeError("event safe_payload must be a dict")
+        if not isinstance(self.safe_payload, Mapping):
+            raise TypeError("event safe_payload must be a mapping")
         object.__setattr__(
             self,
             "safe_payload",
@@ -133,9 +147,11 @@ def sanitize_summary(text: str, *, max_chars: int = MAX_SAFE_SUMMARY_CHARS) -> s
     return redacted[:max_chars]
 
 
-def _sanitize_mapping(payload: Mapping[str, object], depth: int = 0) -> dict[str, object]:
+def _sanitize_mapping(
+    payload: Mapping[str, object], depth: int = 0
+) -> _ImmutableMapping:
     if depth > 4:
-        return _FrozenDict({"summary": "[omitted]"})
+        return _ImmutableMapping((("summary", "[omitted]"),))
     sanitized: dict[str, object] = {}
     for key, value in islice(payload.items(), MAX_SAFE_COLLECTION_ITEMS):
         safe_key = _sanitize_key(key)
@@ -144,7 +160,7 @@ def _sanitize_mapping(payload: Mapping[str, object], depth: int = 0) -> dict[str
             sanitized[safe_key] = _REDACTED
         else:
             sanitized[safe_key] = _sanitize_value(value, depth + 1)
-    return _FrozenDict(sanitized)
+    return _ImmutableMapping(tuple(sanitized.items()))
 
 
 def _sanitize_key(key: object) -> str:
@@ -167,8 +183,14 @@ def _sanitize_value(value: object, depth: int) -> object:
             _sanitize_value(item, depth + 1)
             for item in value[:MAX_SAFE_COLLECTION_ITEMS]
         )
-    if value is None or isinstance(value, (bool, int)):
+    if value is None or type(value) is bool:
         return value
-    if isinstance(value, float) and isfinite(value):
-        return value
+    if type(value) is int:
+        if -MAX_SAFE_NUMERIC_MAGNITUDE <= value <= MAX_SAFE_NUMERIC_MAGNITUDE:
+            return value
+        return _REDACTED
+    if type(value) is float:
+        if isfinite(value) and abs(value) <= MAX_SAFE_NUMERIC_MAGNITUDE:
+            return value
+        return _REDACTED
     return _REDACTED

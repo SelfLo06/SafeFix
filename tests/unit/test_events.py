@@ -1,5 +1,6 @@
 from dataclasses import FrozenInstanceError
 import json
+from collections.abc import Mapping
 
 import pytest
 
@@ -13,6 +14,14 @@ class RecordingSink:
 
     def emit(self, event: SessionEvent) -> None:
         self.events.append(event)
+
+
+def _jsonable(value: object) -> object:
+    if isinstance(value, Mapping):
+        return {key: _jsonable(item) for key, item in value.items()}
+    if isinstance(value, tuple):
+        return [_jsonable(item) for item in value]
+    return value
 
 
 def test_session_event_is_frozen_and_preserves_sequence() -> None:
@@ -104,6 +113,51 @@ def test_session_event_safe_payload_cannot_be_mutated_after_construction() -> No
     assert "sk-raw-secret-injected-later" not in repr(event)
 
 
+def test_session_event_nested_safe_payload_cannot_be_mutated() -> None:
+    event = SessionEvent(
+        sequence=6,
+        timestamp="2026-08-06T12:00:00Z",
+        phase=Phase.READY,
+        kind="control",
+        safe_payload={"nested": {"items": [{"summary": "safe"}]}},
+    )
+
+    with pytest.raises(TypeError):
+        event.safe_payload["nested"]["raw_response"] = "secret"  # type: ignore[index]
+    with pytest.raises(TypeError):
+        event.safe_payload["nested"]["items"][0]["raw_response"] = "secret"  # type: ignore[index]
+
+
+def test_session_event_safe_payload_rejects_dict_mutation_bypass() -> None:
+    event = SessionEvent(
+        sequence=7,
+        timestamp="2026-08-06T12:00:00Z",
+        phase=Phase.READY,
+        kind="control",
+        safe_payload={"nested": {"summary": "safe"}},
+    )
+
+    with pytest.raises(TypeError):
+        dict.__setitem__(event.safe_payload, "raw_response", "secret")  # type: ignore[arg-type]
+    with pytest.raises(TypeError):
+        dict.__setitem__(event.safe_payload["nested"], "raw_response", "secret")  # type: ignore[arg-type]
+    assert "secret" not in repr(event)
+
+
+def test_session_event_sanitizes_huge_scalar_values() -> None:
+    event = SessionEvent(
+        sequence=8,
+        timestamp="2026-08-06T12:00:00Z",
+        phase=Phase.READY,
+        kind="control",
+        safe_payload={"huge": 10**5000, "negative": -(10**5000)},
+    )
+
+    assert event.safe_payload["huge"] == "[REDACTED]"
+    assert event.safe_payload["negative"] == "[REDACTED]"
+    json.dumps(_jsonable(event.safe_payload))
+
+
 def test_session_event_safe_payload_remains_json_compatible() -> None:
     event = SessionEvent(
         sequence=5,
@@ -113,7 +167,7 @@ def test_session_event_safe_payload_remains_json_compatible() -> None:
         safe_payload={"nested": ["summary", {"count": 2}]},
     )
 
-    assert json.loads(json.dumps(event.safe_payload)) == {
+    assert json.loads(json.dumps(_jsonable(event.safe_payload))) == {
         "nested": ["summary", {"count": 2}]
     }
 
