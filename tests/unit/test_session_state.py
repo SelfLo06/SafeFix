@@ -37,6 +37,13 @@ def test_session_state_defaults():
         state.F0 = failures("case-a")
 
 
+def test_session_state_preserves_v01_positional_constructor():
+    state = SessionState(failures("case-a"), 1, 2, 3)
+
+    assert state.F0 == failures("case-a")
+    assert (state.steps, state.rounds, state.no_progress_rounds) == (1, 2, 3)
+
+
 def test_session_state_rejects_baseline_deletion_and_reassignment():
     baseline = failures("case-a")
     state = SessionState(baseline)
@@ -169,9 +176,9 @@ def test_session_state_records_bounded_safe_events_guidance_and_review():
 
     assert len(state.recent_events) == RECENT_EVENT_LIMIT
     assert "secret-token" not in state.guidance_event_summaries[0]
-    assert state.review_result is review
+    assert state.review_result is not review
     assert state.high_risk_confirmation["confirmed"] is True
-    assert state.high_risk_confirmation["api_key"] == "[REDACTED]"
+    assert "[REDACTED]" in state.high_risk_confirmation.values()
 
 
 def test_high_risk_confirmation_is_not_mutable_through_nested_values():
@@ -187,3 +194,87 @@ def test_high_risk_confirmation_is_not_mutable_through_nested_values():
         "confirmed": True,
         "details": {"operator": "human"},
     }
+
+
+def test_review_is_sanitized_before_storage_and_repr():
+    state = SessionState(
+        failures("case-a"),
+        repair_model_identity=(
+            "repair:https://user:pass@example.test/private?user=alice:repair-model"
+        ),
+    )
+    review = ReviewResult(
+        verdict=ReviewVerdict.PASS,
+        basis_supported=True,
+        invented_behavior=False,
+        implementation_coupling=False,
+        risk="low",
+        summary="def secret_source():\n    return 'TOPSECRET' raw model response",
+    )
+
+    state.set_review(review)
+
+    assert state.review_result is not review
+    assert state.review_result.summary == "[REDACTED]"
+    assert state.repair_model_identity == "repair:https://example.test:repair-model"
+    assert "TOPSECRET" not in repr(state)
+    assert "user:pass" not in repr(state)
+    assert "/private" not in repr(state)
+    assert "user=alice" not in repr(state)
+
+
+def test_direct_metadata_assignment_is_rejected_with_boundary_error():
+    state = SessionState(failures("case-a"))
+
+    with pytest.raises(ValueError, match="session metadata"):
+        state.preparation_summary = {"generated_candidate_count": object()}
+    with pytest.raises(ValueError, match="session metadata"):
+        state.baseline_source = "not-a-baseline"
+    with pytest.raises(ValueError, match="session metadata"):
+        state.manifest_hash = object()
+    with pytest.raises(ValueError, match="session metadata"):
+        state.stability_runs = "3"
+    with pytest.raises(ValueError, match="session metadata"):
+        state.review_result = {"summary": "raw"}
+
+
+def test_set_metadata_is_immutable_after_valid_assignment():
+    state = SessionState(failures("case-a"))
+    summary = PreparationSummary(baseline_source=BaselineSource.EXISTING)
+    manifest = FrozenTestManifest(
+        session_id="session-1",
+        baseline_source=BaselineSource.EXISTING,
+        entries=(ManifestEntry("tests/test_app.py", "hash", BaselineSource.EXISTING),),
+        stability_runs=1,
+        manifest_hash="manifest-hash",
+    )
+    state.set_preparation(summary, manifest)
+
+    with pytest.raises(AttributeError):
+        state.preparation_summary = summary
+    with pytest.raises(AttributeError):
+        state.baseline_source = BaselineSource.MIXED
+    with pytest.raises(AttributeError):
+        state.manifest_hash = "replacement"
+    with pytest.raises(AttributeError):
+        state.stability_runs = 2
+
+
+def test_metadata_setters_reject_malformed_review_guidance_and_confirmation():
+    state = SessionState(failures("case-a"))
+
+    with pytest.raises(ValueError, match="session metadata"):
+        state.record_guidance(object())
+    with pytest.raises(ValueError, match="session metadata"):
+        state.set_review(
+            ReviewResult(
+                verdict=ReviewVerdict.PASS,
+                basis_supported=True,
+                invented_behavior=False,
+                implementation_coupling=False,
+                risk="low",
+                summary=object(),  # type: ignore[arg-type]
+            )
+        )
+    with pytest.raises(ValueError, match="session metadata"):
+        state.set_high_risk_confirmation({"confirmed": "yes"})  # type: ignore[arg-type]

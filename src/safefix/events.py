@@ -7,6 +7,7 @@ from itertools import islice
 from math import isfinite
 import re
 from typing import Protocol, runtime_checkable
+from urllib.parse import urlsplit
 
 from .models import Phase
 
@@ -51,9 +52,21 @@ _SECRET_KEY_PARTS = (
     "source_code",
     "complete_source",
 )
+_SENSITIVE_KEY_PARTS = _SECRET_KEY_PARTS + (
+    "token",
+    "raw",
+    "endpoint",
+    "query",
+    "auth",
+)
 _SECRET_TEXT_RE = re.compile(
     r"(?i)(?:bearer\s+|(?:api[_ -]?key|access[_ -]?token|password|secret)\s*[:=]\s*|sk-[a-z0-9_-]{8,})\S*"
 )
+_SENSITIVE_ASSIGNMENT_RE = re.compile(
+    r"(?i)\b(?:token|secret|auth(?:entication|orization)?|endpoint|query|userinfo)\s*[:=]\s*\S+"
+)
+_QUERY_RE = re.compile(r"(?:[?&][A-Za-z0-9_.-]+=[^\s&]+)")
+_USERINFO_RE = re.compile(r"\b[^\s/:@]+:[^\s/@]+@")
 
 
 class _ImmutableMapping(tuple, Mapping[str, object]):
@@ -165,7 +178,7 @@ class SessionEvent:
             "sequence",
             sequence,
         )
-        object.__setattr__(self, "timestamp", timestamp)
+        object.__setattr__(self, "timestamp", sanitize_timestamp(timestamp))
         object.__setattr__(self, "phase", phase)
         object.__setattr__(self, "kind", kind)
         object.__setattr__(self, "_safe_payload_snapshot", _sanitize_mapping(safe_payload))
@@ -187,12 +200,31 @@ class SessionEvent:
 
 
 def sanitize_summary(text: str, *, max_chars: int = MAX_SAFE_SUMMARY_CHARS) -> str:
-    """Return a bounded summary without common credential or response material."""
+    """Return a bounded summary without source, URL, or credential material."""
     if not isinstance(text, str):
         raise TypeError("summary must be a string")
     if max_chars <= 0:
         raise ValueError("max_chars must be positive")
+    if "\n" in text or "\r" in text:
+        return _REDACTED
+    if _looks_like_code(text) or _looks_like_url(text):
+        return _REDACTED
+    if _QUERY_RE.search(text) or _USERINFO_RE.search(text):
+        return _REDACTED
     redacted = _SECRET_TEXT_RE.sub(_REDACTED, text)
+    redacted = _SENSITIVE_ASSIGNMENT_RE.sub(_REDACTED, redacted)
+    redacted = re.sub(r"(?i)authorization\s*:\s*", "[REDACTED] ", redacted)
+    lowered = redacted.lower()
+    if any(
+        marker in lowered
+        for marker in (
+            "raw model response",
+            "full source response",
+            "complete source",
+            "source code",
+        )
+    ):
+        return _REDACTED
     if len(redacted) <= max_chars:
         return redacted
     return redacted[:max_chars]
@@ -204,10 +236,13 @@ def _sanitize_mapping(
     if depth > 4:
         return _ImmutableMapping((("summary", "[omitted]"),))
     sanitized: dict[str, object] = {}
-    for key, value in islice(payload.items(), MAX_SAFE_COLLECTION_ITEMS):
+    for index, (key, value) in enumerate(
+        islice(payload.items(), MAX_SAFE_COLLECTION_ITEMS)
+    ):
         safe_key = _sanitize_key(key)
         normalized_key = safe_key.lower().replace("-", "_").replace(" ", "_")
-        if any(part in normalized_key for part in _SECRET_KEY_PARTS):
+        if any(part in normalized_key for part in _SENSITIVE_KEY_PARTS):
+            safe_key = f"[REDACTED_KEY_{index}]"
             sanitized[safe_key] = _REDACTED
         else:
             sanitized[safe_key] = _sanitize_value(value, depth + 1)
@@ -235,6 +270,32 @@ def _sanitize_key(key: object) -> str:
     return sanitize_summary(key)
 
 
+def sanitize_timestamp(value: str) -> str:
+    """Keep only a canonical UTC timestamp; invalid input is not retained."""
+    if not isinstance(value, str):
+        raise TypeError("timestamp must be a string")
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return _REDACTED
+    if parsed.tzinfo is None:
+        return _REDACTED
+    return parsed.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def sanitize_model_identity(value: str) -> str:
+    """Return ``role:provider-origin:model`` without URL credentials or paths."""
+    if not isinstance(value, str):
+        raise TypeError("model identity must be a string")
+    prefix, separator, model = value.rpartition(":")
+    role, role_separator, endpoint = prefix.partition(":")
+    if role_separator and role and endpoint.startswith(("http://", "https://")):
+        safe_endpoint = _safe_url_origin(endpoint)
+        if safe_endpoint != _REDACTED:
+            return f"{role}:{safe_endpoint}:{sanitize_summary(model)}"
+    return sanitize_summary(value)
+
+
 def _sanitize_value(value: object, depth: int) -> object:
     if isinstance(value, Mapping):
         return _sanitize_mapping(value, depth)
@@ -260,3 +321,30 @@ def _sanitize_value(value: object, depth: int) -> object:
             return value
         return _REDACTED
     return _REDACTED
+
+
+def _looks_like_code(value: str) -> bool:
+    return bool(
+        re.search(
+            r"(?i)(?:^|\s)(?:def|class|import|from|async|await|function)\s+|"
+            r"(?:^|\s)return\s+(?:['\"`]|[-+]?\d|[A-Za-z_]\w*\s*[([{=])|"
+            r"(?:=>|```|[{};])",
+            value,
+        )
+    )
+
+
+def _looks_like_url(value: str) -> bool:
+    return bool(re.search(r"(?i)https?://[^\s<>\"']+", value))
+
+
+def _safe_url_origin(value: str) -> str:
+    try:
+        parsed = urlsplit(value)
+        hostname = parsed.hostname
+        if parsed.scheme not in {"http", "https"} or not hostname:
+            return _REDACTED
+        port = f":{parsed.port}" if parsed.port is not None else ""
+    except ValueError:
+        return _REDACTED
+    return f"{parsed.scheme.lower()}://{hostname.lower()}{port}"

@@ -51,12 +51,43 @@ def test_session_event_redacts_secrets_and_unbounded_content() -> None:
     )
 
     assert event.safe_payload["summary"] == "model requested a source read"
-    assert event.safe_payload["api_key"] == "[REDACTED]"
-    assert event.safe_payload["authorization"] == "[REDACTED]"
-    assert event.safe_payload["source_code"] == "[REDACTED]"
-    assert event.safe_payload["nested"] == {"model_response": "[REDACTED]"}
+    assert event.safe_payload["[REDACTED_KEY_1]"] == "[REDACTED]"
+    assert event.safe_payload["[REDACTED_KEY_2]"] == "[REDACTED]"
+    assert event.safe_payload["[REDACTED_KEY_3]"] == "[REDACTED]"
+    assert event.safe_payload["nested"] == {"[REDACTED_KEY_0]": "[REDACTED]"}
     assert "sk-live-secret" not in repr(event)
     assert "complete source" not in repr(event)
+
+
+def test_session_event_redacts_sensitive_keys_values_urls_and_timestamps() -> None:
+    event = SessionEvent(
+        sequence=11,
+        timestamp="not-a-safe-timestamp TOPSECRET",
+        phase=Phase.DISPATCH,
+        kind="model-call",
+        safe_payload={
+            "nested": {
+                "endpoint": "https://user:pass@example.test/private?query=secret",
+                "query": "user=alice",
+                "token": "TOKENSECRET",
+                "raw": "def source(): return 'SOURCESECRET'",
+                "safe": "bounded status",
+            }
+        },
+    )
+
+    rendered = repr(event)
+    assert "TOPSECRET" not in rendered
+    assert "user:pass" not in rendered
+    assert "/private" not in rendered
+    assert "query=secret" not in rendered
+    assert "TOKENSECRET" not in rendered
+    assert "SOURCESECRET" not in rendered
+    assert "endpoint" not in rendered
+    assert "query" not in rendered
+    assert "token" not in rendered
+    assert "raw" not in rendered
+    assert event.safe_payload["nested"]["safe"] == "bounded status"
 
 
 def test_session_event_redacts_bytes() -> None:

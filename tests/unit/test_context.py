@@ -100,3 +100,27 @@ def test_context_contains_bounded_guidance_and_safe_review_summary(tmp_path):
     assert "context-secret" not in rendered
     assert "review-secret" not in rendered
     assert "complete source response" not in rendered
+
+
+def test_context_never_retains_code_like_review_source_or_url_data(tmp_path):
+    state = SessionState(failures("case-a"))
+    state.set_review(
+        ReviewResult(
+            verdict=ReviewVerdict.WARN,
+            basis_supported=True,
+            invented_behavior=False,
+            implementation_coupling=False,
+            risk="https://user:pass@example.test/private?query=secret",
+            summary="def leaked_source():\n    return 'SOURCESECRET'",
+        )
+    )
+
+    context = ContextBuilder(
+        ProjectMemoryStore(tmp_path / "project", data_dir=tmp_path / "data")
+    ).build(state)
+
+    rendered = repr(context)
+    assert "SOURCESECRET" not in rendered
+    assert "user:pass" not in rendered
+    assert "/private" not in rendered
+    assert "query=secret" not in rendered

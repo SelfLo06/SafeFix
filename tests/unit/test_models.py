@@ -109,7 +109,7 @@ def test_model_role_config_is_frozen_and_fingerprint_is_redacted():
         keyring_service="safefix-repair",
     )
 
-    assert config.identity_fingerprint == "repair:https://llm.example/v1:repair-model"
+    assert config.identity_fingerprint == "repair:https://llm.example:repair-model"
     assert "secret" not in config.identity_fingerprint
 
     try:

@@ -1,13 +1,16 @@
 """Redacted JSON artifacts for completed SafeFix sessions."""
 
 from dataclasses import replace
+from enum import Enum
 import json
 import os
 from pathlib import Path
 import tempfile
 
-from .models import SessionResult
-from .session_state import SessionState, safe_summary
+from .models import AcceptanceMode, BaselineSource, SessionResult
+from .review import ReviewResult
+from .session_state import SessionState, SessionStateBoundaryError, safe_summary
+from .testprep.service import PreparationSummary
 
 
 class ArtifactWriter:
@@ -40,6 +43,7 @@ class ArtifactWriter:
 
     @staticmethod
     def _payload(state: SessionState, result: SessionResult) -> dict[str, object]:
+        _validate_metadata(state)
         current = state.last_evaluated or state.F
         preparation = state.preparation_summary
         review = state.review_result
@@ -77,33 +81,33 @@ class ArtifactWriter:
             "exit_code": result.exit_code,
             "baseline_source": _enum_value(state.baseline_source),
             "existing_test_count": _preparation_value(
-                preparation, "existing_test_count", 0
+                preparation, "existing_test_count"
             ),
             "generated_candidate_count": _preparation_value(
-                preparation, "generated_candidate_count", 0
+                preparation, "generated_candidate_count"
             ),
             "generated_accepted_count": _preparation_value(
-                preparation, "generated_accepted_count", 0
+                preparation, "generated_accepted_count"
             ),
             "generated_pass_accepted": _preparation_value(
-                preparation, "generated_pass_accepted", 0
+                preparation, "generated_pass_accepted"
             ),
             "generated_fail_accepted_manual": _preparation_value(
-                preparation, "generated_fail_accepted_manual", 0
+                preparation, "generated_fail_accepted_manual"
             ),
             "generated_fail_accepted_automatic": _preparation_value(
-                preparation, "generated_fail_accepted_automatic", 0
+                preparation, "generated_fail_accepted_automatic"
             ),
-            "rejected_count": _preparation_value(preparation, "rejected_count", 0),
-            "error_count": _preparation_value(preparation, "error_count", 0),
-            "flaky_count": _preparation_value(preparation, "flaky_count", 0),
+            "rejected_count": _preparation_value(preparation, "rejected_count"),
+            "error_count": _preparation_value(preparation, "error_count"),
+            "flaky_count": _preparation_value(preparation, "flaky_count"),
             "acceptance_mode": _enum_value(state.acceptance_mode),
             "stability_runs": state.stability_runs,
             "test_model_identity": _safe_identity(state.test_model_identity),
             "repair_model_identity": _safe_identity(state.repair_model_identity),
             "review_model_identity": _safe_identity(state.review_model_identity),
             "review_verdict": _enum_value(review.verdict) if review else None,
-            "review_summary": safe_summary(review.summary) if review else None,
+            "review_summary": _safe_review_text(review.summary) if review else None,
             "review": _review_payload(review),
             "guidance_event_summaries": list(state.guidance_event_summaries),
             "high_risk_confirmation": state.high_risk_confirmation,
@@ -116,30 +120,96 @@ class ArtifactWriter:
         }
 
 
-def _preparation_value(preparation: object | None, name: str, default: object) -> object:
-    return getattr(preparation, name, default) if preparation is not None else default
+def _preparation_value(preparation: PreparationSummary | None, name: str) -> object:
+    if preparation is None:
+        return None
+    if not isinstance(preparation, PreparationSummary):
+        raise SessionStateBoundaryError("invalid session metadata: preparation_summary")
+    return getattr(preparation, name)
 
 
 def _enum_value(value: object | None) -> str | None:
     if value is None:
         return None
-    return getattr(value, "value", value)
+    if not isinstance(value, Enum) or not isinstance(value.value, str):
+        raise SessionStateBoundaryError("invalid session metadata: enum value")
+    return value.value
 
 
 def _safe_identity(value: object) -> str | None:
     if value is None:
         return None
-    return safe_summary(value)
+    if not isinstance(value, str):
+        raise SessionStateBoundaryError("invalid session metadata: model identity")
+    from .events import sanitize_model_identity
+
+    try:
+        return sanitize_model_identity(value)
+    except (TypeError, ValueError) as exc:
+        raise SessionStateBoundaryError("invalid session metadata: model identity") from exc
 
 
 def _review_payload(review: object | None) -> dict[str, object] | None:
     if review is None:
         return None
+    if not isinstance(review, ReviewResult):
+        raise SessionStateBoundaryError("invalid session metadata: review_result")
     return {
         "verdict": _enum_value(review.verdict),
         "basis_supported": review.basis_supported,
         "invented_behavior": review.invented_behavior,
         "implementation_coupling": review.implementation_coupling,
-        "risk": safe_summary(review.risk),
-        "summary": safe_summary(review.summary),
+        "risk": _safe_review_text(review.risk),
+        "summary": _safe_review_text(review.summary),
     }
+
+
+def _safe_review_text(value: object) -> str:
+    if not isinstance(value, str):
+        raise SessionStateBoundaryError("invalid session metadata: review_result")
+    try:
+        return safe_summary(value)
+    except (TypeError, ValueError) as exc:
+        raise SessionStateBoundaryError("invalid session metadata: review_result") from exc
+
+
+def _validate_metadata(state: SessionState) -> None:
+    preparation = state.preparation_summary
+    if preparation is not None:
+        if not isinstance(preparation, PreparationSummary):
+            raise SessionStateBoundaryError("invalid session metadata: preparation_summary")
+        for name in (
+            "existing_test_count",
+            "generated_candidate_count",
+            "generated_accepted_count",
+            "generated_pass_accepted",
+            "generated_fail_accepted_manual",
+            "generated_fail_accepted_automatic",
+            "rejected_count",
+            "error_count",
+            "flaky_count",
+        ):
+            value = getattr(preparation, name)
+            if type(value) is not int or value < 0:
+                raise SessionStateBoundaryError(
+                    f"invalid session metadata: preparation_summary.{name}"
+                )
+    if state.baseline_source is not None and not isinstance(state.baseline_source, BaselineSource):
+        raise SessionStateBoundaryError("invalid session metadata: baseline_source")
+    if state.manifest_hash is not None and not isinstance(state.manifest_hash, str):
+        raise SessionStateBoundaryError("invalid session metadata: manifest_hash")
+    if state.stability_runs is not None and (
+        type(state.stability_runs) is not int or state.stability_runs <= 0
+    ):
+        raise SessionStateBoundaryError("invalid session metadata: stability_runs")
+    for identity in (
+        state.test_model_identity,
+        state.repair_model_identity,
+        state.review_model_identity,
+    ):
+        if identity is not None and not isinstance(identity, str):
+            raise SessionStateBoundaryError("invalid session metadata: model identity")
+    if state.acceptance_mode is not None and not isinstance(state.acceptance_mode, AcceptanceMode):
+        raise SessionStateBoundaryError("invalid session metadata: acceptance_mode")
+    if state.repair_required is not None and type(state.repair_required) is not bool:
+        raise SessionStateBoundaryError("invalid session metadata: repair_required")

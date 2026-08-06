@@ -48,7 +48,10 @@ class ContextBuilder:
                 "summary": safe_summary(review.summary),
             }
         if use_memory:
-            context["project_memory"] = list(self._memory_store.load(use_memory=True))
+            context["project_memory"] = [
+                safe_summary(summary)
+                for summary in self._memory_store.load(use_memory=True)
+            ]
             context["project_memory_fingerprints"] = list(
                 self._memory_store.load_fingerprints(use_memory=True)
             )

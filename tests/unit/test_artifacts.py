@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from safefix.artifacts import ArtifactWriter
 from safefix.models import (
     BaselineSource,
@@ -179,8 +181,22 @@ def test_v2_artifact_contains_preparation_metadata_without_raw_values(tmp_path):
     assert payload["stability_runs"] == 3
     assert payload["test_model_identity"] == "test:https://test.example:test-model"
     assert payload["review_verdict"] == "pass"
-    assert payload["guidance_event_summaries"] == ["[REDACTED] [REDACTED]"]
+    assert payload["guidance_event_summaries"] == ["[REDACTED]"]
     assert "Authorization" not in rendered
-    assert payload["high_risk_confirmation"]["api_key"] == "[REDACTED]"
+    assert "[REDACTED]" in payload["high_risk_confirmation"].values()
     assert "artifact-secret" not in rendered
     assert "full source response" not in rendered
+
+
+def test_artifact_rejects_malformed_preparation_state_instead_of_inventing_counts(tmp_path):
+    state = SessionState(failures("case-a"))
+    object.__setattr__(
+        state,
+        "preparation_summary",
+        {"generated_candidate_count": object()},
+    )
+
+    with pytest.raises(ValueError, match="session metadata"):
+        ArtifactWriter(tmp_path / "session.json").write(
+            state, SessionResult(stop_reason=StopReason.ERROR)
+        )

@@ -146,12 +146,11 @@ class ModelRoleConfig:
     @property
     def identity_fingerprint(self) -> str:
         """Return a stable provider/model identity without URL credentials."""
-        from urllib.parse import urlsplit, urlunsplit
+        from .events import sanitize_model_identity
 
-        parsed = urlsplit(self.base_url)
-        netloc = parsed.netloc.rsplit("@", 1)[-1]
-        safe_url = urlunsplit((parsed.scheme, netloc, parsed.path, "", ""))
-        return f"{self.role.value}:{safe_url}:{self.model}"
+        return sanitize_model_identity(
+            f"{self.role.value}:{self.base_url}:{self.model}"
+        )
 
 
 @dataclass
