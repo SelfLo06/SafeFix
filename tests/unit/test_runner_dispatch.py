@@ -4,7 +4,7 @@ import pytest
 
 from safefix.junit import TestCaseResult as _TestCaseResult
 from safefix.llm.mock import MockLLM
-from safefix.models import GuardDecision, StopReason
+from safefix.models import GuardDecision, Phase, StopReason
 from safefix.runner import SessionRunner
 from safefix.testrunner import TestRunResult as _TestRunResult
 
@@ -150,6 +150,44 @@ def test_phase_events_are_emitted_for_deny_and_stop(tmp_path: Path) -> None:
     assert "finish reason=[redacted]" in events
     assert "sk-proj-1234567890abcdef" not in "\n".join(events)
     assert any(event.startswith("stop ") for event in events)
+
+
+def test_legacy_event_sink_adapter_bridges_runner_text_events(tmp_path: Path) -> None:
+    from safefix.events import LegacyEventSinkAdapter, SessionEvent
+
+    class TypedSink:
+        def __init__(self) -> None:
+            self.events: list[SessionEvent] = []
+
+        def emit(self, event: SessionEvent) -> None:
+            self.events.append(event)
+
+    _project(tmp_path)
+    sink = TypedSink()
+    runner = SessionRunner(
+        tmp_path,
+        credentials=FakeCredentials(),
+        llm_client=MockLLM([
+            '{"tool": "apply_patch", "changes": [{"path": "tests/test_app.py", "old_text": "pass", "new_text": "assert False"}]}',
+            '{"tool": "finish"}',
+        ]),
+        event_sink=LegacyEventSinkAdapter(sink),
+        test_runner_factory=lambda project_root, pytest_args: FakeTestRunner(
+            _TestRunResult(
+                exit_code=1,
+                cases=(_TestCaseResult("tests.app::test_value", "tests.app", "test_value", "failed"),),
+                valid=True,
+            )
+        ),
+    )
+
+    result = runner.run()
+
+    assert result.stop_reason is StopReason.REQUESTED
+    assert sink.events[0].sequence == 1
+    assert sink.events[0].phase is Phase.READY
+    assert sink.events[0].kind == "control"
+    assert sink.events[0].safe_payload == {"summary": "deny tool=apply_patch"}
 
 
 def test_phase_events_include_round_outcome(tmp_path: Path) -> None:

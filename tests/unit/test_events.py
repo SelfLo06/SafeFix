@@ -1,4 +1,5 @@
 from dataclasses import FrozenInstanceError
+import json
 
 import pytest
 
@@ -56,6 +57,65 @@ def test_session_event_redacts_secrets_and_unbounded_content() -> None:
     assert event.safe_payload["nested"] == {"model_response": "[REDACTED]"}
     assert "sk-live-secret" not in repr(event)
     assert "complete source" not in repr(event)
+
+
+def test_session_event_redacts_bytes() -> None:
+    event = SessionEvent(
+        sequence=2,
+        timestamp="2026-08-06T12:00:00Z",
+        phase=Phase.DISPATCH,
+        kind="model-call",
+        safe_payload={"attachment": b"sk-raw-secret-leaks-through-bytes"},
+    )
+
+    assert event.safe_payload["attachment"] == "[REDACTED]"
+    assert "sk-raw-secret-leaks-through-bytes" not in repr(event)
+
+
+def test_session_event_redacts_unknown_objects_without_rendering_them() -> None:
+    class SecretBearingObject:
+        def __repr__(self) -> str:
+            return "SecretBearingObject(sk-raw-secret-leaks-through-repr)"
+
+    event = SessionEvent(
+        sequence=3,
+        timestamp="2026-08-06T12:00:00Z",
+        phase=Phase.DISPATCH,
+        kind="model-call",
+        safe_payload={"detail": SecretBearingObject()},
+    )
+
+    assert event.safe_payload["detail"] == "[REDACTED]"
+    assert "sk-raw-secret-leaks-through-repr" not in repr(event)
+
+
+def test_session_event_safe_payload_cannot_be_mutated_after_construction() -> None:
+    event = SessionEvent(
+        sequence=4,
+        timestamp="2026-08-06T12:00:00Z",
+        phase=Phase.READY,
+        kind="control",
+        safe_payload={"summary": "safe"},
+    )
+
+    with pytest.raises(TypeError):
+        event.safe_payload["raw_response"] = "sk-raw-secret-injected-later"  # type: ignore[index]
+
+    assert "sk-raw-secret-injected-later" not in repr(event)
+
+
+def test_session_event_safe_payload_remains_json_compatible() -> None:
+    event = SessionEvent(
+        sequence=5,
+        timestamp="2026-08-06T12:00:00Z",
+        phase=Phase.READY,
+        kind="control",
+        safe_payload={"nested": ["summary", {"count": 2}]},
+    )
+
+    assert json.loads(json.dumps(event.safe_payload)) == {
+        "nested": ["summary", {"count": 2}]
+    }
 
 
 def test_event_sink_requires_typed_emit_method() -> None:

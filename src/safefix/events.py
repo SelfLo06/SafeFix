@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import datetime, timezone
+from itertools import islice
+from math import isfinite
 import re
 from typing import Protocol, runtime_checkable
 
@@ -28,6 +31,7 @@ EVENT_KINDS = frozenset(
     }
 )
 MAX_SAFE_SUMMARY_CHARS = 512
+MAX_SAFE_COLLECTION_ITEMS = 32
 _REDACTED = "[REDACTED]"
 _SECRET_KEY_PARTS = (
     "api_key",
@@ -51,10 +55,44 @@ _SECRET_TEXT_RE = re.compile(
 )
 
 
+class _FrozenDict(dict[str, object]):
+    def _immutable(self, *args: object, **kwargs: object) -> None:
+        raise TypeError("event safe_payload is immutable")
+
+    __setitem__ = _immutable
+    __delitem__ = _immutable
+    clear = _immutable
+    pop = _immutable
+    popitem = _immutable
+    setdefault = _immutable
+    update = _immutable
+    __ior__ = _immutable
+
+
 @runtime_checkable
 class EventSink(Protocol):
     def emit(self, event: SessionEvent) -> None:
         """Receive one already-sanitized session event."""
+
+
+class LegacyEventSinkAdapter:
+    """Forward legacy runner text events to one typed sink."""
+
+    def __init__(self, sink: EventSink) -> None:
+        self._sink = sink
+        self._sequence = 1
+
+    def __call__(self, summary: str) -> None:
+        self._sink.emit(
+            SessionEvent(
+                sequence=self._sequence,
+                timestamp=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                phase=Phase.READY,
+                kind="control",
+                safe_payload={"summary": summary},
+            )
+        )
+        self._sequence += 1
 
 
 @dataclass(frozen=True)
@@ -97,16 +135,22 @@ def sanitize_summary(text: str, *, max_chars: int = MAX_SAFE_SUMMARY_CHARS) -> s
 
 def _sanitize_mapping(payload: Mapping[str, object], depth: int = 0) -> dict[str, object]:
     if depth > 4:
-        return {"summary": "[omitted]"}
+        return _FrozenDict({"summary": "[omitted]"})
     sanitized: dict[str, object] = {}
-    for key, value in payload.items():
-        safe_key = str(key)
+    for key, value in islice(payload.items(), MAX_SAFE_COLLECTION_ITEMS):
+        safe_key = _sanitize_key(key)
         normalized_key = safe_key.lower().replace("-", "_").replace(" ", "_")
         if any(part in normalized_key for part in _SECRET_KEY_PARTS):
             sanitized[safe_key] = _REDACTED
         else:
             sanitized[safe_key] = _sanitize_value(value, depth + 1)
-    return sanitized
+    return _FrozenDict(sanitized)
+
+
+def _sanitize_key(key: object) -> str:
+    if not isinstance(key, str):
+        return _REDACTED
+    return sanitize_summary(key)
 
 
 def _sanitize_value(value: object, depth: int) -> object:
@@ -114,8 +158,17 @@ def _sanitize_value(value: object, depth: int) -> object:
         return _sanitize_mapping(value, depth)
     if isinstance(value, str):
         return sanitize_summary(value)
+    if isinstance(value, (bytes, bytearray, memoryview)):
+        return _REDACTED
     if isinstance(value, (list, tuple)):
         if depth > 4:
-            return ["[omitted]"]
-        return [_sanitize_value(item, depth + 1) for item in value[:32]]
-    return value
+            return ("[omitted]",)
+        return tuple(
+            _sanitize_value(item, depth + 1)
+            for item in value[:MAX_SAFE_COLLECTION_ITEMS]
+        )
+    if value is None or isinstance(value, (bool, int)):
+        return value
+    if isinstance(value, float) and isfinite(value):
+        return value
+    return _REDACTED
