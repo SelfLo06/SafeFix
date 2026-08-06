@@ -2404,4 +2404,4 @@
   -q src` passed; `git diff --check` passed; peeled immutable `v0.1.0`
   verification passed with commit
   `4fc3d6bfd61ad6b4057de66abcf13605af3c2b9c`.
-- Implementation commit: recorded after commit creation.
+- Implementation commit: `1e64748` (`feat: record v0.2 session preparation metadata`).
