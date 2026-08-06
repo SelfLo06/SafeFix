@@ -1166,3 +1166,24 @@
   artifact and one extra EOF blank line, the no-index whitespace check passed.
 - No production code, implementation plan, dependency, or v0.1 tag changed.
 - Decision-record commit: `d68c4df` (`docs: preserve v0.2 decision record`).
+
+## v0.2 implementation plan
+
+- Date: 2026-08-06. User approved the v0.2 design and finalized the rule that
+  generated-only is valid only when no collectible existing tests exist.
+- Skill: `superpowers:writing-plans`. This task produced only the plan; no
+  implementation skill was invoked and no production code, test code,
+  dependency, root PLAN.md, or v0.1 tag was changed.
+- Plan: `docs/superpowers/plans/2026-08-06-safefix-v0.2-implementation-plan.md`.
+  It contains 15 independently testable TDD tasks covering role config and
+  credentials, events/operator queue, manifest/TestRunner, candidate rules and
+  stability, acceptance modes, preparation, state/artifacts, baseline setup,
+  repair guidance/stop, final Review, TUI, CLI compatibility, and mechanism
+  demonstrations.
+- Self-review: checked the approved design section-by-section through the
+  plan's verification matrix; removed code-example placeholders; checked type
+  references for manifest, setup, review, snapshot, and operator interfaces;
+  confirmed the existing-test/generated-only rule appears in configuration,
+  preparation, setup, CLI, and mechanism tasks. No unresolved plan markers
+  remain and the no-index whitespace check is clean.
+- Pending commit subject: `docs: add SafeFix v0.2 implementation plan`.
