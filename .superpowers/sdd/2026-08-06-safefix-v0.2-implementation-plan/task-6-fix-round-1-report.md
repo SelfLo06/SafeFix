@@ -39,4 +39,4 @@ across runs, outside/traversal execution, and upper-bound rejection.
 - No callable subagent-dispatch capability was exposed; separate coordinator
   review passes were recorded in `AGENT_LOG.md`.
 
-Implementation commit hash is recorded after commit in `AGENT_LOG.md`.
+Implementation commit: `94efff5` — `fix: harden Task 6 candidate stability boundaries`.

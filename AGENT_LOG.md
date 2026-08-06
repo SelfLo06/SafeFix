@@ -1929,5 +1929,6 @@
   public validation, and no new broad exception handling; the existing
   injected-runner exception boundary remains deliberate for ERROR mapping.
 - Final verification before commit: focused/related/full tests, compileall,
-  and `git diff --check` passed. Implementation commit hash will be recorded
-  in the post-commit audit closure.
+  and `git diff --check` passed.
+- Implementation commit: `94efff5` — `fix: harden Task 6 candidate stability
+  boundaries`.
