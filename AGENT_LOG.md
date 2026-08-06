@@ -1186,4 +1186,4 @@
   confirmed the existing-test/generated-only rule appears in configuration,
   preparation, setup, CLI, and mechanism tasks. No unresolved plan markers
   remain and the no-index whitespace check is clean.
-- Pending commit subject: `docs: add SafeFix v0.2 implementation plan`.
+- Plan commit: `ae17133` (`docs: add SafeFix v0.2 implementation plan`).
