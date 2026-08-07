@@ -2,8 +2,11 @@
 
 import argparse
 import getpass
+import os
+import sys
 from collections.abc import Callable
 from pathlib import Path
+from typing import Protocol
 
 from .approval import ApprovalProvider
 from .config import ConfigError, load_config
@@ -15,6 +18,14 @@ from .runner import SessionRunner
 
 
 EXIT_CODES = {reason: exit_code_for_stop_reason(reason) for reason in StopReason}
+
+
+class _Tui(Protocol):
+    def run(self):
+        """Run the presentation and return the session result."""
+
+
+TuiFactory = Callable[[object, Callable[..., SessionRunner], object, bool], _Tui]
 
 
 class _CachedCredentials:
@@ -36,6 +47,37 @@ def production_client(*, base_url: str, model: str, api_key: str) -> OpenAICompa
     )
 
 
+def production_tui(
+    command_queue: object,
+    controller_factory: Callable[..., SessionRunner],
+    capabilities: object,
+    no_animation: bool,
+) -> _Tui:
+    """Construct the optional terminal adapter only after TUI selection."""
+    from prompt_toolkit import PromptSession
+    from rich.console import Console
+
+    from .tui import GuidedRepairConsole
+
+    class TickSource:
+        def __init__(self) -> None:
+            self._tick = 0
+
+        def next_tick(self) -> int:
+            value = self._tick
+            self._tick += 1
+            return value
+
+    return GuidedRepairConsole(
+        command_queue,
+        controller_factory,
+        PromptSession,
+        Console(),
+        capabilities,
+        TickSource(),
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="safefix")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -50,8 +92,21 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--pytest-args", action="append")
     run.add_argument("--base-url")
     run.add_argument("--model")
+    run.add_argument("--generate-tests", action="store_true")
+    run.add_argument("--baseline-source", choices=["existing", "generated", "mixed"])
+    run.add_argument("--acceptance-mode", choices=["review", "standard", "high-risk"])
+    run.add_argument("--stability-runs", type=int)
+    run.add_argument("--max-auto-accepted-failures", type=int)
+    run.add_argument("--test-base-url")
+    run.add_argument("--test-model")
+    run.add_argument("--review-base-url")
+    run.add_argument("--review-model")
     run.add_argument("--use-memory", action="store_true")
     run.add_argument("--non-interactive", action="store_true")
+    presentation = run.add_mutually_exclusive_group()
+    presentation.add_argument("--tui", action="store_true")
+    presentation.add_argument("--plain", action="store_true")
+    run.add_argument("--no-animation", action="store_true")
 
     credentials = commands.add_parser("credentials")
     credential_commands = credentials.add_subparsers(dest="credentials_command", required=True)
@@ -73,6 +128,8 @@ def main(
     runner_factory: Callable[..., SessionRunner] = SessionRunner,
     client_factory: Callable[..., OpenAICompatibleClient] = production_client,
     approval_factory: Callable[[], ApprovalProvider] = ApprovalProvider,
+    tty_detector: Callable[[object], bool] = lambda stream: bool(stream.isatty()),
+    tui_factory: TuiFactory = production_tui,
 ) -> int:
     args = build_parser().parse_args(argv)
     credentials = credentials_factory()
@@ -90,6 +147,8 @@ def main(
         runner_factory=runner_factory,
         client_factory=client_factory,
         approval_factory=approval_factory,
+        tty_detector=tty_detector,
+        tui_factory=tui_factory,
     )
 
 
@@ -119,9 +178,12 @@ def _run_command(
     runner_factory: Callable[..., SessionRunner],
     client_factory: Callable[..., OpenAICompatibleClient],
     approval_factory: Callable[[], ApprovalProvider],
+    tty_detector: Callable[[object], bool],
+    tui_factory: TuiFactory,
 ) -> int:
     project_root = args.project_path.resolve()
     overrides = _overrides(args)
+    capable_tty = tty_detector(sys.stdin) and tty_detector(sys.stdout)
     try:
         config = config_loader(project_root, overrides, require_llm=True)
         api_key = credentials.get()
@@ -140,27 +202,49 @@ def _run_command(
     ) -> Config:
         return config
 
-    result = runner_factory(
-        project_root,
-        cli_overrides=overrides,
-        credentials=_CachedCredentials(api_key),
-        config_loader=cached_config_loader,
-        llm_client=client,
-        event_sink=print,
-        use_memory=args.use_memory,
-        approval=(
-            ApprovalProvider(interactive=False)
-            if args.non_interactive
-            else approval_factory()
-        ),
-    ).run()
+    approval = (
+        ApprovalProvider(interactive=False)
+        if args.non_interactive or not capable_tty
+        else approval_factory()
+    )
+
+    def make_runner(event_sink: object, command_queue: object | None = None) -> SessionRunner:
+        return runner_factory(
+            project_root,
+            cli_overrides=overrides,
+            credentials=_CachedCredentials(api_key),
+            config_loader=cached_config_loader,
+            llm_client=client,
+            event_sink=event_sink,
+            operator_queue=command_queue,
+            use_memory=args.use_memory,
+            approval=approval,
+        )
+
+    use_tui = not args.plain and capable_tty
+    if use_tui:
+        from .operator import OperatorCommandQueue
+        from .tui import TerminalCapabilities
+
+        dumb_terminal = os.environ.get("TERM") == "dumb"
+        color = not dumb_terminal and "NO_COLOR" not in os.environ
+        capabilities = TerminalCapabilities(
+            interactive=True,
+            color=color,
+            unicode=not dumb_terminal,
+            animation=color and not dumb_terminal and not args.no_animation,
+        )
+        command_queue = OperatorCommandQueue()
+        result = tui_factory(command_queue, make_runner, capabilities, args.no_animation).run()
+    else:
+        result = make_runner(print).run()
     exit_code = EXIT_CODES[result.stop_reason]
     print(f"SafeFix stopped: {result.stop_reason.value} (exit code {exit_code})")
     return exit_code
 
 
 def _overrides(args: argparse.Namespace) -> dict[str, object]:
-    return {
+    values = {
         key: value
         for key, value in {
             "max_steps": args.max_steps,
@@ -171,6 +255,17 @@ def _overrides(args: argparse.Namespace) -> dict[str, object]:
             "pytest_args": args.pytest_args,
             "base_url": args.base_url,
             "model": args.model,
+            "baseline_source": args.baseline_source,
+            "acceptance_mode": args.acceptance_mode,
+            "stability_runs": args.stability_runs,
+            "max_auto_accepted_failures": args.max_auto_accepted_failures,
+            "test_base_url": args.test_base_url,
+            "test_model": args.test_model,
+            "review_base_url": args.review_base_url,
+            "review_model": args.review_model,
         }.items()
         if value is not None
     }
+    if args.generate_tests:
+        values["generate_tests"] = True
+    return values

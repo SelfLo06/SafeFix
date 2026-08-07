@@ -106,3 +106,17 @@ def test_readme_documents_opt_in_summary_memory() -> None:
     assert "use_memory=True" in raw_content
     assert "default context and `safefix run` do not load project" in content
     assert "memory stores summaries only" in content
+
+
+def test_readme_documents_console_presentation_and_terminal_fallback() -> None:
+    _, content = _readme_content()
+
+    assert "prompt_toolkit" in content
+    assert "rich" in content
+    assert "--tui" in content
+    assert "--plain" in content
+    assert "--no-animation" in content
+    assert "term=dumb" in content
+    assert "no_color" in content
+    assert "non-tty" in content
+    assert "scrollback" in content

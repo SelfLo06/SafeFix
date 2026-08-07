@@ -91,6 +91,45 @@ Credentials are keyring-only. SafeFix does not read API keys from environment va
 does not load `.env` files, and has no fallback. Do not commit `safefix.toml` if it contains sensitive
 endpoint details.
 
+## Terminal presentation
+
+SafeFix installs `prompt_toolkit` and Rich with the normal package installation.
+On a capable interactive terminal, `safefix run .` opens the scrollback-first
+Guided Repair Console. It renders only safe event summaries and keeps normal
+terminal scrollback available while the repair runs. The console accepts
+operator controls such as `/pause`, `/resume`, `/stop`, and guidance text;
+it never shows credentials, raw model responses, full prompts, or source
+content outside SafeFix's existing safe event summaries.
+
+Use `--tui` to request this terminal presentation or `--plain` to force the
+structured legacy event output. `--tui` and `--plain` are mutually exclusive.
+Non-TTY input or output always uses plain output, including when
+`--tui` is present, so logs and CI never start an interactive prompt. Use
+`--no-animation` to disable transient progress animation; it changes only
+presentation, never configuration, repair decisions, event ordering,
+artifacts, stop reasons, or exit codes.
+
+Color and Unicode are disabled for `TERM=dumb`; color is also disabled when
+`NO_COLOR` is set. No special terminal font is required. Textual and a WebUI
+are not part of SafeFix.
+
+## v0.2 repair options
+
+The `run` command retains the legacy `--base-url` and `--model` options and
+also accepts `--generate-tests`, `--baseline-source` (`existing`, `generated`,
+or `mixed`), `--acceptance-mode` (`review`, `standard`, or `high-risk`),
+`--stability-runs`, and `--max-auto-accepted-failures`. Generated-only mode is
+valid only after SafeFix has discovered no existing collected tests. The three
+model roles are Repair, Test, and Review; role-specific endpoint/model options
+are `--test-base-url`, `--test-model`, `--review-base-url`, and
+`--review-model`, with credentials managed through `safefix credentials ...
+--role {test,repair,review}`.
+
+Acceptance and baseline results are recorded in the SafeFix session artifact.
+Artifacts preserve the frozen test manifest, generated-test preparation
+summary, safe model identities, evaluation and review summaries, counters, and
+the final StopReason; they do not contain secrets or raw model output.
+
 All paths supplied to SafeFix tools and path options are project-relative;
 absolute paths and paths escaping the project root are rejected. The default
 write scope is Python files under `src`; tests and secret-like paths remain

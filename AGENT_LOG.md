@@ -3000,3 +3000,42 @@
   shared guidance buffer, the worker boundary does not swallow failures, and
   no abstraction, duplicated validation, fallback, broad recovery, dead code,
   or scope expansion was introduced.
+
+### v0.2 Task 14 — CLI presentation policy, documentation, and compatibility
+
+- Date: 2026-08-07. Scope: `src/safefix/cli.py`, `README.md`, and focused CLI
+  and README tests. `PLAN.md` and the pre-existing dirty SDD `progress.md`
+  were preserved and not staged.
+- Skills used: `using-superpowers`, `using-git-worktrees` (verified the
+  supplied linked worktree), `subagent-driven-development`,
+  `test-driven-development`, `requesting-code-review`, and
+  `verification-before-completion`. No callable subagent-dispatch capability
+  is exposed in this environment, so the required specification-compliance
+  and code-quality reviews were separate coordinator passes.
+- TDD red: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest
+  tests/unit/test_cli.py tests/unit/test_cli_v2.py tests/unit/test_readme.py -q`
+  failed as expected with five failures: unknown v0.2 CLI flags, missing
+  `tty_detector`/`tui_factory` seams, and missing presentation documentation.
+  A second red command for
+  `test_non_tty_run_uses_fail_closed_approval_for_high_risk_work` failed
+  because the CLI still selected the interactive approval factory on non-TTY
+  input.
+- TDD green: the focused command passed 24 tests; after the non-TTY approval
+  boundary change, the focused-plus-packaging command passed 27 tests. Full
+  regression `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests
+  -q` passed 574 tests. `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m
+  compileall -q src`, `git diff --check`, and an import probe that blocked both
+  `prompt_toolkit` and `rich` while executing `safefix --help` passed.
+- Specification-compliance review: PASS. TTY capability selects the TUI by
+  default, `--plain` forces the existing `print` event path, and non-TTY wins
+  over `--tui`. One CLI-created `OperatorCommandQueue` and `TuiEventSink`
+  route through the injected factory only in TUI mode. `--no-animation` stays
+  outside config overrides and Runner semantics. Non-TTY and
+  `--non-interactive` approval remains fail-closed. Existing legacy endpoint,
+  model, credential, exit-code, and structured plain-output paths remain
+  covered.
+- Code-quality review: PASS. Interactive imports are local to the selected
+  TUI factory; no Runner, artifact, event, config, or StopReason behavior was
+  changed. No duplicated config validation, broad exception boundary,
+  speculative fallback, dead code, or dependency was introduced. Tests use
+  injected terminal and TUI fakes rather than real prompt_toolkit/Rich loops.

@@ -200,6 +200,9 @@ def test_exit_code_mapping_for_all_stop_reasons(tmp_path: Path) -> None:
         StopReason.MAX_STEPS: 1,
         StopReason.MAX_ROUNDS: 1,
         StopReason.NO_PROGRESS: 1,
+        StopReason.OPERATOR_STOP: 1,
+        StopReason.FINAL_REVIEW_REJECTED: 1,
+        StopReason.TEST_PREPARATION_ERROR: 3,
         StopReason.ERROR: 3,
         StopReason.CONFIG_ERROR: 2,
     }
