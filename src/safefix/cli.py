@@ -288,7 +288,7 @@ def _run_command(
             high_risk_confirmation=high_risk_confirmation,
         )
 
-    use_tui = not args.plain and capable_tty
+    use_tui = not args.non_interactive and not args.plain and capable_tty
     if use_tui:
         from .operator import OperatorCommandQueue
         from .tui import TerminalCapabilities

@@ -26,7 +26,7 @@ def test_pyproject_declares_package_and_cli() -> None:
         "rich>=13.7.1,<15",
     ]
     assert project["name"] == "safefix"
-    assert project["version"] == "0.1.0"
+    assert project["version"] == "0.2.0"
     assert project["description"] == "A coding-agent harness for repairing pytest failures"
 
 

@@ -8,13 +8,17 @@ def _readme_content() -> tuple[str, str]:
 
 
 def test_readme_documents_install_and_build() -> None:
-    _, content = _readme_content()
+    raw_content, content = _readme_content()
 
     assert "git clone" in content or "source checkout" in content
     assert "python -m pip install ." in content
     assert "python -m build --wheel --sdist" in content
     assert "*.whl" in content
     assert "*.tar.gz" in content
+    assert "v0.2.0" in content
+    assert "safefix-0.2.0-py3-none-any.whl" in content
+    assert "safefix-0.2.0.tar.gz" in content
+    assert "safefix-0.1.0-py3-none-any.whl" not in raw_content
 
 
 def test_readme_documents_distinct_windows_activation_commands() -> None:

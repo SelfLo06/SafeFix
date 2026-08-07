@@ -30,9 +30,9 @@ python -m venv .venv
 python -m pip install .
 ```
 
-The hosted [v0.1.0 Release](https://github.com/SelfLo06/SafeFix/releases/tag/v0.1.0)
-provides the [wheel](https://github.com/SelfLo06/SafeFix/releases/download/v0.1.0/safefix-0.1.0-py3-none-any.whl)
-and [source distribution](https://github.com/SelfLo06/SafeFix/releases/download/v0.1.0/safefix-0.1.0.tar.gz).
+The hosted [v0.2.0 Release](https://github.com/SelfLo06/SafeFix/releases/tag/v0.2.0)
+provides the [wheel](https://github.com/SelfLo06/SafeFix/releases/download/v0.2.0/safefix-0.2.0-py3-none-any.whl)
+and [source distribution](https://github.com/SelfLo06/SafeFix/releases/download/v0.2.0/safefix-0.2.0.tar.gz).
 
 The activation line above is for POSIX shells. On Windows, use the shell-specific
 command below:

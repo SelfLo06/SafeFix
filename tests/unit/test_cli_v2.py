@@ -153,6 +153,13 @@ def test_non_tty_never_starts_prompt_toolkit_even_with_tui_flag(tmp_path: Path) 
     assert CapturingRunnerFactory.plain_event_sink_used is True
 
 
+def test_non_interactive_never_starts_tui_on_a_tty(tmp_path: Path) -> None:
+    assert _main(tmp_path, "--non-interactive", tty=True) == 0
+
+    assert FailIfCalledTui.created is False
+    assert CapturingRunnerFactory.plain_event_sink_used is True
+
+
 def test_no_animation_is_presentation_only(tmp_path: Path) -> None:
     assert _main(tmp_path, "--tui", "--no-animation", tty=True, tui_factory=CapturingTui) == 0
 

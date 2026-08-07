@@ -95,6 +95,7 @@ class SessionRunner:
         self._event_sink = event_sink
         self._operator_queue = operator_queue
         self._pending_action: ToolCall | None = None
+        self._pending_final_review: FinalReviewRequest | None = None
         self._pending_resolution: bool | None = None
         self._pending_event = threading.Event()
         self._phase = Phase.READY
@@ -125,7 +126,7 @@ class SessionRunner:
     @property
     def pending_approval(self) -> bool:
         return (
-            self._pending_action is not None
+            (self._pending_action is not None or self._pending_final_review is not None)
             and self._pending_resolution is None
         )
 
@@ -454,7 +455,7 @@ class SessionRunner:
             return stop_reason
         if self._phase is Phase.PAUSED:
             return self._wait_while_paused()
-        while self._pending_action is not None and self._pending_resolution is None:
+        while self.pending_approval:
             stop_reason = self._consume_ready_commands(include_guidance=False)
             if stop_reason is not None:
                 return stop_reason
@@ -571,7 +572,27 @@ class SessionRunner:
             and review.verdict is ReviewVerdict.REVIEW_REQUIRED
         ):
             self._phase = Phase.FINAL_REVIEW_GATE
-            if not self._approval.approve(request):
+            if self._operator_queue is not None:
+                self._pending_final_review = request
+                self._pending_resolution = None
+                self._pending_event.clear()
+                request_approval = getattr(self._approval, "request", None)
+                if callable(request_approval):
+                    request_approval(request)
+                self._emit_control(
+                    "approval",
+                    {"status": "pending", "tool": Phase.FINAL_REVIEW_GATE.value},
+                )
+                while self.pending_approval:
+                    stop_reason = self._consume_ready_commands(include_guidance=False)
+                    if stop_reason is not None:
+                        return self._finalize(stop_reason)
+                    self._pending_event.wait(0.05)
+                approved = self._pending_resolution is True
+                self._clear_final_review_approval()
+            else:
+                approved = self._approval.approve(request)
+            if not approved:
                 try:
                     assert self.snapshot_store is not None
                     self.snapshot_store.restore_pre_final_best()
@@ -608,8 +629,10 @@ class SessionRunner:
         best_failures = sorted(self.state.U_best.ids)
         pending_tool = None
         if self.pending_approval:
-            assert self._pending_action is not None
-            pending_tool = self._pending_action.tool.value
+            if self._pending_action is not None:
+                pending_tool = self._pending_action.tool.value
+            else:
+                pending_tool = Phase.FINAL_REVIEW_GATE.value
         return {
             "status": "snapshot",
             "phase": self._phase.value,
@@ -635,6 +658,11 @@ class SessionRunner:
 
     def _clear_pending_action(self) -> None:
         self._pending_action = None
+        self._pending_resolution = None
+        self._pending_event.clear()
+
+    def _clear_final_review_approval(self) -> None:
+        self._pending_final_review = None
         self._pending_resolution = None
         self._pending_event.clear()
 

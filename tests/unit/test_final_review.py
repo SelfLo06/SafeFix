@@ -1,10 +1,14 @@
 import json
 from pathlib import Path
+import threading
+import time
 
 from safefix import review
 from safefix.junit import TestCaseResult as _TestCaseResult
 from safefix.llm.mock import MockLLM
 from safefix.models import AcceptanceMode, BaselineSource, Config, ReviewVerdict, StopReason
+from safefix.operator import OperatorCommandQueue
+from safefix.approval import ApprovalProvider
 from safefix.review import ReviewParseError, ReviewResult
 from safefix.runner import SessionRunner
 from safefix.session_setup import manifest_from_entries
@@ -73,6 +77,7 @@ def _runner(
     responses: list[str],
     review_client: FakeReviewClient,
     approval: FakeApproval | None = None,
+    operator_queue: OperatorCommandQueue | None = None,
 ) -> SessionRunner:
     (tmp_path / "src").mkdir()
     (tmp_path / "tests").mkdir()
@@ -129,6 +134,7 @@ def _runner(
         manifest_factory=manifest_from_entries,
         final_review_client=review_client,
         approval=approval,
+        operator_queue=operator_queue,
     )
 
 
@@ -193,6 +199,69 @@ def test_high_risk_review_required_accepts_through_final_review_gate(tmp_path: P
     assert result.stop_reason is StopReason.SUCCESS
     assert len(approval.requests) == 1
     assert isinstance(approval.requests[0], review.FinalReviewRequest)
+
+
+def test_high_risk_final_review_gate_accepts_queued_approve(tmp_path: Path) -> None:
+    client = FakeReviewClient(_review(ReviewVerdict.REVIEW_REQUIRED))
+    queue = OperatorCommandQueue()
+
+    def fail_prompt(_prompt: str) -> str:
+        raise AssertionError("the runner worker must not read terminal input")
+
+    runner = _runner(
+        tmp_path,
+        mode=AcceptanceMode.HIGH_RISK,
+        reports=[_result("tests.test_app::test_broken"), _result()],
+        responses=[_patch("value = 1", "value = 2")],
+        review_client=client,
+        approval=ApprovalProvider(interactive=True, input_fn=fail_prompt),
+        operator_queue=queue,
+    )
+
+    result_box: dict[str, object] = {}
+    thread = threading.Thread(target=lambda: result_box.setdefault("result", runner.run()))
+    thread.start()
+    deadline = time.monotonic() + 2
+    while not runner.pending_approval and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert runner.phase.value == "final_review_gate"
+    queue.submit_text("/approve")
+    thread.join(timeout=2)
+
+    assert not thread.is_alive()
+    assert result_box["result"].stop_reason is StopReason.SUCCESS  # type: ignore[union-attr]
+
+
+def test_high_risk_final_review_gate_rejects_queued_deny(tmp_path: Path) -> None:
+    client = FakeReviewClient(_review(ReviewVerdict.REVIEW_REQUIRED))
+    queue = OperatorCommandQueue()
+
+    def fail_prompt(_prompt: str) -> str:
+        raise AssertionError("the runner worker must not read terminal input")
+
+    runner = _runner(
+        tmp_path,
+        mode=AcceptanceMode.HIGH_RISK,
+        reports=[_result("tests.test_app::test_broken"), _result()],
+        responses=[_patch("value = 1", "value = 2")],
+        review_client=client,
+        approval=ApprovalProvider(interactive=True, input_fn=fail_prompt),
+        operator_queue=queue,
+    )
+
+    result_box: dict[str, object] = {}
+    thread = threading.Thread(target=lambda: result_box.setdefault("result", runner.run()))
+    thread.start()
+    deadline = time.monotonic() + 2
+    while not runner.pending_approval and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert runner.phase.value == "final_review_gate"
+    queue.submit_text("/deny")
+    thread.join(timeout=2)
+
+    assert not thread.is_alive()
+    assert result_box["result"].stop_reason is StopReason.FINAL_REVIEW_REJECTED  # type: ignore[union-attr]
+    assert (tmp_path / "src" / "app.py").read_text(encoding="utf-8") == "value = 1\n"
 
 
 def test_high_risk_green_without_final_review_client_is_not_success(tmp_path: Path) -> None:

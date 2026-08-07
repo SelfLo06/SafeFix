@@ -3416,3 +3416,53 @@
   src tests` passed; `git diff --check` passed.
 - Implementation commit: `3d9c2e0` — `fix: close final whole-branch P1 findings`.
 - Report: `whole-branch-fix-round-5-report.md`.
+
+## Final whole-branch P1 fix round 6
+
+- Date: 2026-08-07. Worktree: `.worktrees/safefix-v0.2`. Preserved the
+  pre-existing dirty plan-local `progress.md`, root
+  `whole-branch-fix-round-2-report.md`, and untracked
+  `whole-branch-fix-round-5-quality-review.md`; none are staged. Verified
+  `v0.1.0^{}` remains `277bf09932e58f8950aaf5eacf4155def164e9ba`.
+- Skills used: `using-superpowers`, `using-git-worktrees`,
+  `subagent-driven-development` (no callable dispatch interface was exposed),
+  `receiving-code-review`, `systematic-debugging`,
+  `test-driven-development`, `requesting-code-review`, and
+  `verification-before-completion`. A fresh reviewer subagent was not
+  callable, so coordinator performed separate scoped specification and
+  code-quality reviews.
+- Review reception/root cause: the production CLI selected TUI from TTY and
+  `--plain` only, omitting `--non-interactive`. The final high-risk Review
+  gate used synchronous `ApprovalProvider.approve()` because only tool
+  approvals populated the queued pending state. Packaging and hosted README
+  artifact links still declared `0.1.0`.
+- TDD red: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest
+  tests/unit/test_cli_v2.py tests/unit/test_final_review.py
+  tests/unit/test_packaging.py tests/unit/test_readme.py -q` failed 5
+  assertions: noninteractive TTY constructed the TUI, queued final-gate
+  approval tests stopped through the synchronous provider, and metadata/README
+  still named `0.1.0`.
+- TDD green: the same focused command passed 38 tests after excluding
+  `--non-interactive` from TUI selection, representing the final gate as a
+  pending approval when an `OperatorCommandQueue` is present, and updating the
+  release identity to `0.2.0`. The queued `/approve` and `/deny` tests use an
+  interactive provider whose input callback raises, proving the Runner worker
+  does not read a second terminal input stream. Plain interactive mode keeps
+  its existing synchronous approval boundary.
+- Specification-compliance review: PASS. Noninteractive TTY runs use the
+  deterministic plain path; high-risk final review with a queue resolves only
+  through `/approve` or `/deny`, preserves reject rollback, and preserves
+  ordinary plain interactive approval. The wheel/sdist and README identify
+  `0.2.0`; the immutable v0.1.0 tag is unchanged.
+- Code-quality review: PASS. The final-gate state reuses the existing queue,
+  pending event, approval provider, and command consumption boundary. No
+  prompt-toolkit import entered Runner, second input reader, dependency,
+  fallback, broad exception handling, duplicated validation, dead code, or
+  speculative abstraction was added. Tests exercise observable CLI and queue
+  behavior rather than private internals.
+- Verification: focused CLI/final-review/packaging/README tests passed 38;
+  related CLI/operator/TUI tests passed 80; `PYTHONDONTWRITEBYTECODE=1
+  PYTHONPATH=src python -m pytest tests -q` passed 605;
+  `python -m build --wheel --sdist --no-isolation --outdir
+  /tmp/safefix-v0.2-dist` built `safefix-0.2.0-py3-none-any.whl` and
+  `safefix-0.2.0.tar.gz`; scoped `git diff --check` passed.

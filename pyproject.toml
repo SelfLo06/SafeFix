@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "safefix"
-version = "0.1.0"
+version = "0.2.0"
 description = "A coding-agent harness for repairing pytest failures"
 requires-python = ">=3.11"
 dependencies = [
