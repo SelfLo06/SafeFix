@@ -3248,4 +3248,5 @@
   tests -q` — 591 passed; compileall passed; `git diff --check` passed; immutable
   `v0.1.0^{}` remained `4fc3d6bfd61ad6b4057de66abcf13605af3c2b9c`.
 - Implementation commit: `8a3722f` — `fix: wire v0.2 role clients through cli`.
+- Evidence/log commit: `3075679` — `docs: record whole-branch P1 fix evidence`.
 - Report: `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/whole-branch-fix-round-1-report.md`.

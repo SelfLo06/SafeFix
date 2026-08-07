@@ -35,4 +35,4 @@ No keys or raw client credentials enter runner arguments beyond live injected cl
 ## Commits
 
 - Implementation and tests: `8a3722f` (`fix: wire v0.2 role clients through cli`).
-- Documentation/log closure: recorded after this report is committed.
+- Documentation/log closure: `3075679` (`docs: record whole-branch P1 fix evidence`).
