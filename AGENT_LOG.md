@@ -3221,3 +3221,31 @@
   `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/task-15-fix-round-3-report.md`.
 - Implementation commit: `00b9b68` — `test: close Task 15 artifact isolation
   evidence`.
+
+## Whole-branch review P1 fix round 1
+
+- Date: 2026-08-07. Worktree: requested linked `safefix-v0.2`; the pre-existing
+  dirty plan-local SDD `progress.md` was preserved and not staged. `SPEC.md`,
+  `PLAN.md`, and tag `v0.1.0` were preserved.
+- Skills used: `using-superpowers`, `using-git-worktrees`, `brainstorming`
+  (validated against the approved design), `subagent-driven-development`
+  (no callable dispatch interface was available, so coordinator execution was
+  used), `test-driven-development`, `requesting-code-review`,
+  `receiving-code-review`, and `verification-before-completion`.
+- TDD red/green: new CLI role/high-risk tests first failed 3 tests, then passed
+  3; the new SessionRunner propagation/audit test first failed on missing role
+  metadata, then passed. Focused/related verification passed 84 tests.
+- Fix: CLI retains legacy Repair credential behavior, reads configured Test and
+  Review role entries, creates role clients through the existing client factory,
+  wraps Review for preparation and final review, and passes approval,
+  confirmation, and clients through `SessionRunner` to `SessionSetup`.
+- Audit: actual setup-created state receives sanitized role identities and a
+  sanitized high-risk confirmation record. No API key is placed in artifacts.
+- Specification-compliance review: PASS. Code-quality review: PASS. Both
+  explicitly checked unnecessary abstraction, duplicated validation, broad
+  exception handling, speculative fallback, dead code, and scope expansion.
+- Full verification: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest
+  tests -q` — 591 passed; compileall passed; `git diff --check` passed; immutable
+  `v0.1.0^{}` remained `4fc3d6bfd61ad6b4057de66abcf13605af3c2b9c`.
+- Implementation commit: `8a3722f` — `fix: wire v0.2 role clients through cli`.
+- Report: `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/whole-branch-fix-round-1-report.md`.
