@@ -3143,4 +3143,4 @@
 - Specification-compliance re-review: PASS. Code-quality re-review: PASS.
   Reports: `task-15-spec-rereview-round-1.md` and
   `task-15-quality-rereview-round-1.md`.
-- Commit: pending final verification.
+- Implementation commit: `4401eac` — `test: close Task 15 mechanism review findings`.
