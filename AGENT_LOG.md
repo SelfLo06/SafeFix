@@ -3179,3 +3179,45 @@
   `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/task-15-fix-round-2-report.md`.
 - Implementation commit: `bdbb52d` — `test: strengthen Task 15 mechanism
   evidence`.
+
+### v0.2 Task 15 — scoped fix round 3
+
+- Date: 2026-08-07. Addressed exactly the remaining code-quality evidence
+  gap from `task-15-quality-final-rereview.md`. `PLAN.md` and the pre-existing
+  dirty SDD `progress.md` were preserved and not staged. No production source,
+  dependency, shell, network, credential, real-sleep, or scope behavior changed.
+- Skills used: `using-superpowers`, `using-git-worktrees`,
+  `subagent-driven-development`, `receiving-code-review`,
+  `test-driven-development`, `systematic-debugging`,
+  `requesting-code-review`, and `verification-before-completion`. No callable
+  subagent-dispatch interface is exposed, so specification-compliance and
+  code-quality reviews were separate coordinator passes.
+- Review reception: verified the reported disconnect in the fake-TTY runner:
+  it wrote an artifact from a separate empty state and did not consume the
+  CLI-created queue. The finding was compatible with the Task 15 brief and
+  required no production change.
+- TDD red: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest
+  tests/mechanism/test_demo_terminal_fallback.py tests/unit/test_artifacts.py
+  -q` failed with missing runner-consumed guidance and an empty artifact
+  baseline. A worker-thread artifact-finalization experiment deadlocked the
+  fake TTY; systematic debugging isolated that scheduling issue. The final
+  test-only TUI wrapper finalizes after the console returns, through the same
+  stateful runner and CLI-provided queue.
+- TDD green: focused terminal/artifact tests passed 11; related Task 15
+  mechanism, artifact, and runner-initialization tests passed 38; full
+  regression `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests
+  -q` passed 588. `git diff --check` passed.
+- Specification-compliance review: PASS. The fake-TTY CLI route creates a
+  stateful runner with the CLI queue; its finalization drains the submitted
+  guidance and writes the artifact from that runner's non-empty session state.
+  The artifact retains a semantic baseline failure ID as a positive control.
+- Code-quality review: PASS. Recursive checks cover serialized mapping keys
+  and string values for all Unicode control-code characters/ANSI, prompt,
+  presentation, transcript, and frame identifiers, the submitted prompt, and
+  captured presentation text. No blank `SessionState`, production abstraction,
+  duplicate validation, broad exception handling, fallback, dependency, or
+  scope expansion was introduced.
+- Report: plan-local
+  `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/task-15-fix-round-3-report.md`.
+- Implementation commit: `00b9b68` — `test: close Task 15 artifact isolation
+  evidence`.
