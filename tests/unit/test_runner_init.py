@@ -544,3 +544,6 @@ def test_post_freeze_manifest_mutation_stops_before_evaluation_and_f0_stays_fixe
     assert supplied == [(), (test_path,)]
     assert runner.state is not None
     assert runner.state.F0.ids == frozenset({"tests.test_existing::test_existing"})
+    assert runner.manifest is not None
+    with pytest.raises(ValueError, match="manifest test (changed|is missing)"):
+        runner.manifest.verify(tmp_path)

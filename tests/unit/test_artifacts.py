@@ -107,6 +107,10 @@ def test_artifact_written_for_stop_result(tmp_path):
     assert path.exists()
     assert written_result.stop_reason is StopReason.MAX_STEPS
     assert written_result.artifact_path == str(path)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert payload["stop_reason"] == "max_steps"
+    assert "presentation" not in payload
+    assert "prompt" not in json.dumps(payload)
 
 
 def test_artifact_preserves_last_evaluation_after_best_restore(tmp_path):
