@@ -2958,3 +2958,4 @@
   fallback behavior, extra dependencies, dead code, and speculative
   abstractions. Tests assert observable queue, lifecycle, and presentation
   behavior with fake terminal boundaries.
+- Implementation commit: `a964cc7` — `fix: coordinate guided console lifecycle`.
