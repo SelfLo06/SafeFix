@@ -18,12 +18,14 @@ class _GuidanceLLM:
         self.queue = queue
         self.prompts: list[str] = []
         self.calls = 0
+        self.queued_guidance: tuple[str, ...] = ()
 
     def complete(self, prompt: str) -> str:
         self.prompts.append(prompt)
         self.calls += 1
         if self.calls == 1:
             self.queue.submit_text("preserve the public API")
+            self.queued_guidance = self.queue.guidance_summaries()
             return json.dumps({
                 "tool": "apply_patch",
                 "changes": [{
@@ -60,7 +62,7 @@ def run_guidance_demo(tmp_path: Path):
         {
             "stop_reason": result.stop_reason,
             "prompts": llm.prompts,
-            "guidance_was_queued_during_operation": True,
+            "queued_guidance": llm.queued_guidance,
             "blocked_operation_was_not_interrupted": llm.calls == 2,
         },
     )()
@@ -70,6 +72,6 @@ def test_queued_guidance_changes_next_repair_prompt(tmp_path: Path) -> None:
     result = run_guidance_demo(tmp_path)
 
     assert result.stop_reason is StopReason.SUCCESS
-    assert result.guidance_was_queued_during_operation is True
+    assert result.queued_guidance == ("preserve the public API",)
     assert '"guidance_event_summaries": ["preserve the public API"]' in result.prompts[-1]
     assert result.blocked_operation_was_not_interrupted is True

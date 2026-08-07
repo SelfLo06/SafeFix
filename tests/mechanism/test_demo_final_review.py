@@ -115,7 +115,7 @@ def run_final_review_demo(tmp_path: Path):
             "stop_reason": high.stop_reason,
             "restored_source": (high_root / "src" / "app.py").read_text(),
             "review_verdict": ReviewVerdict(high_artifact["review_verdict"]),
-            "mode": AcceptanceMode.HIGH_RISK,
+            "acceptance_mode": AcceptanceMode(high_artifact["acceptance_mode"]),
         })(),
     )
 
@@ -128,4 +128,4 @@ def test_standard_review_required_is_warning_but_high_risk_requires_gate(tmp_pat
     assert high_risk.stop_reason is StopReason.FINAL_REVIEW_REJECTED
     assert high_risk.restored_source == "value = 1\n"
     assert high_risk.review_verdict is ReviewVerdict.REVIEW_REQUIRED
-    assert high_risk.mode is AcceptanceMode.HIGH_RISK
+    assert high_risk.acceptance_mode is AcceptanceMode.HIGH_RISK

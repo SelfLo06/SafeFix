@@ -8,7 +8,7 @@ from safefix.cli import main
 from safefix.events import SessionEvent
 from safefix.models import Config, FailureSet, Phase, SessionResult, StopReason
 from safefix.session_state import SessionState
-from tests.fixtures.tui.fake_terminal import FakeConsole, FakePromptSession, FakeTickSource
+from tests.fixtures.tui.fake_terminal import FakeConsole, FakeTickSource
 
 
 class FakeTerminal(io.StringIO):
@@ -26,6 +26,16 @@ class _Credentials:
         return "offline-test-key"
 
 
+def _artifact_field_names(value: object) -> frozenset[str]:
+    if isinstance(value, dict):
+        return frozenset(value) | frozenset().union(
+            *(_artifact_field_names(item) for item in value.values())
+        )
+    if isinstance(value, list):
+        return frozenset().union(*(_artifact_field_names(item) for item in value))
+    return frozenset()
+
+
 def run_terminal_demo(tmp_path: Path, *, terminal: FakeTerminal, no_animation: bool):
     import safefix.cli as cli
     from safefix.operator import OperatorCommandQueue
@@ -34,6 +44,9 @@ def run_terminal_demo(tmp_path: Path, *, terminal: FakeTerminal, no_animation: b
     artifact_path = tmp_path / "safefix-session.json"
     ticks = FakeTickSource([0, 1, 2, 3])
     console = FakeConsole()
+    tui_factory_calls: list[OperatorCommandQueue] = []
+    plain_events: list[SessionEvent] = []
+    session_results: list[SessionResult] = []
     original_stdin, original_stdout = cli.sys.stdin, cli.sys.stdout
     original_term = os.environ.get("TERM")
     original_no_color = os.environ.get("NO_COLOR")
@@ -50,16 +63,30 @@ def run_terminal_demo(tmp_path: Path, *, terminal: FakeTerminal, no_animation: b
         if hasattr(sink, "emit"):
             sink.emit(event)
         else:
+            plain_events.append(event)
             sink("Status: evaluate")
         state = SessionState(FailureSet(frozenset()))
         result = ArtifactWriter(artifact_path).write(
             state, SessionResult(StopReason.SUCCESS)
         )
-        return type("Runner", (), {"run": lambda _self: result})()
+        class Runner:
+            def run(self) -> SessionResult:
+                session_results.append(result)
+                return result
+
+        return Runner()
+
+    class PromptSession:
+        async def prompt_async(self, _prompt: str) -> str:
+            if terminal.prompt_calls:
+                raise EOFError
+            terminal.prompt_calls += 1
+            return "preserve the public API"
 
     def tui_factory(command_queue, controller_factory, capabilities, _no_animation):
+        tui_factory_calls.append(command_queue)
         return GuidedRepairConsole(
-            command_queue, controller_factory, FakePromptSession, console,
+            command_queue, controller_factory, PromptSession, console,
             capabilities, ticks,
         )
 
@@ -87,14 +114,17 @@ def run_terminal_demo(tmp_path: Path, *, terminal: FakeTerminal, no_animation: b
             os.environ["NO_COLOR"] = original_no_color
 
     artifact_text = artifact_path.read_text(encoding="utf-8")
+    artifact = json.loads(artifact_text)
     return type("TerminalDemoResult", (), {
-        "tui_started": terminal.tty,
-        "transcript_is_plain": not terminal.tty,
-        "stop_reason": StopReason.SUCCESS,
+        "tui_factory_call_count": len(tui_factory_calls),
+        "plain_event_count": len(plain_events),
+        "session_stop_reason": session_results[-1].stop_reason,
+        "queued_guidance": tui_factory_calls[0].guidance_summaries() if tui_factory_calls else (),
         "exit_code": exit_code,
         "plain_output": terminal.getvalue(),
         "artifact_text": artifact_text,
-        "artifact": json.loads(artifact_text),
+        "artifact": artifact,
+        "artifact_field_names": _artifact_field_names(artifact),
         "animation_ticks": tuple(ticks.ticks),
         "rendered_lines": tuple(str(line[0]) for line in console.lines),
     })()
@@ -106,29 +136,33 @@ def run_animated_tui_demo(tmp_path: Path):
 
 def test_terminal_fallback_preserves_plain_harness_outcome(tmp_path: Path) -> None:
     result = run_terminal_demo(tmp_path, terminal=FakeTerminal(tty=False), no_animation=False)
-    assert result.tui_started is False
-    assert result.transcript_is_plain is True
-    assert result.stop_reason is StopReason.SUCCESS
+    assert result.tui_factory_call_count == 0
+    assert result.plain_event_count == 1
+    assert result.session_stop_reason is StopReason.SUCCESS
     assert result.exit_code == 0
     assert "SafeFix stopped: success" in result.plain_output
-    assert "ANSI" not in result.artifact_text
 
 
 def test_tty_demo_consumes_fake_input_and_ticks_through_cli_adapter(tmp_path: Path) -> None:
-    result = run_terminal_demo(tmp_path, terminal=FakeTerminal(tty=True), no_animation=False)
-    assert result.tui_started is True
+    terminal = FakeTerminal(tty=True)
+    result = run_terminal_demo(tmp_path, terminal=terminal, no_animation=False)
+    assert result.tui_factory_call_count == 1
+    assert result.session_stop_reason is StopReason.SUCCESS
+    assert terminal.prompt_calls == 1
+    assert result.queued_guidance == ("preserve the public API",)
     assert result.animation_ticks == (0, 1, 2)
     assert "Status: evaluate" in result.rendered_lines
 
 
 def test_no_animation_still_routes_tty_through_adapter_without_ticks(tmp_path: Path) -> None:
     result = run_terminal_demo(tmp_path, terminal=FakeTerminal(tty=True), no_animation=True)
-    assert result.tui_started is True
+    assert result.tui_factory_call_count == 1
     assert result.animation_ticks == ()
 
 
 def test_artifact_contains_semantics_not_presentation_frames(tmp_path: Path) -> None:
     result = run_animated_tui_demo(tmp_path)
     assert result.artifact["stop_reason"] == "success"
-    assert "spinner" not in repr(result.artifact)
-    assert "ANSI" not in repr(result.artifact)
+    assert "\x1b" not in result.artifact_text
+    assert "prompt" not in result.artifact_field_names
+    assert "presentation" not in result.artifact_field_names
