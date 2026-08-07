@@ -8,7 +8,7 @@ from contextlib import suppress
 from dataclasses import dataclass
 import queue
 import threading
-from typing import Protocol
+from typing import Protocol, cast
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.patch_stdout import patch_stdout
@@ -142,6 +142,7 @@ class GuidedRepairConsole:
         self._events: queue.Queue[SessionEvent] = queue.Queue()
         self._controller_active = False
         self._result: SessionResult | None = None
+        self._failure: BaseException | None = None
         self.rendered_event_sequences: list[int] = []
 
     def publish(self, event: SessionEvent) -> None:
@@ -177,6 +178,8 @@ class GuidedRepairConsole:
             self._controller_active = True
             try:
                 self._result = controller.run()
+            except BaseException as error:
+                self._failure = error
             finally:
                 self._controller_active = False
 
@@ -184,8 +187,7 @@ class GuidedRepairConsole:
         worker.start()
         worker.join()
         self.drain_events_once()
-        assert self._result is not None
-        return self._result
+        return self._completed_result()
 
     async def _run_interactive(self) -> SessionResult:
         loop = asyncio.get_running_loop()
@@ -203,6 +205,8 @@ class GuidedRepairConsole:
             self._controller_active = True
             try:
                 self._result = controller.run()
+            except BaseException as error:
+                self._failure = error
             finally:
                 self._controller_active = False
                 loop.call_soon_threadsafe(controller_finished.set)
@@ -238,8 +242,12 @@ class GuidedRepairConsole:
                         await input_task
 
         worker.join()
-        assert self._result is not None
-        return self._result
+        return self._completed_result()
+
+    def _completed_result(self) -> SessionResult:
+        if self._failure is not None:
+            raise self._failure
+        return cast(SessionResult, self._result)
 
     async def _read_input(self, prompt: PromptSession | None = None) -> None:
         prompt = prompt or self._input_factory()

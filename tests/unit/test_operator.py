@@ -1,3 +1,6 @@
+from collections import deque
+import threading
+
 from safefix.operator import GuidanceBuffer, OperatorCommand, OperatorCommandQueue
 
 
@@ -66,3 +69,38 @@ def test_guidance_buffer_bounds_items_and_total_characters() -> None:
     drained = buffer.drain_for_ready()
     assert drained == summaries
     assert buffer.summaries() == ()
+
+
+def test_guidance_submitted_while_ready_drain_clears_remains_queued() -> None:
+    class PausingClearDeque(deque[str]):
+        def __init__(self, items: deque[str]) -> None:
+            super().__init__(items)
+            self.clear_started = threading.Event()
+            self.allow_clear = threading.Event()
+
+        def clear(self) -> None:
+            self.clear_started.set()
+            assert self.allow_clear.wait(timeout=0.5)
+            super().clear()
+
+    guidance = GuidanceBuffer()
+    queue = OperatorCommandQueue(guidance=guidance)
+    queue.submit_text("existing guidance")
+    paused_items = PausingClearDeque(guidance._items)
+    guidance._items = paused_items
+
+    drained: list[tuple[str, ...]] = []
+    drainer = threading.Thread(target=lambda: drained.append(queue.drain_ready_guidance()))
+    drainer.start()
+    assert paused_items.clear_started.wait(timeout=0.5)
+
+    producer = threading.Thread(target=lambda: queue.submit_text("concurrent guidance"))
+    producer.start()
+    paused_items.allow_clear.set()
+    drainer.join(timeout=0.5)
+    producer.join(timeout=0.5)
+
+    assert not drainer.is_alive()
+    assert not producer.is_alive()
+    assert drained == [("existing guidance",)]
+    assert queue.drain_ready_guidance() == ("concurrent guidance",)

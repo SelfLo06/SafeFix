@@ -4,6 +4,8 @@ import asyncio
 import queue
 import threading
 
+import pytest
+
 from safefix.events import SessionEvent
 from safefix.models import Phase, SessionResult, StopReason
 from safefix.operator import OperatorCommand, OperatorCommandQueue
@@ -146,3 +148,47 @@ def test_console_returns_when_runner_finishes_with_pending_prompt() -> None:
         worker.join(timeout=0.5)
 
     assert result == [SessionResult(StopReason.REQUESTED)]
+
+
+def test_non_interactive_console_reraises_controller_exception_after_cleanup() -> None:
+    failure = RuntimeError("runner failed")
+
+    class RaisingController:
+        def run(self) -> SessionResult:
+            raise failure
+
+    console = GuidedRepairConsole(
+        OperatorCommandQueue(),
+        lambda _sink, _queue: RaisingController(),
+        FakePromptSession,
+        FakeConsole(),
+        TerminalCapabilities(False, False, False, False),
+        FakeTickSource([]),
+    )
+
+    with pytest.raises(RuntimeError) as raised:
+        console.run()
+
+    assert raised.value is failure
+
+
+def test_interactive_console_reraises_controller_exception_after_cleanup() -> None:
+    failure = RuntimeError("runner failed")
+
+    class RaisingController:
+        def run(self) -> SessionResult:
+            raise failure
+
+    console = GuidedRepairConsole(
+        OperatorCommandQueue(),
+        lambda _sink, _queue: RaisingController(),
+        FakePromptSession,
+        FakeConsole(),
+        TerminalCapabilities(True, True, True, False),
+        FakeTickSource([]),
+    )
+
+    with pytest.raises(RuntimeError) as raised:
+        console.run()
+
+    assert raised.value is failure

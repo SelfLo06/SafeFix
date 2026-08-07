@@ -2959,3 +2959,44 @@
   abstractions. Tests assert observable queue, lifecycle, and presentation
   behavior with fake terminal boundaries.
 - Implementation commit: `a964cc7` — `fix: coordinate guided console lifecycle`.
+
+### v0.2 Task 13 — scoped fix round 2
+
+- Date: 2026-08-07. Scope is limited to the Task 13 code-quality findings:
+  concurrent guidance draining and worker exception propagation. `PLAN.md` and
+  the pre-existing dirty SDD `progress.md` were preserved. No dependency,
+  adapter authority, or direct-action behavior changed.
+- Skills used: `using-superpowers`, `using-git-worktrees` (verified the
+  supplied linked worktree), `subagent-driven-development`,
+  `systematic-debugging`, `test-driven-development`,
+  `receiving-code-review`, `requesting-code-review`, and
+  `verification-before-completion`. No callable subagent-dispatch capability
+  was exposed, so the required specification-compliance and code-quality
+  reviews were conducted as separate coordinator passes. The branch is
+  externally managed; `finishing-a-development-branch` is deferred to the
+  integration owner.
+- TDD red: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest
+  tests/unit/test_operator.py tests/unit/test_tui.py -q` failed as expected:
+  the message enqueued while `drain_for_ready()` was clearing was lost, and
+  both console modes replaced the original worker error with `AssertionError`.
+- TDD green: the same focused command passed `15` tests. Related regression
+  `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest
+  tests/unit/test_tui.py tests/unit/test_tui_presentation.py
+  tests/unit/test_tui_animation.py tests/unit/test_events.py
+  tests/unit/test_operator.py tests/unit/test_packaging.py -q` passed `39`
+  tests. Full regression `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m
+  pytest tests -q` passed `567` tests. `git diff --check` passed.
+- Implementation: `GuidanceBuffer` now serializes its enqueue, ready-drain,
+  and summary snapshot operations through one local lock, so the shared
+  operator queue cannot clear guidance submitted by the UI thread mid-drain.
+  Both GuidedRepairConsole worker paths retain a raised controller exception,
+  finish their existing cleanup/join flow, then re-raise that original object;
+  no result is invented.
+- Specification-compliance review: PASS. The adapter remains presentation-only
+  and submits only through `OperatorCommandQueue`; Runner ownership, artifacts,
+  and event rendering are unchanged. The new tests prove concurrent guidance
+  survives and both interactive/non-interactive paths preserve the exception.
+- Code-quality review: PASS. Synchronization is restricted to the actual
+  shared guidance buffer, the worker boundary does not swallow failures, and
+  no abstraction, duplicated validation, fallback, broad recovery, dead code,
+  or scope expansion was introduced.

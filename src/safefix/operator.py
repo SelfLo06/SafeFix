@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass
+import threading
 
 from .events import sanitize_summary
 
@@ -27,22 +28,26 @@ class GuidanceBuffer:
         self._max_items = max_items
         self._max_chars = max_chars
         self._items: deque[str] = deque()
+        self._lock = threading.Lock()
 
     def enqueue(self, text: str) -> None:
         summary = sanitize_summary(text, max_chars=self._max_chars).strip()
         if not summary:
             return
-        self._items.append(summary)
-        while len(self._items) > self._max_items or self._char_count() > self._max_chars:
-            self._items.popleft()
+        with self._lock:
+            self._items.append(summary)
+            while len(self._items) > self._max_items or self._char_count() > self._max_chars:
+                self._items.popleft()
 
     def drain_for_ready(self) -> tuple[str, ...]:
-        drained = tuple(self._items)
-        self._items.clear()
-        return drained
+        with self._lock:
+            drained = tuple(self._items)
+            self._items.clear()
+            return drained
 
     def summaries(self) -> tuple[str, ...]:
-        return tuple(self._items)
+        with self._lock:
+            return tuple(self._items)
 
     def _char_count(self) -> int:
         return sum(len(item) for item in self._items)
