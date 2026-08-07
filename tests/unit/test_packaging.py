@@ -59,3 +59,36 @@ runpy.run_module("safefix", run_name="__main__")
 
     assert result.returncode == 0, result.stderr
     assert "usage:" in result.stdout
+
+
+def test_cli_help_works_when_interactive_libraries_are_unavailable() -> None:
+    source_root = Path(__file__).parents[2] / "src"
+    bootstrap = """
+import importlib.abc
+import runpy
+import sys
+
+
+class BlockInteractiveLibraries(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname in {"prompt_toolkit", "rich"} or fullname.startswith(
+            ("prompt_toolkit.", "rich.")
+        ):
+            raise ModuleNotFoundError(f"No module named '{fullname}'")
+        return None
+
+
+sys.meta_path.insert(0, BlockInteractiveLibraries())
+sys.argv = ["safefix", "--help"]
+runpy.run_module("safefix", run_name="__main__")
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", bootstrap],
+        env={"PYTHONPATH": str(source_root), "PYTHONDONTWRITEBYTECODE": "1"},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "usage:" in result.stdout

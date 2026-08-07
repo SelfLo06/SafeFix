@@ -3039,3 +3039,41 @@
   changed. No duplicated config validation, broad exception boundary,
   speculative fallback, dead code, or dependency was introduced. Tests use
   injected terminal and TUI fakes rather than real prompt_toolkit/Rich loops.
+
+### v0.2 Task 14 — scoped fix round 1
+
+- Date: 2026-08-07. Scope is limited to the two Task 14 code-quality review
+  coverage gaps: default capable-TTY routing and lazy terminal imports. The
+  pre-existing dirty SDD `progress.md` and `PLAN.md` were preserved and not
+  staged. No production source, dependency, or configuration changed.
+- Skills used: `using-superpowers`, `using-git-worktrees` (verified the
+  supplied linked worktree), `subagent-driven-development`,
+  `receiving-code-review`, `test-driven-development`,
+  `requesting-code-review`, and `verification-before-completion`. No callable
+  subagent-dispatch interface is exposed, so the required specification and
+  code-quality reviews were performed as distinct scoped checklist passes.
+- TDD regression evidence: the two new tests first passed against the already
+  correct Task 14 implementation. A controlled mutation changing the default
+  TTY selection to require `--tui` made
+  `test_tty_defaults_to_injected_tui_with_console_runner_wiring` fail because
+  the injected console was not created. After restoring the exact source, the
+  test passed. A controlled temporary module-level `import rich` made
+  `test_cli_help_works_when_interactive_libraries_are_unavailable` fail in its
+  fresh blocked-import subprocess; after restoration, it passed. No mutation
+  was retained.
+- Focused verification: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m
+  pytest tests/unit/test_cli_v2.py tests/unit/test_packaging.py -q` passed 10
+  tests after restoration. The pre-edit Task 14 focused suite passed 27 tests
+  and the full suite passed 574 tests.
+- Specification-compliance review: PASS. A capable TTY with neither
+  presentation flag now has committed coverage proving CLI construction of the
+  injected TUI, a non-`print` runner sink, and the same command queue supplied
+  to the console and runner. The subprocess test proves `safefix --help`
+  succeeds when both `prompt_toolkit` and `rich` imports are blocked.
+- Code-quality review: PASS. The test seam only records an existing factory
+  argument, and the subprocess test exercises the installed CLI module in a
+  fresh interpreter. No production abstraction, duplicate validation, broad
+  exception handling, fallback, dead code, dependency, or scope expansion was
+  introduced. A plain subprocess path was not added because a real run needs
+  configuration and credentials; the required help path is deterministic and
+  directly proves import laziness.

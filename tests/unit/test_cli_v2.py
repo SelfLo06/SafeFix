@@ -36,10 +36,12 @@ class CapturingRunnerFactory:
 class CapturingTui:
     created = False
     no_animation = False
+    command_queue = None
 
     def __init__(self, command_queue, controller_factory, capabilities, no_animation):
         type(self).created = True
         type(self).no_animation = no_animation
+        type(self).command_queue = command_queue
         self._controller_factory = controller_factory
         self._command_queue = command_queue
         self.capabilities = capabilities
@@ -67,6 +69,7 @@ def _main(
     CapturingRunnerFactory.reset()
     FailIfCalledTui.created = False
     CapturingTui.created = False
+    CapturingTui.command_queue = None
     return main(
         ["run", str(tmp_path), *flags],
         tty_detector=lambda _stream: tty,
@@ -123,7 +126,15 @@ def test_run_parser_accepts_v2_config_overrides() -> None:
     assert args.review_model == "review-model"
 
 
-def test_tty_defaults_to_tui_and_plain_forces_legacy_event_sink(tmp_path: Path) -> None:
+def test_tty_defaults_to_injected_tui_with_console_runner_wiring(tmp_path: Path) -> None:
+    assert _main(tmp_path, tty=True, tui_factory=CapturingTui) == 0
+
+    assert CapturingTui.created is True
+    assert CapturingRunnerFactory.plain_event_sink_used is False
+    assert CapturingRunnerFactory.operator_queue is CapturingTui.command_queue
+
+
+def test_plain_forces_legacy_event_sink(tmp_path: Path) -> None:
     assert _main(tmp_path, "--plain", tty=True) == 0
 
     assert CapturingRunnerFactory.plain_event_sink_used is True
