@@ -2910,3 +2910,6 @@
 - Scope: changed only Task 13 package, adapter, fake terminal, tests, and this
   log. The pre-existing dirty SDD `progress.md` was preserved; v0.1.0 and the
   SDD ledger were not modified.
+- Implementation commit: `560704f` — `feat: add Rich prompt-toolkit repair
+  console`. The companion implementer report is committed separately as a
+  documentation artifact.
