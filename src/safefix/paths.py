@@ -5,6 +5,7 @@ import posixpath
 
 _VIRTUAL_ENV_DIRS = {".venv", "venv", "env", "virtualenv", "virtualenvs"}
 _CACHE_DIRS = {"__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".tox", ".nox", "cache", ".cache"}
+_INTERNAL_DIRS = {".safefix"}
 _SECRET_SUFFIXES = {".pem", ".key", ".p12", ".pfx", ".crt"}
 _SECRET_NAMES = {".env", "env.lock", "credential", "credentials", "secret", "secrets", "id_rsa"}
 
@@ -103,7 +104,7 @@ def _is_hard_denied(root: Path, path: Path) -> bool:
 
 
 def _hard_denied_parts(relative_parts: tuple[str, ...]) -> bool:
-    if ".git" in relative_parts:
+    if ".git" in relative_parts or any(part in _INTERNAL_DIRS for part in relative_parts):
         return True
     if any(part in _VIRTUAL_ENV_DIRS or part in _CACHE_DIRS for part in relative_parts):
         return True

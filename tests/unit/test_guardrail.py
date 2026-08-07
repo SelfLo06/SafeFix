@@ -55,6 +55,46 @@ def test_write_policy_denies_non_writable_path(tmp_path: Path):
     assert guardrail.check(patch_call(Change("docs/readme.md", "old", "new"))) is GuardDecision.DENY
 
 
+def test_safefix_internal_write_is_denied_under_explicit_broad_scope(tmp_path: Path):
+    internal = tmp_path / ".safefix" / "sessions" / "session" / "accepted"
+    internal.mkdir(parents=True)
+    path = internal / "generated.py"
+    path.write_text("value = 1\n", encoding="utf-8")
+    guardrail = Guardrail(tmp_path, allowed_paths=["."])
+
+    decision = guardrail.check(
+        patch_call(
+            Change(
+                ".safefix/sessions/session/accepted/generated.py",
+                "value = 1",
+                "value = 2",
+            )
+        )
+    )
+
+    assert decision is GuardDecision.DENY
+
+
+def test_safefix_internal_write_is_denied_by_default_without_src(tmp_path: Path):
+    internal = tmp_path / ".safefix" / "sessions" / "session" / "accepted"
+    internal.mkdir(parents=True)
+    path = internal / "generated.py"
+    path.write_text("value = 1\n", encoding="utf-8")
+    guardrail = Guardrail(tmp_path)
+
+    decision = guardrail.check(
+        patch_call(
+            Change(
+                ".safefix/sessions/session/accepted/generated.py",
+                "value = 1",
+                "value = 2",
+            )
+        )
+    )
+
+    assert decision is GuardDecision.DENY
+
+
 def test_three_files_and_eighty_changed_lines_are_allowed(tmp_path: Path):
     (tmp_path / "src").mkdir()
     for name in "abc":

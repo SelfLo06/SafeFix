@@ -154,6 +154,8 @@ class SessionRunner:
         )
         result = setup.prepare()
         self.config = result.config
+        if self.config is not None and self._high_risk_review_unavailable(self.config):
+            return SessionResult(stop_reason=StopReason.CONFIG_ERROR)
         self.writable_paths = set(result.writable_paths)
         self.manifest = result.manifest
         if result.baseline is not None and result.config is not None:
@@ -200,6 +202,8 @@ class SessionRunner:
             )
             self._credentials.get()
         except (ConfigError, CredentialError):
+            return SessionResult(stop_reason=StopReason.CONFIG_ERROR)
+        if self._high_risk_review_unavailable(self.config):
             return SessionResult(stop_reason=StopReason.CONFIG_ERROR)
 
         try:
@@ -536,10 +540,23 @@ class SessionRunner:
         assert self.config is not None
         return self.config.acceptance_mode is AcceptanceMode.HIGH_RISK
 
+    def _high_risk_review_unavailable(self, config: Config) -> bool:
+        return config.acceptance_mode is AcceptanceMode.HIGH_RISK and (
+            not config.review_base_url.strip()
+            or not config.review_model.strip()
+            or self._final_review_client is None
+        )
+
     def _complete_final_review(self, evaluation: TestRunResult) -> SessionResult:
         assert self.state is not None
-        if self.manifest is None or self._final_review_client is None:
+        if self.manifest is None:
             return self._finalize(StopReason.SUCCESS)
+        if self._final_review_client is None:
+            return self._finalize(
+                StopReason.CONFIG_ERROR
+                if self._is_high_risk_final_review()
+                else StopReason.SUCCESS
+            )
 
         self._phase = Phase.FINAL_REVIEW
         request = self._final_review_request(evaluation)

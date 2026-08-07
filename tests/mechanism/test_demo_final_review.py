@@ -85,7 +85,11 @@ def run_final_review_demo(tmp_path: Path):
             cli_overrides={"acceptance_mode": mode},
             credentials=type("Credentials", (), {"get": lambda _self: "key"})(),
             config_loader=lambda *_args, **_kwargs: Config(
-                base_url="https://repair.invalid/v1", model="repair-model", acceptance_mode=mode
+                base_url="https://repair.invalid/v1",
+                model="repair-model",
+                review_base_url="https://review.invalid/v1",
+                review_model="review-model",
+                acceptance_mode=mode,
             ),
             test_runner_factory=SessionRunnerFactory(),
             llm_client=MockLLM([patch]),

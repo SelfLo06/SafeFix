@@ -83,6 +83,8 @@ def _runner(
     config = Config(
         base_url="https://repair.example/v1",
         model="repair-model",
+        review_base_url="https://review.example/v1",
+        review_model="review-model",
         acceptance_mode=mode,
     )
     evaluations = iter(reports)
@@ -191,6 +193,38 @@ def test_high_risk_review_required_accepts_through_final_review_gate(tmp_path: P
     assert result.stop_reason is StopReason.SUCCESS
     assert len(approval.requests) == 1
     assert isinstance(approval.requests[0], review.FinalReviewRequest)
+
+
+def test_high_risk_green_without_final_review_client_is_not_success(tmp_path: Path) -> None:
+    runner = _runner(
+        tmp_path,
+        mode=AcceptanceMode.HIGH_RISK,
+        reports=[_result("tests.test_app::test_broken"), _result()],
+        responses=[_patch("value = 1", "value = 2")],
+        review_client=FakeReviewClient(_review(ReviewVerdict.PASS)),
+    )
+    runner._final_review_client = None
+
+    result = runner.run()
+
+    assert result.stop_reason is StopReason.CONFIG_ERROR
+
+
+def test_high_risk_without_final_review_client_stops_before_clean_baseline_success(
+    tmp_path: Path,
+) -> None:
+    runner = _runner(
+        tmp_path,
+        mode=AcceptanceMode.HIGH_RISK,
+        reports=[_result()],
+        responses=[],
+        review_client=FakeReviewClient(_review(ReviewVerdict.PASS)),
+    )
+    runner._final_review_client = None
+
+    result = runner.run()
+
+    assert result.stop_reason is StopReason.CONFIG_ERROR
 
 
 def test_high_risk_review_rejection_restores_explicit_pre_final_best(tmp_path: Path) -> None:

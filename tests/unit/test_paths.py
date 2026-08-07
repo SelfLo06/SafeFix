@@ -46,6 +46,7 @@ def test_project_root_escape_is_denied(tmp_path: Path, relative: str):
         "src/secret/token.py",
         "cache/data.py",
         ".cache/data.py",
+        ".safefix/sessions/session/accepted/generated.py",
     ],
 )
 def test_hard_excluded_paths_are_not_readable_or_writable(tmp_path: Path, relative: str):
@@ -78,6 +79,26 @@ def test_missing_src_defaults_to_project_python_sources(tmp_path: Path):
     path.write_text("value = 1\n", encoding="utf-8")
 
     assert compute_writable_py_files(tmp_path, None, []) == {path.resolve()}
+
+
+def test_missing_src_default_excludes_safefix_internal_python_files(tmp_path: Path):
+    internal = tmp_path / ".safefix" / "sessions" / "session" / "accepted"
+    internal.mkdir(parents=True)
+    path = internal / "generated.py"
+    path.write_text("def test_generated():\n    assert True\n", encoding="utf-8")
+
+    assert path.resolve() not in compute_writable_py_files(tmp_path, None, [])
+
+
+def test_explicit_broad_allowed_path_excludes_safefix_internal_python_files(
+    tmp_path: Path,
+):
+    internal = tmp_path / ".safefix" / "sessions" / "session" / "accepted"
+    internal.mkdir(parents=True)
+    path = internal / "generated.py"
+    path.write_text("def test_generated():\n    assert True\n", encoding="utf-8")
+
+    assert path.resolve() not in compute_writable_py_files(tmp_path, ["."], [])
 
 
 def test_explicit_allowed_paths_replace_default_derivation(tmp_path: Path):

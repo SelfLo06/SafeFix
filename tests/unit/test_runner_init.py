@@ -356,6 +356,7 @@ def test_v02_runner_passes_role_clients_confirmation_and_audit_identities_to_set
         manifest_factory=manifest_from_entries,
         test_client=test_client,
         review_client=review_client,
+        final_review_client=review_client,
         approval=approval,
         high_risk_confirmation=True,
     )

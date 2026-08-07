@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from safefix.approval import ApprovalProvider
-from safefix.credentials import CredentialsResolver
+from safefix.credentials import CredentialError, CredentialsResolver
 from safefix.models import Config, ModelRole, SessionResult, StopReason
 
 
@@ -273,6 +273,74 @@ def test_toml_high_risk_requires_explicit_cli_opt_in_before_runner(
     assert runner_created is False
 
 
+def test_confirmed_high_risk_requires_review_configuration_before_runner(
+    tmp_path: Path,
+):
+    from safefix.cli import main
+
+    config = Config(
+        base_url="https://repair.example/v1",
+        model="repair-model",
+        acceptance_mode="high-risk",
+    )
+    runner_created = False
+
+    def runner_factory(_root: Path, **_kwargs: object) -> FakeRunner:
+        nonlocal runner_created
+        runner_created = True
+        return FakeRunner()
+
+    approval = ApprovalProvider(interactive=True, input_fn=lambda _prompt: "yes")
+    assert main(
+        ["run", str(tmp_path), "--plain", "--acceptance-mode", "high-risk"],
+        credentials_factory=FakeCredentials,
+        config_loader=lambda *_args, **_kwargs: config,
+        runner_factory=runner_factory,
+        client_factory=lambda **_kwargs: object(),
+        approval_factory=lambda: approval,
+        tty_detector=lambda _stream: True,
+    ) == 2
+    assert runner_created is False
+
+
+def test_confirmed_high_risk_requires_review_role_credential_before_runner(
+    tmp_path: Path,
+):
+    from safefix.cli import main
+
+    class MissingReviewCredentials(FakeCredentials):
+        def for_role(self, role: ModelRole) -> "MissingReviewCredentials":
+            if role is ModelRole.REVIEW:
+                raise CredentialError("review credential is missing")
+            return self
+
+    config = Config(
+        base_url="https://repair.example/v1",
+        model="repair-model",
+        review_base_url="https://review.example/v1",
+        review_model="review-model",
+        acceptance_mode="high-risk",
+    )
+    runner_created = False
+
+    def runner_factory(_root: Path, **_kwargs: object) -> FakeRunner:
+        nonlocal runner_created
+        runner_created = True
+        return FakeRunner()
+
+    approval = ApprovalProvider(interactive=True, input_fn=lambda _prompt: "yes")
+    assert main(
+        ["run", str(tmp_path), "--plain", "--acceptance-mode", "high-risk"],
+        credentials_factory=MissingReviewCredentials,
+        config_loader=lambda *_args, **_kwargs: config,
+        runner_factory=runner_factory,
+        client_factory=lambda **_kwargs: object(),
+        approval_factory=lambda: approval,
+        tty_detector=lambda _stream: True,
+    ) == 2
+    assert runner_created is False
+
+
 def test_cli_requires_high_risk_confirmation_and_passes_record_to_runner(
     tmp_path: Path,
 ) -> None:
@@ -281,6 +349,8 @@ def test_cli_requires_high_risk_confirmation_and_passes_record_to_runner(
     config = Config(
         base_url="https://repair.example/v1",
         model="repair-model",
+        review_base_url="https://review.example/v1",
+        review_model="review-model",
         acceptance_mode="high-risk",
     )
     seen: dict[str, object] = {}

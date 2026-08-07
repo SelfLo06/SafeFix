@@ -205,6 +205,12 @@ def _run_command(
             raise ConfigError(
                 "high-risk acceptance requires a capable interactive TTY"
             )
+        if resolved_high_risk and (
+            not config.review_base_url.strip() or not config.review_model.strip()
+        ):
+            raise ConfigError(
+                "high-risk acceptance requires Review Model configuration"
+            )
 
         api_key = credentials.for_role(ModelRole.REPAIR).get()
         client = client_factory(
