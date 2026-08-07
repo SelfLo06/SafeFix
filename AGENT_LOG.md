@@ -3122,3 +3122,5 @@
   fakes and inspect observable contracts; artifacts remain free of spinner,
   ANSI, and prompt data. Generated wheel/sdist artifacts are excluded from
   version control.
+- Implementation commit: `4bfd9d1` — `test: close v0.2 mechanism and
+  distribution verification`.
