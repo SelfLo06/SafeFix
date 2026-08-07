@@ -2871,3 +2871,42 @@
   implementation.
 - Revised plan commit: `58e6fe6` — `docs: revise v0.2 implementation plan
   for console`.
+
+## v0.2 Task 13 — Rich + prompt_toolkit Guided Repair Console
+
+- Date: 2026-08-07. Skills used: using-superpowers; using-git-worktrees
+  (verified supplied linked worktree); subagent-driven-development (no callable
+  dispatch interface was available, so separate coordinator specification and
+  code-quality review passes were used); test-driven-development;
+  requesting-code-review; receiving-code-review; and
+  verification-before-completion. The finishing-branch integration decision is
+  externally managed and was not taken.
+- TDD red: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest
+  tests/unit/test_tui.py tests/unit/test_tui_presentation.py
+  tests/unit/test_tui_animation.py tests/unit/test_packaging.py -q` — expected
+  collection failure: `ModuleNotFoundError: No module named 'safefix.tui'`.
+  The terminal-close regression then failed as expected with unhandled
+  `OSError: terminal closed` before that input boundary was implemented.
+- TDD green: the same focused suite passed 13 tests. Related TUI/event/operator
+  /packaging regression passed 32 tests. Full regression command
+  `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests -q` passed
+  560 tests. `git diff --check` passed.
+- Dependencies: approved installation installed `prompt_toolkit 3.0.53`; Rich
+  14.2.0 was already installed. `pyproject.toml` declares exactly keyring plus
+  the required prompt_toolkit and Rich ranges, with no other runtime dependency.
+- Specification-compliance review: PASS. The runner worker receives a typed
+  event sink backed by a thread-safe queue; the UI renders only safe payload
+  summaries and submits only operator-queue lines. It has no direct Harness
+  authority over tools, models, shell, files, tests, baselines, F0, Guardrail,
+  pytest, or SUCCESS. Prompt-toolkit and Rich imports are confined to tui.py;
+  terminal capabilities, fallback, ASCII output, fake-tick animation, and safe
+  EOF/Ctrl-C/close stop requests are covered with fake boundaries.
+- Code-quality review: PASS. The adapter is small and presentation-only, has
+  no extra framework or dependency, no broad exception catch beyond the
+  terminal input boundary it owns, no fallback authority, no duplicated core
+  validation, and no real sleep. Tests exercise queue/render behavior rather
+  than Runner internals. The only deliberate test seam is setting the
+  console-active state to exercise deterministic interruption handling.
+- Scope: changed only Task 13 package, adapter, fake terminal, tests, and this
+  log. The pre-existing dirty SDD `progress.md` was preserved; v0.1.0 and the
+  SDD ledger were not modified.

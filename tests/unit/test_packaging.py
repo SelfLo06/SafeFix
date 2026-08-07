@@ -20,7 +20,11 @@ def test_pyproject_declares_package_and_cli() -> None:
     assert setuptools["package-dir"] == {"": "src"}
     assert setuptools["packages"]["find"]["where"] == ["src"]
     assert project["scripts"] == {"safefix": "safefix.cli:main"}
-    assert project["dependencies"] == ["keyring>=25"]
+    assert project["dependencies"] == [
+        "keyring>=25",
+        "prompt_toolkit>=3.0.43,<4",
+        "rich>=13.7.1,<15",
+    ]
     assert project["name"] == "safefix"
     assert project["version"] == "0.1.0"
     assert project["description"] == "A coding-agent harness for repairing pytest failures"
