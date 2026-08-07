@@ -3289,3 +3289,45 @@
 - Verification: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m
   compileall -q src` passed; `git diff --check` passed. Report:
   `whole-branch-fix-round-2-report.md`.
+- Implementation commit: `c85632d` — `fix: close whole-branch P1 specification
+  findings`.
+
+## Whole-branch P1 code-quality fix round 3
+
+- Date: 2026-08-07. Worktree: `.worktrees/safefix-v0.2`. Preserved the
+  pre-existing dirty plan-local `progress.md`, root `AGENT_LOG.md`, and root
+  `whole-branch-fix-round-2-report.md`; only this appended entry is staged.
+- Skills used: `using-superpowers`, `using-git-worktrees`,
+  `subagent-driven-development` (no callable dispatch interface was exposed,
+  so coordinator execution was used), `receiving-code-review`,
+  `test-driven-development`, `requesting-code-review`, and
+  `verification-before-completion`. The requested fresh `gpt-5.6-terra`
+  medium subagent was not callable in this environment.
+- Review reception: verified the finding against the approved Task 2 contract.
+  Unscoped `credentials set` stored only `safefix`, while production Repair
+  read only `safefix-repair`, so standard `run` could not consume the
+  authoritative default key.
+- TDD red: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest
+  tests/unit/test_cli.py::test_unscoped_credentials_set_supplies_repair_run_and_repair_role
+  tests/unit/test_credentials.py::test_role_credentials_are_isolated -q`
+  failed 2 tests: `--role repair` reported `not set` and Repair mapped to
+  `safefix-repair` rather than `safefix`.
+- TDD green: the same focused command passed 2 tests after mapping Repair to
+  the authoritative `safefix` service. Related CLI/credential/config/OpenAI
+  and terminal-fallback tests passed 85 tests; the full suite passed 593.
+- Fix: `role_service_name(ModelRole.REPAIR)` now resolves exactly `safefix`.
+  The unscoped credential command, `--role repair`, and production Repair
+  client consequently use one keyring service with no fallback. Test and
+  Review remain `safefix-test` and `safefix-review` and the configured-role
+  client test verifies their distinct keys.
+- Specification-compliance review: PASS. The implementation restores the
+  approved default Repair service, keeps keyring-only credentials, preserves
+  Test/Review isolation, and leaves the high-risk CLI sequencing unchanged.
+- Code-quality review: PASS. One role-map literal changes; no alternate
+  credential source, fallback branch, new abstraction, duplicated validation,
+  broad exception handling, dependency, or scope expansion was added. The
+  regression tests exercise the CLI boundary with a fake keyring.
+- Verification: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest
+  tests -q` passed 593; `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m
+  compileall -q src` passed; `git diff --check` passed. Report:
+  `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/whole-branch-fix-round-3-report.md`.

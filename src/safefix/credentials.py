@@ -8,7 +8,7 @@ _DEFAULT_KEYRING = object()
 
 _ROLE_SERVICES = {
     ModelRole.TEST: "safefix-test",
-    ModelRole.REPAIR: "safefix-repair",
+    ModelRole.REPAIR: "safefix",
     ModelRole.REVIEW: "safefix-review",
 }
 

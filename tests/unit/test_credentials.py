@@ -112,11 +112,11 @@ def test_programming_errors_are_not_wrapped_as_credential_errors() -> None:
 def test_role_credentials_are_isolated() -> None:
     keyring = FakeKeyring()
     CredentialsResolver(keyring, service_name="safefix-test").set("test-key")
-    CredentialsResolver(keyring, service_name="safefix-repair").set("repair-key")
+    CredentialsResolver(keyring, service_name="safefix").set("repair-key")
     CredentialsResolver(keyring, service_name="safefix-review").set("review-key")
 
     assert role_service_name(ModelRole.TEST) == "safefix-test"
-    assert role_service_name(ModelRole.REPAIR) == "safefix-repair"
+    assert role_service_name(ModelRole.REPAIR) == "safefix"
     assert role_service_name(ModelRole.REVIEW) == "safefix-review"
     assert CredentialsResolver(keyring, service_name=role_service_name(ModelRole.TEST)).get() == "test-key"
     assert CredentialsResolver(keyring, service_name=role_service_name(ModelRole.REPAIR)).get() == "repair-key"

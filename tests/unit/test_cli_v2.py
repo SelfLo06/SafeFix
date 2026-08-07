@@ -196,7 +196,7 @@ def test_cli_wires_configured_role_clients_and_review_adapter(tmp_path: Path) ->
 
     class Keyring:
         values = {
-            ("safefix-repair", "api_key"): "repair-secret",
+            ("safefix", "api_key"): "repair-secret",
             ("safefix-test", "api_key"): "test-secret",
             ("safefix-review", "api_key"): "review-secret",
         }
