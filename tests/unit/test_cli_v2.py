@@ -2,6 +2,8 @@ from pathlib import Path
 
 import pytest
 
+from safefix.approval import ApprovalProvider
+from safefix.credentials import CredentialsResolver
 from safefix.models import Config, SessionResult, StopReason
 
 
@@ -180,7 +182,92 @@ def test_non_tty_run_uses_fail_closed_approval_for_high_risk_work(tmp_path: Path
         ),
         client_factory=lambda **_kwargs: object(),
         approval_factory=approval_factory,
+    ) == 2
+
+    assert seen == {}
+
+
+def test_cli_wires_configured_role_clients_and_review_adapter(tmp_path: Path) -> None:
+    from safefix.cli import main
+    from safefix.review import ReviewModelClient
+
+    class Keyring:
+        values = {
+            ("safefix", "api_key"): "repair-secret",
+            ("safefix-test", "api_key"): "test-secret",
+            ("safefix-review", "api_key"): "review-secret",
+        }
+
+        def get_password(self, service: str, username: str) -> str | None:
+            return self.values.get((service, username))
+
+    credentials = CredentialsResolver(Keyring())
+    config = Config(
+        base_url="https://repair.example/v1",
+        model="repair-model",
+        generate_tests=True,
+        baseline_source="generated",
+        test_base_url="https://test.example/v1",
+        test_model="test-model",
+        review_base_url="https://review.example/v1",
+        review_model="review-model",
+    )
+    clients: list[dict[str, str]] = []
+    seen: dict[str, object] = {}
+
+    def client_factory(**kwargs: str) -> object:
+        clients.append(kwargs)
+        return kwargs
+
+    def runner_factory(_root: Path, **kwargs: object) -> FakeRunner:
+        seen.update(kwargs)
+        return FakeRunner()
+
+    assert main(
+        ["run", str(tmp_path), "--plain"],
+        credentials_factory=lambda: credentials,
+        config_loader=lambda *_args, **_kwargs: config,
+        runner_factory=runner_factory,
+        client_factory=client_factory,
     ) == 0
 
-    assert isinstance(seen["approval"], object)
-    assert seen["approval"].approve(object()) is False
+    assert [(item["base_url"], item["model"], item["api_key"]) for item in clients] == [
+        ("https://repair.example/v1", "repair-model", "repair-secret"),
+        ("https://test.example/v1", "test-model", "test-secret"),
+        ("https://review.example/v1", "review-model", "review-secret"),
+    ]
+    assert seen["llm_client"] is clients[0]
+    assert seen["test_client"] is clients[1]
+    assert isinstance(seen["review_client"], ReviewModelClient)
+    assert isinstance(seen["final_review_client"], ReviewModelClient)
+
+
+def test_cli_requires_high_risk_confirmation_and_passes_record_to_runner(
+    tmp_path: Path,
+) -> None:
+    from safefix.cli import main
+
+    config = Config(
+        base_url="https://repair.example/v1",
+        model="repair-model",
+        acceptance_mode="high-risk",
+    )
+    seen: dict[str, object] = {}
+
+    def runner_factory(_root: Path, **kwargs: object) -> FakeRunner:
+        seen.update(kwargs)
+        return FakeRunner()
+
+    approval = ApprovalProvider(interactive=True, input_fn=lambda _prompt: "yes")
+    assert main(
+        ["run", str(tmp_path), "--plain", "--acceptance-mode", "high-risk"],
+        credentials_factory=FakeCredentials,
+        config_loader=lambda *_args, **_kwargs: config,
+        runner_factory=runner_factory,
+        client_factory=lambda **kwargs: object(),
+        approval_factory=lambda: approval,
+        tty_detector=lambda _stream: True,
+    ) == 0
+
+    assert seen["high_risk_confirmation"] is True
+    assert seen["approval"] is approval

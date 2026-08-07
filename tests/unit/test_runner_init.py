@@ -294,6 +294,92 @@ def test_runner_accepts_v02_setup_factory_and_freezes_formal_f0(tmp_path: Path) 
     assert runner.state.repair_required is True
 
 
+def test_v02_runner_passes_role_clients_confirmation_and_audit_identities_to_setup(
+    tmp_path: Path,
+) -> None:
+    from safefix.models import AcceptanceMode, BaselineSource, Config
+    from safefix.session_setup import manifest_from_entries
+    from safefix.test_manifest import ManifestEntry
+    from safefix.testprep.service import PreparationResult, PreparationSummary
+    from safefix.runner import SessionRunner
+
+    _project(tmp_path)
+    (tmp_path / "tests").mkdir()
+    test_path = "tests/test_existing.py"
+    (tmp_path / test_path).write_text("def test_existing():\n    assert False\n", encoding="utf-8")
+    seen: dict[str, object] = {}
+
+    class Runner:
+        def __init__(self, target_paths: tuple[str, ...], allow_empty: bool) -> None:
+            self.target_paths = target_paths
+            self.allow_empty = allow_empty
+
+        def run(self) -> _TestRunResult:
+            if not self.target_paths:
+                return _TestRunResult(0, (), valid=True)
+            return _TestRunResult(
+                1,
+                (_TestCaseResult("tests.test_existing::test_existing", "tests.test_existing", "test_existing", "failed"),),
+                valid=True,
+            )
+
+        def collect_test_paths(self) -> tuple[str, ...]:
+            return (test_path,)
+
+    test_client = object()
+    review_client = object()
+    approval = object()
+
+    def preparation_factory(request):
+        seen["request"] = request
+        return PreparationResult(
+            (ManifestEntry(test_path, "0" * 64, BaselineSource.EXISTING),),
+            PreparationSummary(BaselineSource.EXISTING, existing_test_count=1),
+        )
+
+    runner = SessionRunner(
+        tmp_path,
+        credentials=FakeCredentials(),
+        test_runner_factory=lambda _root, _args, *, target_paths, allow_empty: Runner(
+            tuple(target_paths), allow_empty
+        ),
+        config_loader=lambda *_args, **_kwargs: Config(
+            base_url="https://repair.example/v1",
+            model="repair-model",
+            acceptance_mode=AcceptanceMode.HIGH_RISK,
+            test_base_url="https://test.example/v1",
+            test_model="test-model",
+            review_base_url="https://review.example/v1",
+            review_model="review-model",
+        ),
+        preparation_factory=preparation_factory,
+        manifest_factory=manifest_from_entries,
+        test_client=test_client,
+        review_client=review_client,
+        approval=approval,
+        high_risk_confirmation=True,
+    )
+
+    assert runner.initialize() is None
+    request = seen["request"]
+    assert request.test_client is test_client
+    assert request.review_client is review_client
+    assert request.approval_provider is approval
+    assert request.high_risk_confirmation is True
+    assert runner.state is not None
+    assert runner.state.test_model_identity == "test:https://test.example:test-model"
+    assert runner.state.repair_model_identity == "repair:https://repair.example:repair-model"
+    assert runner.state.review_model_identity == "review:https://review.example:review-model"
+    assert runner.state.high_risk_confirmation["confirmed"] is True
+    assert runner.state.high_risk_confirmation["summary"] == (
+        "explicit high-risk acceptance confirmed"
+    )
+    assert runner.state.high_risk_confirmation == {
+        "confirmed": True,
+        "summary": "explicit high-risk acceptance confirmed",
+    }
+
+
 def test_v02_runner_factory_uses_frozen_targets_for_formal_and_evaluation(
     tmp_path: Path,
 ) -> None:

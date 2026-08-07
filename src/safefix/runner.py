@@ -24,6 +24,7 @@ from .models import (
     FailureSet,
     Feedback,
     GuardDecision,
+    ModelRole,
     Phase,
     ReviewVerdict,
     SessionResult,
@@ -67,6 +68,8 @@ class SessionRunner:
         config_loader: Callable[..., Config] = load_config,
         test_runner_factory: TestRunnerFactory = TestRunner,
         llm_client: LLMClient | None = None,
+        test_client: object | None = None,
+        review_client: ReviewClient | None = None,
         guardrail: Guardrail | None = None,
         approval: ApprovalProvider | None = None,
         event_sink: Callable[[str], None] | EventSink | None = None,
@@ -77,6 +80,7 @@ class SessionRunner:
         manifest_factory: object | None = None,
         final_review_client: ReviewClient | None = None,
         final_review_service: FinalReviewService | None = None,
+        high_risk_confirmation: bool | None = None,
     ) -> None:
         self.project_root = Path(project_root).resolve()
         self._cli_overrides = {} if cli_overrides is None else cli_overrides
@@ -84,6 +88,8 @@ class SessionRunner:
         self._config_loader = config_loader
         self._test_runner_factory = test_runner_factory
         self._llm_client = llm_client
+        self._test_client = test_client
+        self._review_client = review_client
         self._guardrail = guardrail
         self._approval = approval or ApprovalProvider()
         self._event_sink = event_sink
@@ -100,6 +106,7 @@ class SessionRunner:
         self._manifest_factory = manifest_factory
         self._final_review_client = final_review_client
         self._final_review_service = final_review_service or FinalReviewService()
+        self._high_risk_confirmation = high_risk_confirmation
         self._setup_selected = (
             self._test_runner_factory is TestRunner
             or self._preparation_factory is not None
@@ -140,6 +147,10 @@ class SessionRunner:
             self._test_runner_factory,
             self._preparation_factory or TestPreparationService,
             self._manifest_factory or manifest_from_entries,
+            test_client=self._test_client,
+            review_client=self._review_client,
+            approval_provider=self._approval,
+            high_risk_confirmation=self._high_risk_confirmation,
         )
         result = setup.prepare()
         self.config = result.config
@@ -148,9 +159,27 @@ class SessionRunner:
         if result.baseline is not None and result.config is not None:
             self.state = SessionState(
                 FailureSet(result.baseline.failure_ids),
+                test_model_identity=(
+                    result.config.role_config(ModelRole.TEST)
+                    if result.config.test_base_url.strip() and result.config.test_model.strip()
+                    else None
+                ),
+                repair_model_identity=result.config.role_config(ModelRole.REPAIR),
+                review_model_identity=(
+                    result.config.role_config(ModelRole.REVIEW)
+                    if result.config.review_base_url.strip() and result.config.review_model.strip()
+                    else None
+                ),
                 acceptance_mode=result.config.acceptance_mode,
                 repair_required=bool(result.baseline.failure_ids),
             )
+            if self._high_risk_confirmation is True:
+                self.state.set_high_risk_confirmation(
+                    {
+                        "confirmed": True,
+                        "summary": "explicit high-risk acceptance confirmed",
+                    }
+                )
             if result.manifest is not None and result.preparation_summary is not None:
                 self.state.set_preparation(result.preparation_summary, result.manifest)
         if result.early_stop is not None:

@@ -13,7 +13,15 @@ from .config import ConfigError, load_config
 from .credentials import CredentialError, CredentialsResolver
 from .llm.openai_compatible import OpenAICompatibleClient
 from .llm.roles import UrllibHTTPTransport
-from .models import Config, ModelRole, StopReason, exit_code_for_stop_reason
+from .models import (
+    Config,
+    BaselineSource,
+    HighRiskConfirmation,
+    ModelRole,
+    StopReason,
+    exit_code_for_stop_reason,
+)
+from .review import ReviewModelClient
 from .runner import SessionRunner
 
 
@@ -192,6 +200,27 @@ def _run_command(
             model=config.model,
             api_key=api_key,
         )
+        test_client = None
+        if config.generate_tests and BaselineSource(config.baseline_source) in {
+            BaselineSource.GENERATED,
+            BaselineSource.MIXED,
+        }:
+            test_client = client_factory(
+                base_url=config.test_base_url,
+                model=config.test_model,
+                api_key=credentials.for_role(ModelRole.TEST).get(),
+            )
+        review_client = None
+        final_review_client = None
+        if config.review_base_url.strip() and config.review_model.strip():
+            review_client = ReviewModelClient(
+                client_factory(
+                    base_url=config.review_base_url,
+                    model=config.review_model,
+                    api_key=credentials.for_role(ModelRole.REVIEW).get(),
+                )
+            )
+            final_review_client = review_client
     except (ConfigError, CredentialError) as exc:
         exit_code = EXIT_CODES[StopReason.CONFIG_ERROR]
         print(f"SafeFix configuration error: {exc} (exit code {exit_code})")
@@ -207,6 +236,22 @@ def _run_command(
         if args.non_interactive or not capable_tty
         else approval_factory()
     )
+    high_risk_confirmation = None
+    if overrides.get("acceptance_mode") == "high-risk":
+        if not approval.approve(
+            HighRiskConfirmation(
+                confirmed=True,
+                source="cli",
+                summary="explicit --acceptance-mode high-risk confirmation",
+            )
+        ):
+            exit_code = EXIT_CODES[StopReason.CONFIG_ERROR]
+            print(
+                "SafeFix configuration error: high-risk acceptance requires interactive confirmation "
+                f"(exit code {exit_code})"
+            )
+            return exit_code
+        high_risk_confirmation = True
 
     def make_runner(event_sink: object, command_queue: object | None = None) -> SessionRunner:
         return runner_factory(
@@ -215,10 +260,14 @@ def _run_command(
             credentials=_CachedCredentials(api_key),
             config_loader=cached_config_loader,
             llm_client=client,
+            test_client=test_client,
+            review_client=review_client,
+            final_review_client=final_review_client,
             event_sink=event_sink,
             operator_queue=command_queue,
             use_memory=args.use_memory,
             approval=approval,
+            high_risk_confirmation=high_risk_confirmation,
         )
 
     use_tui = not args.plain and capable_tty
