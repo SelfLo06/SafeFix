@@ -55,4 +55,4 @@ scope expansion or production change was needed.
 
 ## Commit
 
-Pending final focused/full verification and commit.
+- `6390e92` `test: cover Task 14 presentation regressions`

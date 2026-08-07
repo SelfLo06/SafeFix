@@ -3077,3 +3077,5 @@
   introduced. A plain subprocess path was not added because a real run needs
   configuration and credentials; the required help path is deterministic and
   directly proves import laziness.
+- Implementation commit: `6390e92` — `test: cover Task 14 presentation
+  regressions`.
