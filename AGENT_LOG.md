@@ -2869,3 +2869,5 @@
 - Production tests were not run because this is plan-only work. The revised
   plan requires focused/full tests and build/fresh-install smoke checks during
   implementation.
+- Revised plan commit: `58e6fe6` — `docs: revise v0.2 implementation plan
+  for console`.
