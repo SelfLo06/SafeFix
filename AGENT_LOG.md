@@ -3250,3 +3250,42 @@
 - Implementation commit: `8a3722f` — `fix: wire v0.2 role clients through cli`.
 - Evidence/log commit: `3075679` — `docs: record whole-branch P1 fix evidence`.
 - Report: `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/whole-branch-fix-round-1-report.md`.
+
+## Whole-branch P1 specification fix round 2
+
+- Date: 2026-08-07. Worktree: `.worktrees/safefix-v0.2`. Preserved the
+  pre-existing dirty plan-local `progress.md`, `PLAN.md`, `SPEC.md`, and the
+  immutable `v0.1.0` tag.
+- Skills used: `using-superpowers`, `using-git-worktrees`,
+  `subagent-driven-development` (no callable dispatch interface was exposed,
+  so coordinator execution was used), `systematic-debugging`,
+  `test-driven-development`, `requesting-code-review`,
+  `receiving-code-review`, and `verification-before-completion`.
+- Root cause investigation: production Repair lookup used the legacy
+  `credentials.get()` service while Test/Review used role resolvers; the
+  high-risk check inspected only CLI overrides, allowing TOML high-risk to
+  reach Runner construction.
+- TDD red: the new role-keyring test failed because `safefix` was read instead
+  of `safefix-repair`; the TOML high-risk test returned success and constructed
+  Runner. A full-suite run additionally exposed four mechanism fakes lacking
+  the role resolver interface.
+- TDD green: focused CLI/credential/OpenAI tests passed 34; terminal mechanism
+  tests passed 4; full suite passed 592.
+- Fix: production Repair reads only
+  `credentials.for_role(ModelRole.REPAIR)`, which resolves `safefix-repair`.
+  After config resolution, resolved HIGH_RISK requires the exact
+  `--acceptance-mode high-risk` CLI opt-in; explicit high-risk requires a
+  capable interactive TTY before client/Runner construction and still needs
+  the existing approval confirmation. No credential fallback was added.
+- Tests: production CLI coverage now uses role-scoped Repair/Test/Review fake
+  keyring entries, verifies real TOML high-risk rejection before Runner, and
+  retains explicit non-TTY rejection coverage. Mechanism credential fakes now
+  implement the role-scoped seam.
+- Specification-compliance review: PASS. The two requested P1 findings are
+  addressed; ordinary standard/review and existing-only paths remain unchanged.
+- Code-quality review: PASS. No unnecessary abstraction, duplicated
+  validation, broad exception handling, speculative fallback, dead code, or
+  scope expansion found.
+- Verification: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m
+  compileall -q src` passed; `git diff --check` passed. Report:
+  `whole-branch-fix-round-2-report.md`.

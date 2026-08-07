@@ -14,6 +14,7 @@ from .credentials import CredentialError, CredentialsResolver
 from .llm.openai_compatible import OpenAICompatibleClient
 from .llm.roles import UrllibHTTPTransport
 from .models import (
+    AcceptanceMode,
     Config,
     BaselineSource,
     HighRiskConfirmation,
@@ -194,7 +195,18 @@ def _run_command(
     capable_tty = tty_detector(sys.stdin) and tty_detector(sys.stdout)
     try:
         config = config_loader(project_root, overrides, require_llm=True)
-        api_key = credentials.get()
+        resolved_high_risk = (
+            AcceptanceMode(config.acceptance_mode) is AcceptanceMode.HIGH_RISK
+        )
+        explicit_high_risk = args.acceptance_mode == AcceptanceMode.HIGH_RISK.value
+        if resolved_high_risk and not explicit_high_risk:
+            raise ConfigError("high-risk acceptance requires explicit CLI opt-in")
+        if explicit_high_risk and (args.non_interactive or not capable_tty):
+            raise ConfigError(
+                "high-risk acceptance requires a capable interactive TTY"
+            )
+
+        api_key = credentials.for_role(ModelRole.REPAIR).get()
         client = client_factory(
             base_url=config.base_url,
             model=config.model,
@@ -237,7 +249,7 @@ def _run_command(
         else approval_factory()
     )
     high_risk_confirmation = None
-    if overrides.get("acceptance_mode") == "high-risk":
+    if args.acceptance_mode == AcceptanceMode.HIGH_RISK.value:
         if not approval.approve(
             HighRiskConfirmation(
                 confirmed=True,

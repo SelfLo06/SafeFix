@@ -7,7 +7,7 @@ from unicodedata import category
 from safefix.artifacts import ArtifactWriter
 from safefix.cli import main
 from safefix.events import SessionEvent
-from safefix.models import Config, FailureSet, Phase, SessionResult, StopReason
+from safefix.models import Config, FailureSet, ModelRole, Phase, SessionResult, StopReason
 from safefix.session_state import SessionState
 from tests.fixtures.tui.fake_terminal import FakeConsole, FakeTickSource
 
@@ -25,6 +25,9 @@ class FakeTerminal(io.StringIO):
 class _Credentials:
     def get(self) -> str:
         return "offline-test-key"
+
+    def for_role(self, _role: ModelRole) -> "_Credentials":
+        return self
 
 
 class StatefulArtifactRunner:

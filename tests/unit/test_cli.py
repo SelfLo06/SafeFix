@@ -5,6 +5,7 @@ import pytest
 from safefix.approval import ApprovalProvider
 from safefix.models import Config, SessionResult, StopReason
 from safefix.credentials import CredentialsResolver
+from safefix.models import ModelRole
 
 
 class FakeKeyring:
@@ -37,6 +38,9 @@ class FakeCredentials:
     def get(self) -> str:
         assert self.value is not None
         return self.value
+
+    def for_role(self, _role: ModelRole) -> "FakeCredentials":
+        return self
 
 
 class FakeRunner:

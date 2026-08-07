@@ -4,12 +4,15 @@ import pytest
 
 from safefix.approval import ApprovalProvider
 from safefix.credentials import CredentialsResolver
-from safefix.models import Config, SessionResult, StopReason
+from safefix.models import Config, ModelRole, SessionResult, StopReason
 
 
 class FakeCredentials:
     def get(self) -> str:
         return "stored-test-key"
+
+    def for_role(self, _role: ModelRole) -> "FakeCredentials":
+        return self
 
 
 class FakeRunner:
@@ -193,7 +196,7 @@ def test_cli_wires_configured_role_clients_and_review_adapter(tmp_path: Path) ->
 
     class Keyring:
         values = {
-            ("safefix", "api_key"): "repair-secret",
+            ("safefix-repair", "api_key"): "repair-secret",
             ("safefix-test", "api_key"): "test-secret",
             ("safefix-review", "api_key"): "review-secret",
         }
@@ -240,6 +243,34 @@ def test_cli_wires_configured_role_clients_and_review_adapter(tmp_path: Path) ->
     assert seen["test_client"] is clients[1]
     assert isinstance(seen["review_client"], ReviewModelClient)
     assert isinstance(seen["final_review_client"], ReviewModelClient)
+
+
+def test_toml_high_risk_requires_explicit_cli_opt_in_before_runner(
+    tmp_path: Path,
+) -> None:
+    from safefix.cli import main
+
+    (tmp_path / "safefix.toml").write_text(
+        'base_url = "https://repair.example/v1"\n'
+        'model = "repair-model"\n'
+        'acceptance_mode = "high-risk"\n',
+        encoding="utf-8",
+    )
+    runner_created = False
+
+    def runner_factory(_root: Path, **_kwargs: object) -> FakeRunner:
+        nonlocal runner_created
+        runner_created = True
+        return FakeRunner()
+
+    assert main(
+        ["run", str(tmp_path), "--plain"],
+        credentials_factory=FakeCredentials,
+        runner_factory=runner_factory,
+        client_factory=lambda **_kwargs: object(),
+        tty_detector=lambda _stream: True,
+    ) == 2
+    assert runner_created is False
 
 
 def test_cli_requires_high_risk_confirmation_and_passes_record_to_runner(
