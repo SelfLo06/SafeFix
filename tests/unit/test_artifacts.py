@@ -1,4 +1,5 @@
 import json
+from unicodedata import category
 
 import pytest
 
@@ -23,6 +24,22 @@ from safefix.testprep import PreparationSummary
 
 def failures(*ids: str) -> FailureSet:
     return FailureSet(frozenset(ids))
+
+
+def artifact_strings(value: object) -> tuple[str, ...]:
+    if isinstance(value, dict):
+        return tuple(value) + tuple(
+            item for nested in value.values() for item in artifact_strings(nested)
+        )
+    if isinstance(value, list):
+        return tuple(item for nested in value for item in artifact_strings(nested))
+    if isinstance(value, str):
+        return (value,)
+    return ()
+
+
+def contains_control(text: str) -> bool:
+    return any(category(character) == "Cc" for character in text)
 
 
 def test_artifact_contains_counters_and_failure_diffs(tmp_path):
@@ -109,8 +126,14 @@ def test_artifact_written_for_stop_result(tmp_path):
     assert written_result.artifact_path == str(path)
     payload = json.loads(path.read_text(encoding="utf-8"))
     assert payload["stop_reason"] == "max_steps"
-    assert "presentation" not in payload
-    assert "prompt" not in json.dumps(payload)
+    assert payload["failure_sets"]["baseline"] == ["case-a"]
+    for text in artifact_strings(payload):
+        assert not contains_control(text)
+        assert "\x1b" not in text
+        assert not any(
+            identifier in text.casefold()
+            for identifier in ("prompt", "presentation", "transcript", "frame")
+        )
 
 
 def test_artifact_preserves_last_evaluation_after_best_restore(tmp_path):
