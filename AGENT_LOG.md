@@ -3364,3 +3364,55 @@
   defensive branch, dead code, dependency, or unrelated scope was added.
 - Report:
   `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/whole-branch-fix-round-4-report.md`.
+
+## Final whole-branch P1 fix round 5
+
+- Date: 2026-08-07. Worktree: `.worktrees/safefix-v0.2`. Preserved the
+  pre-existing dirty plan-local `progress.md` and root
+  `whole-branch-fix-round-2-report.md`; `v0.1.0^{}` remains
+  `4fc3d6bfd61ad6b4057de66abcf13605af3c2b9c`.
+- Skills used: `using-superpowers`, `using-git-worktrees`,
+  `subagent-driven-development` (no callable dispatch interface was exposed),
+  `receiving-code-review`, `test-driven-development`,
+  `requesting-code-review`, and `verification-before-completion`. The
+  requested fresh `gpt-5.6-terra` medium-only reviewer was not callable in
+  this environment; coordinator performed the two distinct scoped reviews.
+- Review reception/root cause: the final whole-branch P1 report showed that
+  `.safefix/sessions/.../accepted/*.py` was neither a hard-denied component
+  nor a test-named file, so no-`src` default discovery and `allowed_paths=["."]`
+  made it writable. It also showed that CLI accepted confirmed high-risk with
+  no Review configuration and the Runner treated a missing final Review client
+  as `SUCCESS`, including a clean baseline early return.
+- TDD red: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest
+  tests/unit/test_paths.py tests/unit/test_guardrail.py tests/unit/test_cli_v2.py
+  tests/unit/test_final_review.py -q` failed 6 assertions: `.safefix` was
+  readable/writable, appeared in both writable-set derivations, Guardrail
+  allowed the broad-scope patch, confirmed high-risk constructed Runner
+  without Review config, and a missing final client returned `SUCCESS`.
+  The later clean-baseline regression failed with `SUCCESS` before the final
+  checkpoint, proving the initialization gap.
+- TDD green: the initial focused command passed 64 tests, expanded focused
+  coverage passed 66 tests, and the final-review focused regression passed
+  8 tests. The final related command passed 133 tests; full suite passed 602.
+- Fix: `.safefix` is a centralized hard-denied internal directory, so all
+  normal path-policy consumers exclude it while `CandidateWorkspace` retains
+  its controlled pre-baseline writes. Confirmed high-risk CLI requires Review
+  endpoint/model before client or Runner construction; Review-role keyring
+  retrieval remains mandatory during review-client construction. Runner now
+  rejects high-risk sessions lacking endpoint/model or final Review client at
+  initialization, including clean baselines, with the final checkpoint keeping
+  a defensive non-success fallback. Standard mode retains its prior optional
+  final-review behavior and gates remain unchanged.
+- Specification-compliance review: PASS. Both final P1 invariants are covered
+  by no-`src`, explicit-broad-path, CLI configuration/credential, dirty-green,
+  and clean-baseline regressions. Artifact/session and Harness-controlled
+  generated-test workspace behavior are unchanged.
+- Code-quality review: PASS. The review found no unnecessary abstraction,
+  duplicated validation after consolidating the Runner predicate, broad
+  exception handling, speculative fallback, dead code, scope expansion, or
+  implementation-coupled assertions.
+- Verification: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest
+  tests -q` passed 602; `PYTHONDONTWRITEBYTECODE=1 python -m compileall -q
+  src tests` passed; `git diff --check` passed.
+- Implementation commit: `3d9c2e0` — `fix: close final whole-branch P1 findings`.
+- Report: `whole-branch-fix-round-5-report.md`.
