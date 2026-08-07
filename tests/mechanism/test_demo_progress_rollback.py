@@ -51,6 +51,10 @@ def test_better_same_worse_and_no_progress_are_deterministic(project: Path) -> N
         "worse",
         "same",
     ]
+    assert runner.state.U_best.ids == frozenset(
+        {"tests.app_tests::test_regression"}
+    )
+    assert runner.state.last_evaluated is not None
     assert (project / "src" / "app.py").read_text(encoding="utf-8") == (
         "value = 2\nregression = 1\nstable = 1\n"
     )

@@ -3079,3 +3079,46 @@
   directly proves import laziness.
 - Implementation commit: `6390e92` — `test: cover Task 14 presentation
   regressions`.
+
+### v0.2 Task 15 — end-to-end mechanism demonstrations and distribution closure
+
+- Date: 2026-08-07. Scope: offline mechanism demonstrations and final
+  distribution verification. The pre-existing dirty SDD `progress.md` and
+  `PLAN.md` are intentionally preserved and not staged. The immutable
+  `v0.1.0^{}` target remains `4fc3d6bfd61ad6b4057de66abcf13605af3c2b9c`.
+- Skills used: `using-superpowers`, `using-git-worktrees` (verified the
+  supplied linked worktree), `subagent-driven-development`,
+  `test-driven-development`, `requesting-code-review`, and
+  `verification-before-completion`. No callable subagent-dispatch interface
+  is exposed, so the required specification-compliance and code-quality
+  reviews were separate coordinator passes.
+- TDD red: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest
+  tests/mechanism -q` initially failed two new assertions. The failures showed
+  that their expected values contradicted the approved rollback contract: a
+  high-risk final-review rejection restores the checkpoint before the final
+  green candidate, and a worse result restores the existing best unresolved
+  set. The demonstration expectations were corrected; no production behavior
+  changed.
+- TDD green: the same mechanism command passed 12 tests. The focused fake-TTY
+  and plain fallback smoke command passed 4 tests. Full regression
+  `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests -q` passed
+  585 tests. The real serialized artifact check also confirmed the contract
+  value is lowercase `"success"`; no presentation-frame data is serialized.
+- Distribution evidence: `python -m build --wheel --sdist` produced
+  `safefix-0.1.0-py3-none-any.whl` and `safefix-0.1.0.tar.gz`. A newly created
+  `/tmp/safefix-v02-install` venv installed the actual wheel with
+  `PYTHONPATH` unset, and `/tmp/safefix-v02-install/bin/safefix --help`
+  returned the `run` and `credentials` CLI help.
+- Specification-compliance review: PASS. Mechanism tests cover F0 freezing,
+  mixed existing/generated manifest retention, candidate acceptance modes,
+  frozen preparation/no Test Model mutation, queued READY-only guidance,
+  better/same/worse rollback, standard/high-risk final review behavior,
+  TTY/no-animation authority, non-TTY plain fallback, and semantic-only
+  artifacts. Full suite, build, and fresh-install smoke provide the remaining
+  delivery evidence.
+- Code-quality review: PASS. The closure adds no production abstraction,
+  dependencies, terminal theme/plugin, shell/network path, broad exception
+  handling, fallback authority, or duplicate validation. Tests use local
+  fakes and inspect observable contracts; artifacts remain free of spinner,
+  ANSI, and prompt data. Generated wheel/sdist artifacts are excluded from
+  version control.

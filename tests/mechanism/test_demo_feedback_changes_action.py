@@ -50,4 +50,5 @@ def test_feedback_changes_the_next_scripted_action(project: Path) -> None:
         ToolName.APPLY_PATCH,
         ToolName.APPLY_PATCH,
     ]
+    assert runner.state.F0.ids == frozenset({"tests.app_tests::test_value"})
     assert (project / "src" / "app.py").read_text(encoding="utf-8") == "value = 2\n"

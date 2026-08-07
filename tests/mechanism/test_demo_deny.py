@@ -52,3 +52,4 @@ def test_demo_test_edit_is_permanently_denied(project: Path) -> None:
     assert runner.state.recent_guard_events[0][1] is GuardDecision.DENY
     assert runner.state.recent_tool_events[0][1].outcome == "denied"
     assert approval.calls == 0
+    assert runner.state.F0.ids == frozenset({"tests.app_tests::test_value"})
