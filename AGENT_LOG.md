@@ -3144,3 +3144,38 @@
   Reports: `task-15-spec-rereview-round-1.md` and
   `task-15-quality-rereview-round-1.md`.
 - Implementation commit: `4401eac` — `test: close Task 15 mechanism review findings`.
+
+### v0.2 Task 15 — scoped fix round 2
+
+- Date: 2026-08-07. Addressed only the failed final code-quality review
+  findings while preserving the dirty plan-local SDD `progress.md` and
+  `PLAN.md`. No production source, dependency, shell, network, credential, or
+  real-sleep behavior changed.
+- Skills used: `using-superpowers`, `using-git-worktrees`,
+  `subagent-driven-development`, `receiving-code-review`,
+  `test-driven-development`, `systematic-debugging`,
+  `requesting-code-review`, and `verification-before-completion`. No callable
+  subagent-dispatch interface is exposed, so the required independent
+  specification and quality reviews were separate coordinator passes.
+- TDD red: terminal mechanism assertions first failed for absent observed
+  CLI/session result fields, then for unconsumed fake prompt input, and then
+  for absent parsed artifact-field observations. Guidance and final-review
+  tests also failed for absent observed queue and artifact outcomes. A
+  test-driver event wait deadlocked the adapter; systematic debugging compared
+  the working immediate-controller TUI test pattern, removed only that wait,
+  and kept the real input/queue assertions.
+- TDD green: focused terminal, guidance, and final-review demonstrations
+  passed 6 tests. Related mechanism, artifact, and runner initialization tests
+  passed 41. Full regression `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python
+  -m pytest tests -q` passed 588 tests. `git diff --check` passed.
+- Specification-compliance review: PASS. TTY routing, non-TTY fallback,
+  `SessionResult`, queued guidance, acceptance mode, and semantic artifacts
+  are now observed from real injected CLI/TUI/session boundaries.
+- Code-quality review: PASS. The test-only changes add no production
+  abstraction, duplicated validation, broad exception handling, fallback,
+  dependency, or scope expansion. Same-run artifact checks reject an actual
+  ANSI escape byte and recursively reject prompt/presentation fields.
+- Report: plan-local
+  `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/task-15-fix-round-2-report.md`.
+- Implementation commit: `bdbb52d` — `test: strengthen Task 15 mechanism
+  evidence`.
