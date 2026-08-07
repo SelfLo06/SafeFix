@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import queue
+import threading
 
 from safefix.events import SessionEvent
 from safefix.models import Phase, SessionResult, StopReason
@@ -16,6 +17,26 @@ class FakeController:
 
     def run(self) -> SessionResult:
         return SessionResult(StopReason.REQUESTED)
+
+
+class PendingPrompt:
+    def __init__(self) -> None:
+        self.started = threading.Event()
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._pending: asyncio.Future[None] | None = None
+
+    async def prompt_async(self, _prompt: str) -> str:
+        self._loop = asyncio.get_running_loop()
+        self._pending = self._loop.create_future()
+        self.started.set()
+        await self._pending
+        raise EOFError
+
+    def release(self) -> None:
+        assert self._loop is not None
+        assert self._pending is not None
+        if not self._pending.done():
+            self._loop.call_soon_threadsafe(self._pending.set_result, None)
 
 
 def console_with_fake_prompt(responses: list[str], *, prompt: FakePromptSession | None = None) -> GuidedRepairConsole:
@@ -65,3 +86,63 @@ def test_terminal_close_queues_safe_stop_only_while_controller_is_active() -> No
     console._controller_active = True
     asyncio.run(console._read_input())
     assert console.command_queue.drain_ready_commands() == (OperatorCommand("stop"),)
+
+
+def test_console_drains_worker_events_while_prompt_is_pending() -> None:
+    rendered = threading.Event()
+    event = SessionEvent(1, "2026-08-07T00:00:00Z", Phase.READY, "guardrail", {"summary": "safe"})
+
+    class EventController:
+        def run(self) -> SessionResult:
+            sink.emit(event)
+            rendered.wait()
+            return SessionResult(StopReason.REQUESTED)
+
+    prompt = PendingPrompt()
+    command_queue = OperatorCommandQueue()
+    console_output = FakeConsole()
+    sink: TuiEventSink
+
+    def controller_factory(event_sink: TuiEventSink, _queue: OperatorCommandQueue) -> EventController:
+        nonlocal sink
+        sink = event_sink
+        return EventController()
+
+    console = GuidedRepairConsole(
+        command_queue,
+        controller_factory,
+        lambda: prompt,
+        console_output,
+        TerminalCapabilities(True, True, True, False),
+        FakeTickSource([]),
+    )
+
+    worker = threading.Thread(target=console.run, daemon=True)
+    worker.start()
+    assert prompt.started.wait(timeout=0.5)
+    try:
+        assert console_output.printed.wait(timeout=0.5)
+        assert console_output.lines[-1][0] == "[GUARD] ✓ safe"
+        rendered.set()
+    finally:
+        rendered.set()
+        prompt.release()
+        worker.join(timeout=1)
+
+
+def test_console_returns_when_runner_finishes_with_pending_prompt() -> None:
+    prompt = PendingPrompt()
+    console = console_with_fake_prompt([], prompt=prompt)
+
+    result: list[SessionResult] = []
+    worker = threading.Thread(target=lambda: result.append(console.run()), daemon=True)
+    worker.start()
+    assert prompt.started.wait(timeout=0.5)
+    try:
+        worker.join(timeout=0.5)
+        assert not worker.is_alive()
+    finally:
+        prompt.release()
+        worker.join(timeout=0.5)
+
+    assert result == [SessionResult(StopReason.REQUESTED)]

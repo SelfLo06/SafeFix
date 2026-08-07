@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import threading
+
 
 class FakeStream:
     def __init__(self, *, tty: bool) -> None:
@@ -24,10 +26,13 @@ class FakePromptSession:
 class FakeTickSource:
     def __init__(self, ticks: list[int]) -> None:
         self._ticks = iter(ticks)
+        self.ticks: list[int] = []
         self.sleep_calls = 0
 
     def next_tick(self) -> int:
-        return next(self._ticks)
+        tick = next(self._ticks)
+        self.ticks.append(tick)
+        return tick
 
     def sleep(self) -> None:
         self.sleep_calls += 1
@@ -36,6 +41,27 @@ class FakeTickSource:
 class FakeConsole:
     def __init__(self) -> None:
         self.lines: list[tuple[object, str | None]] = []
+        self.status_updates: list[object] = []
+        self.printed = threading.Event()
 
     def print(self, value: object, *, style: str | None = None) -> None:
         self.lines.append((value, style))
+        self.printed.set()
+
+    def status(self, value: object):
+        self.status_updates.append(value)
+        return _FakeStatus(self.status_updates)
+
+
+class _FakeStatus:
+    def __init__(self, updates: list[object]) -> None:
+        self._updates = updates
+
+    def __enter__(self) -> _FakeStatus:
+        return self
+
+    def __exit__(self, *_args: object) -> None:
+        return None
+
+    def update(self, value: object) -> None:
+        self._updates.append(value)

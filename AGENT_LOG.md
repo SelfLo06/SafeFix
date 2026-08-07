@@ -2913,3 +2913,48 @@
 - Implementation commit: `560704f` — `feat: add Rich prompt-toolkit repair
   console`. The companion implementer report is committed separately as a
   documentation artifact.
+
+### v0.2 Task 13 — fix round 1
+
+- Date: 2026-08-07. Scope is restricted to the failed Task 13 lifecycle and
+  presentation review findings. `PLAN.md` and the pre-existing dirty SDD
+  `progress.md` were not modified. No dependency or `pyproject.toml` change
+  was made; prompt_toolkit and Rich remain imported only by `src/safefix/tui.py`.
+- Skills used: `using-superpowers`, `using-git-worktrees` (verified the
+  supplied linked worktree), `subagent-driven-development`,
+  `systematic-debugging`, `test-driven-development`,
+  `receiving-code-review`, `requesting-code-review`, and
+  `verification-before-completion`. No callable subagent-dispatch capability
+  is available, so the required specification-compliance and code-quality
+  reviews were conducted as separate coordinator passes. The branch remains
+  externally managed, so `finishing-a-development-branch` was not invoked.
+- TDD red: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest
+  tests/unit/test_tui.py tests/unit/test_tui_presentation.py
+  tests/unit/test_tui_animation.py -q` — FAIL, 4 failures: worker events did
+  not render during pending input, a completed worker left the prompt blocked,
+  no current-phase header rendered, and running animation wrote permanent
+  frames instead of transient tick-driven updates.
+- TDD green: the same focused command passed 15 tests. Required related
+  regression `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest
+  tests/unit/test_tui.py tests/unit/test_tui_presentation.py
+  tests/unit/test_tui_animation.py tests/unit/test_events.py
+  tests/unit/test_operator.py tests/unit/test_packaging.py -q` passed 36
+  tests. Full regression `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m
+  pytest tests -q` passed 564 tests.
+- Implementation: `TuiEventSink` signals an asyncio-owned UI loop after queue
+  insertion. Under `patch_stdout`, the loop concurrently waits for input,
+  worker events, and worker completion; it drains through the single console
+  path and cancels a still-pending prompt when the Runner returns. Each event
+  renders a concise `Status: <phase>` header and one scrollback entry. Enabled
+  animation uses one Rich transient status whose frames are selected by fake
+  tick values; no production sleep was added.
+- Specification-compliance review: PASS. Both HIGH lifecycle defects and both
+  MEDIUM presentation gaps are covered by behavioral tests. The adapter still
+  submits only completed text to `OperatorCommandQueue`, has no Harness or
+  direct-action authority, consumes only `SessionEvent.safe_payload`, and
+  preserves the dependency direction.
+- Code-quality review: PASS. The change uses one notification seam at the
+  worker/UI boundary, avoids duplicated validation, broad exception handling,
+  fallback behavior, extra dependencies, dead code, and speculative
+  abstractions. Tests assert observable queue, lifecycle, and presentation
+  behavior with fake terminal boundaries.

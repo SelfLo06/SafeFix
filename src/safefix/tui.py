@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable, Mapping
+from contextlib import suppress
 from dataclasses import dataclass
 import queue
 import threading
@@ -45,11 +46,18 @@ def terminal_capabilities(
 class TuiEventSink:
     """Move already-sanitized runner events across the worker/UI boundary."""
 
-    def __init__(self, events: queue.Queue[SessionEvent]) -> None:
+    def __init__(
+        self,
+        events: queue.Queue[SessionEvent],
+        on_emit: Callable[[], None] | None = None,
+    ) -> None:
         self._events = events
+        self._on_emit = on_emit
 
     def emit(self, event: SessionEvent) -> None:
         self._events.put(event)
+        if self._on_emit is not None:
+            self._on_emit()
 
 
 @dataclass(frozen=True)
@@ -148,14 +156,22 @@ class GuidedRepairConsole:
             self.rendered_event_sequences.append(event.sequence)
             entry = render_event(event, self._capabilities)
             frames = animation_frames(event, self._capabilities)
-            for frame in frames:
-                if len(frames) > 1:
-                    self._tick_source.next_tick()
-                self._console.print(frame.text, style=entry.style)
+            self._console.print(f"Status: {event.phase.value}", style="bold")
+            if len(frames) > 1:
+                first_tick = self._tick_source.next_tick()
+                with self._console.status(frames[int(first_tick) % len(frames)].text) as status:
+                    for _ in range(len(frames) - 1):
+                        tick = self._tick_source.next_tick()
+                        status.update(frames[int(tick) % len(frames)].text)
+            self._console.print(entry.text, style=entry.style)
 
     def run(self) -> SessionResult:
-        sink = TuiEventSink(self._events)
-        controller = self._controller_factory(sink, self.command_queue)
+        if self._capabilities.interactive:
+            return asyncio.run(self._run_interactive())
+        return self._run_without_input()
+
+    def _run_without_input(self) -> SessionResult:
+        controller = self._controller_factory(TuiEventSink(self._events), self.command_queue)
 
         def run_controller() -> None:
             self._controller_active = True
@@ -166,16 +182,67 @@ class GuidedRepairConsole:
 
         worker = threading.Thread(target=run_controller, name="safefix-runner")
         worker.start()
-        if self._capabilities.interactive:
-            with patch_stdout(raw=True):
-                asyncio.run(self._read_input())
         worker.join()
         self.drain_events_once()
         assert self._result is not None
         return self._result
 
-    async def _read_input(self) -> None:
-        prompt = self._input_factory()
+    async def _run_interactive(self) -> SessionResult:
+        loop = asyncio.get_running_loop()
+        event_ready = asyncio.Event()
+        controller_finished = asyncio.Event()
+
+        def notify_event() -> None:
+            loop.call_soon_threadsafe(event_ready.set)
+
+        controller = self._controller_factory(
+            TuiEventSink(self._events, notify_event), self.command_queue
+        )
+
+        def run_controller() -> None:
+            self._controller_active = True
+            try:
+                self._result = controller.run()
+            finally:
+                self._controller_active = False
+                loop.call_soon_threadsafe(controller_finished.set)
+
+        worker = threading.Thread(target=run_controller, name="safefix-runner")
+        with patch_stdout(raw=True):
+            worker.start()
+            input_task: asyncio.Task[None] | None = asyncio.create_task(self._read_input())
+            event_task = asyncio.create_task(event_ready.wait())
+            finished_task = asyncio.create_task(controller_finished.wait())
+            try:
+                while not finished_task.done():
+                    waiting: set[asyncio.Task[None]] = {event_task, finished_task}
+                    if input_task is not None:
+                        waiting.add(input_task)
+                    done, _pending = await asyncio.wait(
+                        waiting, return_when=asyncio.FIRST_COMPLETED
+                    )
+                    if event_task in done:
+                        event_ready.clear()
+                        self.drain_events_once()
+                        event_task = asyncio.create_task(event_ready.wait())
+                    if input_task is not None and input_task in done:
+                        input_task = None
+                self.drain_events_once()
+            finally:
+                event_task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await event_task
+                if input_task is not None:
+                    input_task.cancel()
+                    with suppress(asyncio.CancelledError):
+                        await input_task
+
+        worker.join()
+        assert self._result is not None
+        return self._result
+
+    async def _read_input(self, prompt: PromptSession | None = None) -> None:
+        prompt = prompt or self._input_factory()
         while True:
             try:
                 line = await prompt.prompt_async("safefix> ")

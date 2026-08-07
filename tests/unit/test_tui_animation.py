@@ -37,3 +37,23 @@ def test_disabled_animation_renders_only_a_final_frame() -> None:
     frames = animation_frames(_event(1, "pytest running", status="running"), TerminalCapabilities(True, True, True, False))
     assert len(frames) == 1
     assert "pytest running" in frames[0].text
+
+
+def test_enabled_animation_updates_transient_status_once_per_tick() -> None:
+    ticks = FakeTickSource([0, 1, 2])
+    console_output = FakeConsole()
+    console = GuidedRepairConsole(
+        OperatorCommandQueue(),
+        lambda _sink, _queue: FakeController(),
+        FakePromptSession,
+        console_output,
+        TerminalCapabilities(True, True, True, True),
+        ticks,
+    )
+    console.publish(_event(1, "pytest running", status="running"))
+
+    console.drain_events_once()
+
+    assert ticks.ticks == [0, 1, 2]
+    assert console_output.status_updates == ["[TEST] pytest running.", "[TEST] pytest running..", "[TEST] pytest running..."]
+    assert [line for line, _style in console_output.lines if "pytest running" in str(line)] == ["[TEST] pytest running"]

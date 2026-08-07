@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from safefix.events import SessionEvent
 from safefix.models import Phase
-from safefix.tui import TerminalCapabilities, render_event, terminal_capabilities
-from tests.fixtures.tui.fake_terminal import FakeStream
+from safefix.operator import OperatorCommandQueue
+from safefix.tui import GuidedRepairConsole, TerminalCapabilities, render_event, terminal_capabilities
+from tests.fixtures.tui.fake_terminal import FakeConsole, FakePromptSession, FakeStream, FakeTickSource
 
 
 def test_terminal_capabilities_disable_animation_without_tty_or_with_no_animation() -> None:
@@ -31,3 +32,20 @@ def test_transcript_renderer_uses_unicode_marker_when_supported() -> None:
     event = SessionEvent(2, "2026-08-07T00:00:00Z", Phase.READY, "guardrail", {"summary": "safe"})
     entry = render_event(event, TerminalCapabilities(True, True, True, False))
     assert entry.text.startswith("[GUARD] ✓")
+
+
+def test_console_renders_concise_current_phase_header() -> None:
+    console_output = FakeConsole()
+    console = GuidedRepairConsole(
+        OperatorCommandQueue(),
+        lambda _sink, _queue: None,
+        FakePromptSession,
+        console_output,
+        TerminalCapabilities(True, True, True, False),
+        FakeTickSource([]),
+    )
+    console.publish(SessionEvent(3, "2026-08-07T00:00:00Z", Phase.EVALUATE, "pytest", {"summary": "running"}))
+
+    console.drain_events_once()
+
+    assert console_output.lines[0] == ("Status: evaluate", "bold")
