@@ -2850,3 +2850,22 @@
   deterministic tests, packaging verification, and interrupted Task 13 state.
 - Design revision commit: `838a57c` — `docs: revise v0.2 guided console
   design`.
+
+### v0.2 implementation plan revision — Rich + prompt_toolkit console
+
+- Date: 2026-08-07. Design gate was approved. Skill used:
+  superpowers:writing-plans. Only the existing v0.2 implementation plan and
+  this log were modified; no production code, test, dependency, package,
+  README, root PLAN.md, Task 13 file, or SDD ledger status was changed.
+- The plan preserves Task 1–12 evidence and rewrites only Task 13–15. Task 13
+  replaces the paused stdlib-only brief with a fresh prompt_toolkit + Rich
+  adapter task and explicit dependency ranges. Task 14 owns CLI --tui,
+  --plain, and --no-animation routing plus README. Task 15 owns mechanism,
+  wheel/sdist, fresh-install, CLI-help, fake-TTY, and non-TTY smoke closure.
+- Plan self-review passed: all revised design rules map to Tasks 13–15 and the
+  verification matrix; no unresolved marker/placeholder, stdlib/dependency
+  contradiction, unsupported TUI framework, extra dependency, test
+  nondeterminism, or unbounded Task 13 recovery assumption remains.
+- Production tests were not run because this is plan-only work. The revised
+  plan requires focused/full tests and build/fresh-install smoke checks during
+  implementation.
