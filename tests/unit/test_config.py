@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 
 from safefix.config import ConfigError, load_config
+from safefix.credentials import role_service_name
 from safefix.models import AcceptanceMode, BaselineSource, ModelRole
 
 
@@ -45,7 +46,7 @@ def test_generated_only_is_a_valid_config_value(tmp_path: Path):
     assert config.baseline_source is BaselineSource.GENERATED
 
 
-def test_role_configs_use_repair_alias_and_fixed_services(tmp_path: Path):
+def test_role_configs_match_authoritative_keyring_services(tmp_path: Path):
     config = load_config(
         tmp_path,
         {
@@ -58,24 +59,17 @@ def test_role_configs_use_repair_alias_and_fixed_services(tmp_path: Path):
         },
     )
 
-    repair = config.role_config(ModelRole.REPAIR)
-    test = config.role_config(ModelRole.TEST)
-    review = config.role_config(ModelRole.REVIEW)
-    assert (repair.base_url, repair.model, repair.keyring_service) == (
-        "https://repair.example/v1",
-        "repair-model",
-        "safefix-repair",
-    )
-    assert (test.base_url, test.model, test.keyring_service) == (
-        "https://test.example/v1",
-        "test-model",
-        "safefix-test",
-    )
-    assert (review.base_url, review.model, review.keyring_service) == (
-        "https://review.example/v1",
-        "review-model",
-        "safefix-review",
-    )
+    expected_endpoints = {
+        ModelRole.REPAIR: ("https://repair.example/v1", "repair-model"),
+        ModelRole.TEST: ("https://test.example/v1", "test-model"),
+        ModelRole.REVIEW: ("https://review.example/v1", "review-model"),
+    }
+
+    for role, endpoint in expected_endpoints.items():
+        role_config = config.role_config(role)
+
+        assert (role_config.base_url, role_config.model) == endpoint
+        assert role_config.keyring_service == role_service_name(role)
 
 
 @pytest.mark.parametrize("key", ["stability_runs", "max_auto_accepted_failures"])

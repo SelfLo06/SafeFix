@@ -3331,3 +3331,36 @@
   tests -q` passed 593; `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m
   compileall -q src` passed; `git diff --check` passed. Report:
   `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/whole-branch-fix-round-3-report.md`.
+
+## Whole-branch P1 code-quality fix round 4
+
+- Date: 2026-08-07. Worktree: `.worktrees/safefix-v0.2`. Preserved the
+  pre-existing dirty plan-local `progress.md` and root
+  `whole-branch-fix-round-2-report.md`; `v0.1.0^{}` remains
+  `4fc3d6bfd61ad6b4057de66abcf13605af3c2b9c`.
+- Skills used: `using-superpowers`, `using-git-worktrees`,
+  `subagent-driven-development` (no callable subagent-dispatch interface was
+  exposed), `receiving-code-review`, `test-driven-development`,
+  `requesting-code-review`, and `verification-before-completion`. The
+  requested fresh `gpt-5.6-terra` medium subagent could not be dispatched.
+- Review reception: verified the round-3 P1 finding. `CredentialsResolver`
+  and CLI already used Repair service `safefix`, while `Config.role_config()`
+  separately declared `safefix-repair` for its Repair `ModelRoleConfig`.
+- TDD red: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest -p
+  no:cacheprovider tests/unit/test_config.py::test_role_configs_match_authoritative_keyring_services
+  -q` failed because Repair returned `safefix-repair` instead of `safefix`.
+- TDD green: the same focused command passed after moving the one
+  `role_service_name` mapping alongside `ModelRole`, importing it through
+  `credentials`, and deriving every `Config.role_config()` service from it.
+  The regression asserts consistency for Test, Repair, and Review while
+  retaining their endpoint/model behavior assertions.
+- Verification: related config/credential/CLI/client/terminal command passed
+  85 tests; full suite passed 593; compileall and `git diff --check` passed.
+- Specification-compliance review: PASS. Repair config and CLI/credential
+  resolution now share the same authoritative mapping and produce `safefix`;
+  Test and Review remain isolated; no fallback was introduced.
+- Code-quality review: PASS. The cyclic dependency risk is avoided by placing
+  role-owned service data with `ModelRole`; no duplicate mapping, broad catch,
+  defensive branch, dead code, dependency, or unrelated scope was added.
+- Report:
+  `.superpowers/sdd/2026-08-06-safefix-v0.2-implementation-plan/whole-branch-fix-round-4-report.md`.

@@ -8,6 +8,18 @@ class ModelRole(str, Enum):
     REVIEW = "review"
 
 
+_ROLE_SERVICES = {
+    ModelRole.TEST: "safefix-test",
+    ModelRole.REPAIR: "safefix",
+    ModelRole.REVIEW: "safefix-review",
+}
+
+
+def role_service_name(role: ModelRole) -> str:
+    """Return the fixed keyring service for a model role."""
+    return _ROLE_SERVICES[ModelRole(role)]
+
+
 class BaselineSource(str, Enum):
     EXISTING = "existing"
     GENERATED = "generated"
@@ -176,16 +188,16 @@ class Config:
     def role_config(self, role: ModelRole) -> ModelRoleConfig:
         role = ModelRole(role)
         if role is ModelRole.TEST:
-            base_url, model, service = self.test_base_url, self.test_model, "safefix-test"
+            base_url, model = self.test_base_url, self.test_model
         elif role is ModelRole.REPAIR:
-            base_url, model, service = self.base_url, self.model, "safefix-repair"
+            base_url, model = self.base_url, self.model
         else:
-            base_url, model, service = self.review_base_url, self.review_model, "safefix-review"
+            base_url, model = self.review_base_url, self.review_model
         return ModelRoleConfig(
             role=role,
             base_url=base_url,
             model=model,
-            keyring_service=service,
+            keyring_service=role_service_name(role),
         )
 
 

@@ -2,20 +2,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from .models import ModelRole
+from .models import ModelRole, role_service_name
 
 _DEFAULT_KEYRING = object()
-
-_ROLE_SERVICES = {
-    ModelRole.TEST: "safefix-test",
-    ModelRole.REPAIR: "safefix",
-    ModelRole.REVIEW: "safefix-review",
-}
-
-
-def role_service_name(role: ModelRole) -> str:
-    """Return the fixed keyring service for a model role."""
-    return _ROLE_SERVICES[ModelRole(role)]
 
 
 class CredentialError(RuntimeError):
