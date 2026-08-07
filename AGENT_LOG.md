@@ -3466,3 +3466,50 @@
   `python -m build --wheel --sdist --no-isolation --outdir
   /tmp/safefix-v0.2-dist` built `safefix-0.2.0-py3-none-any.whl` and
   `safefix-0.2.0.tar.gz`; scoped `git diff --check` passed.
+
+## Final whole-branch P1 fix round 7
+
+- Date: 2026-08-08. Worktree: `.worktrees/safefix-v0.2`. Preserved the
+  pre-existing dirty plan-local `progress.md`, root
+  `whole-branch-fix-round-2-report.md`, and untracked
+  `whole-branch-fix-round-5-quality-review.md`; none are staged. No v0.1.0
+  tag or history was rewritten.
+- Skills used: `using-superpowers`, `using-git-worktrees`,
+  `subagent-driven-development` (no callable dispatch interface was exposed),
+  `receiving-code-review`, `systematic-debugging`,
+  `test-driven-development`, `requesting-code-review`, and
+  `verification-before-completion`. No callable fresh reviewer-subagent was
+  available, so specification-compliance and code-quality reviews were
+  performed as separate scoped passes.
+- Review reception/root cause: `FINAL_REVIEW_GATE` consumed queued commands
+  directly and bypassed `_wait_while_paused()`. Its pending approval could
+  therefore resolve while the phase was `PAUSED`. The final-review tests from
+  `55c7abc` used real sleeps, polling deadlines, and timed joins.
+- TDD red: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest
+  tests/unit/test_final_review.py -q` failed the two parameterized
+  pause-at-final-gate regressions. While paused, `/deny` ended with
+  `FINAL_REVIEW_REJECTED` and `/approve` ended with `SUCCESS`, instead of
+  emitting ignored control events and retaining the pending gate.
+- TDD green: the same focused command passed 12 tests after final-review
+  approval commands became ignored only while that gate is paused and the
+  gate reused the existing paused command loop. The regression covers
+  pause -> ignored `/deny` or `/approve` -> resume -> final resolution.
+  Existing pending-tool approval semantics remain distinct and unchanged.
+- Test determinism: replaced the two timing-based final-review tests with an
+  injected `EventSink`, condition-based control-event synchronization, an
+  explicit worker completion event, and worker exception propagation. The
+  final-review test file contains no `time.sleep`, monotonic polling, or timed
+  joins.
+- Specification-compliance review: PASS. High-risk queued final review now
+  preserves a pending approval through pause, rejects approval decisions while
+  paused, and permits resolution only after resume. The existing paused
+  pending-tool behavior remains covered by `test_runner_operator`.
+- Code-quality review: PASS. The production change is scoped to the existing
+  pending-final-review marker and paused command boundary; no dependency,
+  public API, fallback, broad exception handling, duplicated boundary
+  validation, dead code, or scope expansion was added. Tests observe emitted
+  controls and results rather than polling runner state.
+- Verification: focused final-review tests passed 12; related
+  final-review/operator/CLI/TUI tests passed 56; full suite passed 607;
+  `git diff --check` passed. A final fresh full suite, compile check, and
+  staged diff check are required immediately before commit.

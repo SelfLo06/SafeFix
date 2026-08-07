@@ -504,13 +504,17 @@ class SessionRunner:
                 self._emit_control("stop", {"status": "accepted"})
                 return StopReason.OPERATOR_STOP
             if command.kind == "approve":
-                if not self.pending_approval:
+                if not self.pending_approval or (
+                    self._pending_final_review is not None and self._phase is Phase.PAUSED
+                ):
                     self._emit_control("approve", {"status": "ignored"})
                 else:
                     self._emit_control("approve", {"status": "accepted"})
                     self.approve_pending()
             elif command.kind == "deny":
-                if not self.pending_approval:
+                if not self.pending_approval or (
+                    self._pending_final_review is not None and self._phase is Phase.PAUSED
+                ):
                     self._emit_control("deny", {"status": "ignored"})
                 else:
                     self._emit_control("deny", {"status": "accepted"})
@@ -587,6 +591,12 @@ class SessionRunner:
                     stop_reason = self._consume_ready_commands(include_guidance=False)
                     if stop_reason is not None:
                         return self._finalize(stop_reason)
+                    if self._phase is Phase.PAUSED:
+                        stop_reason = self._wait_while_paused()
+                        if stop_reason is not None:
+                            return self._finalize(stop_reason)
+                        self._pending_event.clear()
+                        continue
                     self._pending_event.wait(0.05)
                 approved = self._pending_resolution is True
                 self._clear_final_review_approval()
