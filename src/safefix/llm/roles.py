@@ -4,7 +4,7 @@ import json
 from typing import Any
 from urllib.request import Request, urlopen
 
-from ..credentials import CredentialsResolver, role_service_name
+from ..credentials import CredentialsResolver
 from ..models import ModelRoleConfig
 from .base import HTTPTransport, LLMClient, LLMResponseError
 from .openai_compatible import OpenAICompatibleClient
@@ -30,16 +30,14 @@ class UrllibHTTPTransport:
 
 
 class ModelClientFactory:
-    """Construct an OpenAI-compatible client from one role's keyring entry."""
+    """Construct an OpenAI-compatible client from one role's environment key."""
 
     def __init__(self, transport: HTTPTransport | None = None, timeout: float = 30) -> None:
         self._transport = transport if transport is not None else UrllibHTTPTransport()
         self._timeout = timeout
 
-    def create(self, role_config: ModelRoleConfig, keyring: Any) -> LLMClient:
-        api_key = CredentialsResolver(
-            keyring, service_name=role_service_name(role_config.role)
-        ).get()
+    def create(self, role_config: ModelRoleConfig, environ: Any) -> LLMClient:
+        api_key = CredentialsResolver(environ, env_name=role_config.credential_env).get()
         return OpenAICompatibleClient(
             base_url=role_config.base_url,
             model=role_config.model,

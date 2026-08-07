@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from safefix.config import ConfigError, load_config
-from safefix.credentials import role_service_name
+from safefix.credentials import ROLE_API_KEY_ENV
 from safefix.models import AcceptanceMode, BaselineSource, ModelRole
 
 
@@ -46,7 +46,7 @@ def test_generated_only_is_a_valid_config_value(tmp_path: Path):
     assert config.baseline_source is BaselineSource.GENERATED
 
 
-def test_role_configs_match_authoritative_keyring_services(tmp_path: Path):
+def test_role_configs_match_authoritative_credential_environment(tmp_path: Path):
     config = load_config(
         tmp_path,
         {
@@ -69,7 +69,7 @@ def test_role_configs_match_authoritative_keyring_services(tmp_path: Path):
         role_config = config.role_config(role)
 
         assert (role_config.base_url, role_config.model) == endpoint
-        assert role_config.keyring_service == role_service_name(role)
+        assert role_config.credential_env == ROLE_API_KEY_ENV[role]
 
 
 @pytest.mark.parametrize("key", ["stability_runs", "max_auto_accepted_failures"])

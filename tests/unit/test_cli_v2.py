@@ -201,17 +201,13 @@ def test_cli_wires_configured_role_clients_and_review_adapter(tmp_path: Path) ->
     from safefix.cli import main
     from safefix.review import ReviewModelClient
 
-    class Keyring:
-        values = {
-            ("safefix", "api_key"): "repair-secret",
-            ("safefix-test", "api_key"): "test-secret",
-            ("safefix-review", "api_key"): "review-secret",
+    credentials = CredentialsResolver(
+        {
+            "SAFEFIX_REPAIR_API_KEY": "repair-secret",
+            "SAFEFIX_TEST_API_KEY": "test-secret",
+            "SAFEFIX_REVIEW_API_KEY": "review-secret",
         }
-
-        def get_password(self, service: str, username: str) -> str | None:
-            return self.values.get((service, username))
-
-    credentials = CredentialsResolver(Keyring())
+    )
     config = Config(
         base_url="https://repair.example/v1",
         model="repair-model",

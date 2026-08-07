@@ -8,20 +8,6 @@ from safefix.credentials import CredentialsResolver
 from safefix.models import ModelRole
 
 
-class FakeKeyring:
-    def __init__(self) -> None:
-        self.values: dict[tuple[str, str], str] = {}
-
-    def get_password(self, service: str, username: str) -> str | None:
-        return self.values.get((service, username))
-
-    def set_password(self, service: str, username: str, password: str) -> None:
-        self.values[(service, username)] = password
-
-    def delete_password(self, service: str, username: str) -> None:
-        del self.values[(service, username)]
-
-
 class FakeCredentials:
     def __init__(self) -> None:
         self.value: str | None = None
@@ -151,22 +137,21 @@ def test_run_command_passes_config_overrides(tmp_path: Path) -> None:
     }
 
 
-def test_credentials_set_status_clear(
-    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+def test_credentials_commands_explain_environment_storage(
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     from safefix.cli import main
 
-    credentials = FakeCredentials()
-
-    assert main(["credentials", "status"], credentials_factory=lambda: credentials) == 0
-    assert capsys.readouterr().out == "not set\n"
-    monkeypatch.setattr("getpass.getpass", lambda _: "stored-test-key")
-    assert main(["credentials", "set"], credentials_factory=lambda: credentials) == 0
-    assert capsys.readouterr().out == "credential stored\n"
-    assert main(["credentials", "status"], credentials_factory=lambda: credentials) == 0
-    assert capsys.readouterr().out == "set\n"
-    assert main(["credentials", "clear"], credentials_factory=lambda: credentials) == 0
-    assert capsys.readouterr().out == "credential cleared\n"
+    assert main(["credentials", "status"]) == 0
+    output = capsys.readouterr().out
+    assert "does not store them" in output
+    assert "SAFEFIX_TEST_API_KEY" in output
+    assert "SAFEFIX_REPAIR_API_KEY" in output
+    assert "SAFEFIX_REVIEW_API_KEY" in output
+    assert main(["credentials", "set", "--role", "test"]) == 0
+    assert capsys.readouterr().out.splitlines()[-1] == "SAFEFIX_TEST_API_KEY"
+    assert main(["credentials", "clear", "--role", "review"]) == 0
+    assert capsys.readouterr().out.splitlines()[-1] == "SAFEFIX_REVIEW_API_KEY"
 
 
 def test_noninteractive_approval_denies(tmp_path: Path) -> None:
@@ -221,60 +206,6 @@ def test_exit_code_mapping_for_all_stop_reasons(tmp_path: Path) -> None:
             ),
             client_factory=lambda **kwargs: object(),
         ) == exit_code
-
-
-def test_credentials_role_selection_uses_separate_keyring_service(
-    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
-) -> None:
-    from safefix.cli import main
-
-    keyring = FakeKeyring()
-    credentials = CredentialsResolver(keyring)
-    monkeypatch.setattr("getpass.getpass", lambda _: "test-role-key")
-
-    assert main(
-        ["credentials", "set", "--role", "test"],
-        credentials_factory=lambda: credentials,
-    ) == 0
-
-    assert keyring.values == {("safefix-test", "api_key"): "test-role-key"}
-    assert capsys.readouterr().out == "credential stored\n"
-
-
-def test_unscoped_credentials_set_supplies_repair_run_and_repair_role(
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from safefix.cli import main
-
-    keyring = FakeKeyring()
-    credentials = CredentialsResolver(keyring)
-    config = Config(base_url="https://repair.example/v1", model="repair-model")
-    client_keys: list[str] = []
-
-    monkeypatch.setattr("getpass.getpass", lambda _: "repair-key")
-    assert main(["credentials", "set"], credentials_factory=lambda: credentials) == 0
-    assert capsys.readouterr().out == "credential stored\n"
-    assert keyring.values == {("safefix", "api_key"): "repair-key"}
-
-    assert main(
-        ["credentials", "status", "--role", "repair"],
-        credentials_factory=lambda: credentials,
-    ) == 0
-    assert capsys.readouterr().out == "set\n"
-
-    assert main(
-        ["run", str(tmp_path), "--plain"],
-        credentials_factory=lambda: credentials,
-        config_loader=lambda *_args, **_kwargs: config,
-        runner_factory=lambda _root, **_kwargs: FakeRunner(
-            SessionResult(stop_reason=StopReason.SUCCESS)
-        ),
-        client_factory=lambda **kwargs: client_keys.append(kwargs["api_key"]) or object(),
-    ) == 0
-
-    assert client_keys == ["repair-key"]
 
 
 def test_credentials_cli_does_not_accept_raw_api_key_argument() -> None:

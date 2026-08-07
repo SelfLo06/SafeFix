@@ -6,20 +6,6 @@ from safefix.llm.roles import ModelClientFactory
 from safefix.models import ModelRole, ModelRoleConfig
 
 
-class FakeKeyring:
-    def __init__(self) -> None:
-        self.values: dict[tuple[str, str], str] = {}
-
-    def get_password(self, service: str, username: str) -> str | None:
-        return self.values.get((service, username))
-
-    def set_password(self, service: str, username: str, password: str) -> None:
-        self.values[(service, username)] = password
-
-    def delete_password(self, service: str, username: str) -> None:
-        del self.values[(service, username)]
-
-
 class FakeTransport:
     def __init__(self, response=None, error=None):
         self.response = response
@@ -75,9 +61,10 @@ def test_openai_client_maps_transport_os_error_to_llm_transport_error():
 
 
 def test_model_client_factory_reads_only_requested_role_credential():
-    keyring = FakeKeyring()
-    keyring.set_password("safefix-test", "api_key", "test-key")
-    keyring.set_password("safefix-repair", "api_key", "repair-key")
+    environ = {
+        "SAFEFIX_TEST_API_KEY": "test-key",
+        "SAFEFIX_REPAIR_API_KEY": "repair-key",
+    }
     transport = FakeTransport(
         response={"choices": [{"message": {"content": "ok"}}]}
     )
@@ -88,19 +75,20 @@ def test_model_client_factory_reads_only_requested_role_credential():
             role=ModelRole.TEST,
             base_url="https://test.example/v1",
             model="test-model",
-            keyring_service="safefix-test",
+            credential_env="SAFEFIX_TEST_API_KEY",
         ),
-        keyring,
+        environ,
     )
 
     assert client.complete("prompt") == "ok"
     assert transport.requests[0][1]["Authorization"] == "Bearer test-key"
 
 
-def test_model_client_factory_uses_role_service_when_config_service_is_mismatched():
-    keyring = FakeKeyring()
-    keyring.set_password("safefix-test", "api_key", "test-key")
-    keyring.set_password("safefix-repair", "api_key", "repair-key")
+def test_model_client_factory_uses_configured_credential_environment():
+    environ = {
+        "SAFEFIX_TEST_API_KEY": "test-key",
+        "SAFEFIX_REPAIR_API_KEY": "repair-key",
+    }
     transport = FakeTransport(
         response={"choices": [{"message": {"content": "ok"}}]}
     )
@@ -110,10 +98,10 @@ def test_model_client_factory_uses_role_service_when_config_service_is_mismatche
             role=ModelRole.TEST,
             base_url="https://test.example/v1",
             model="test-model",
-            keyring_service="safefix-repair",
+            credential_env="SAFEFIX_REPAIR_API_KEY",
         ),
-        keyring,
+        environ,
     )
 
     assert client.complete("prompt") == "ok"
-    assert transport.requests[0][1]["Authorization"] == "Bearer test-key"
+    assert transport.requests[0][1]["Authorization"] == "Bearer repair-key"

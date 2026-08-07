@@ -106,7 +106,7 @@ def test_model_role_config_is_frozen_and_fingerprint_is_redacted():
         role=ModelRole.REPAIR,
         base_url="https://llm.example/v1?api_key=secret",
         model="repair-model",
-        keyring_service="safefix-repair",
+        credential_env="SAFEFIX_REPAIR_API_KEY",
     )
 
     assert config.identity_fingerprint == "repair:https://llm.example:repair-model"

@@ -1,88 +1,47 @@
 from __future__ import annotations
 
-from typing import Any
+import os
+from collections.abc import Mapping
 
-from .models import ModelRole, role_service_name
-
-_DEFAULT_KEYRING = object()
+from .models import ModelRole, ROLE_API_KEY_ENV
 
 
 class CredentialError(RuntimeError):
-    """Raised when the keyring cannot complete a credential operation."""
+    """Raised when a role credential is unavailable."""
 
 
 class CredentialNotFoundError(CredentialError):
-    """Raised when no credential is stored in the keyring."""
-
-
-class CredentialValueError(CredentialError, ValueError):
-    """Raised when a credential value is invalid."""
+    """Raised when a role environment variable is missing."""
 
 
 class CredentialsResolver:
-    """Read and manage the SafeFix API credential using only a keyring."""
+    """Read one role credential from the current process environment."""
 
     def __init__(
         self,
-        keyring_backend: Any = _DEFAULT_KEYRING,
+        environ: Mapping[str, str] | None = None,
         *,
-        service_name: str = "safefix",
-        username: str = "api_key",
+        env_name: str = "SAFEFIX_REPAIR_API_KEY",
     ) -> None:
-        self._keyring = keyring_backend
-        self._service_name = service_name
-        self._username = username
+        self._environ = os.environ if environ is None else environ
+        self._env_name = env_name
 
     def status(self) -> bool:
-        return self._read() is not None
-
-    def set(self, value: str) -> None:
-        if not isinstance(value, str) or not value:
-            raise CredentialValueError("credential must be a non-empty string")
-        keyring, keyring_errors = self._dependencies()
-        try:
-            keyring.set_password(self._service_name, self._username, value)
-        except keyring_errors.KeyringError as exc:
-            raise CredentialError("cannot store credential in keyring") from exc
+        return bool(self._read())
 
     def get(self) -> str:
         value = self._read()
         if value is None:
-            raise CredentialNotFoundError(
-                f"credential for service {self._service_name!r} is not stored in keyring"
-            )
+            raise CredentialNotFoundError(f"missing {self._env_name}")
         return value
-
-    def clear(self) -> None:
-        keyring, keyring_errors = self._dependencies()
-        try:
-            keyring.delete_password(self._service_name, self._username)
-        except keyring_errors.KeyringError as exc:
-            raise CredentialError("cannot clear credential from keyring") from exc
-
-    def _read(self) -> str | None:
-        keyring, keyring_errors = self._dependencies()
-        try:
-            value = keyring.get_password(self._service_name, self._username)
-        except keyring_errors.KeyringError as exc:
-            raise CredentialError("cannot read credential from keyring") from exc
-        if value is not None and (not isinstance(value, str) or not value):
-            raise CredentialError("keyring returned an invalid credential")
-        return value
-
-    def _dependencies(self) -> tuple[Any, Any]:
-        if self._keyring is _DEFAULT_KEYRING:
-            import keyring
-
-            self._keyring = keyring
-        import keyring.errors as keyring_errors
-
-        return self._keyring, keyring_errors
 
     def for_role(self, role: ModelRole) -> "CredentialsResolver":
-        """Create a resolver for a role while retaining this resolver's backend."""
+        """Create a resolver for one role's explicit environment variable."""
         return CredentialsResolver(
-            self._keyring,
-            service_name=role_service_name(role),
-            username=self._username,
+            self._environ,
+            env_name=ROLE_API_KEY_ENV[ModelRole(role)],
         )
+
+    def _read(self) -> str | None:
+        value = self._environ.get(self._env_name)
+        return value if value else None

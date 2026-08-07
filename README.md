@@ -7,15 +7,12 @@ endpoint. It is a command-line harness, not a hosted application.
 ## Requirements and platform limits
 
 - Python 3.11 or newer.
-- A configured OS keyring backend: macOS Keychain, Windows Credential
-  Manager, or Linux Secret Service. The backend is platform-dependent and
-  must be available to the local Python process.
 - Network access from the local process to the OpenAI-compatible `base_url`
   configured for the project.
 
 SafeFix has no WebUI and does not provide a cloud service or deployment
-endpoint. It supports the local CLI workflow above; platform support depends
-on Python and the operating-system keyring backend.
+endpoint. It supports the local CLI workflow above on platforms with Python
+and a compatible terminal when using the interactive console.
 
 ## Obtain and install
 
@@ -77,19 +74,20 @@ model = "repair-model"
 pytest_args = ["-q", "--tb=short"]
 ```
 
-Store the provider credential in the OS keyring, check its status, run the
-repair, and clear it when it is no longer needed:
+Set the role-specific API credentials in the current process environment and
+run the repair:
 
 ```bash
-safefix credentials set    # prompts without echo
-safefix credentials status
+export SAFEFIX_TEST_API_KEY="..."
+export SAFEFIX_REPAIR_API_KEY="..."
+export SAFEFIX_REVIEW_API_KEY="..."
 safefix run .
-safefix credentials clear
 ```
 
-Credentials are keyring-only. SafeFix does not read API keys from environment variables,
-does not load `.env` files, and has no fallback. Do not commit `safefix.toml` if it contains sensitive
-endpoint details.
+SafeFix reads API credentials from environment variables and does not store
+them. It does not load `.env` files and does not provide shared or provider
+fallback variables. Missing credentials report only the required role
+variable name.
 
 ## Terminal presentation
 
@@ -122,8 +120,9 @@ or `mixed`), `--acceptance-mode` (`review`, `standard`, or `high-risk`),
 valid only after SafeFix has discovered no existing collected tests. The three
 model roles are Repair, Test, and Review; role-specific endpoint/model options
 are `--test-base-url`, `--test-model`, `--review-base-url`, and
-`--review-model`, with credentials managed through `safefix credentials ...
---role {test,repair,review}`.
+`--review-model`, with credentials supplied through
+`SAFEFIX_TEST_API_KEY`, `SAFEFIX_REPAIR_API_KEY`, and
+`SAFEFIX_REVIEW_API_KEY`.
 
 Acceptance and baseline results are recorded in the SafeFix session artifact.
 Artifacts preserve the frozen test manifest, generated-test preparation

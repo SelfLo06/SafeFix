@@ -8,7 +8,6 @@ version = "0.2.0"
 description = "A coding-agent harness for repairing pytest failures"
 requires-python = ">=3.11"
 dependencies = [
-  "keyring>=25",
   "prompt_toolkit>=3.0.43,<4",
   "rich>=13.7.1,<15",
 ]

@@ -21,7 +21,6 @@ def test_pyproject_declares_package_and_cli() -> None:
     assert setuptools["packages"]["find"]["where"] == ["src"]
     assert project["scripts"] == {"safefix": "safefix.cli:main"}
     assert project["dependencies"] == [
-        "keyring>=25",
         "prompt_toolkit>=3.0.43,<4",
         "rich>=13.7.1,<15",
     ]
@@ -30,7 +29,7 @@ def test_pyproject_declares_package_and_cli() -> None:
     assert project["description"] == "A coding-agent harness for repairing pytest failures"
 
 
-def test_cli_help_works_when_keyring_is_unavailable() -> None:
+def test_cli_help_works_without_optional_credential_backend() -> None:
     source_root = Path(__file__).parents[2] / "src"
     bootstrap = """
 import importlib.abc
@@ -38,14 +37,6 @@ import runpy
 import sys
 
 
-class BlockKeyring(importlib.abc.MetaPathFinder):
-    def find_spec(self, fullname, path=None, target=None):
-        if fullname == "keyring" or fullname.startswith("keyring."):
-            raise ModuleNotFoundError("No module named 'keyring'")
-        return None
-
-
-sys.meta_path.insert(0, BlockKeyring())
 sys.argv = ["safefix", "--help"]
 runpy.run_module("safefix", run_name="__main__")
 """

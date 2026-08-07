@@ -8,16 +8,11 @@ class ModelRole(str, Enum):
     REVIEW = "review"
 
 
-_ROLE_SERVICES = {
-    ModelRole.TEST: "safefix-test",
-    ModelRole.REPAIR: "safefix",
-    ModelRole.REVIEW: "safefix-review",
+ROLE_API_KEY_ENV = {
+    ModelRole.TEST: "SAFEFIX_TEST_API_KEY",
+    ModelRole.REPAIR: "SAFEFIX_REPAIR_API_KEY",
+    ModelRole.REVIEW: "SAFEFIX_REVIEW_API_KEY",
 }
-
-
-def role_service_name(role: ModelRole) -> str:
-    """Return the fixed keyring service for a model role."""
-    return _ROLE_SERVICES[ModelRole(role)]
 
 
 class BaselineSource(str, Enum):
@@ -153,7 +148,7 @@ class ModelRoleConfig:
     role: ModelRole
     base_url: str
     model: str
-    keyring_service: str
+    credential_env: str
 
     @property
     def identity_fingerprint(self) -> str:
@@ -197,7 +192,7 @@ class Config:
             role=role,
             base_url=base_url,
             model=model,
-            keyring_service=role_service_name(role),
+            credential_env=ROLE_API_KEY_ENV[role],
         )
 
 

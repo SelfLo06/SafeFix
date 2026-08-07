@@ -1,7 +1,6 @@
 """Command-line entrypoints for SafeFix."""
 
 import argparse
-import getpass
 import os
 import sys
 from collections.abc import Callable
@@ -19,6 +18,7 @@ from .models import (
     BaselineSource,
     HighRiskConfirmation,
     ModelRole,
+    ROLE_API_KEY_ENV,
     StopReason,
     exit_code_for_stop_reason,
 )
@@ -163,19 +163,12 @@ def main(
 
 def _credentials_command(args: argparse.Namespace, credentials: CredentialsResolver) -> int:
     if args.role is not None:
-        credentials = credentials.for_role(ModelRole(args.role))
-    if args.credentials_command == "set":
-        try:
-            value = getpass.getpass("API key: ")
-        except (EOFError, OSError) as exc:
-            raise CredentialError("credential prompt failed") from exc
-        credentials.set(value)
-        print("credential stored")
-    elif args.credentials_command == "status":
-        print("set" if credentials.status() else "not set")
+        names = (ROLE_API_KEY_ENV[ModelRole(args.role)],)
     else:
-        credentials.clear()
-        print("credential cleared")
+        names = tuple(ROLE_API_KEY_ENV[role] for role in ModelRole)
+    print("SafeFix reads API credentials from environment variables and does not store them:")
+    for name in names:
+        print(name)
     return 0
 
 

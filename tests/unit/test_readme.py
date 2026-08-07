@@ -32,10 +32,10 @@ def test_readme_documents_run_and_credentials() -> None:
     _, content = _readme_content()
 
     assert "safefix run" in content
-    assert "safefix credentials set" in content
-    assert "safefix credentials status" in content
-    assert "safefix credentials clear" in content
-    assert "keyring" in content
+    assert "safefix_test_api_key" in content
+    assert "safefix_repair_api_key" in content
+    assert "safefix_review_api_key" in content
+    assert "does not store" in content
 
 
 def test_readme_documents_credential_boundaries() -> None:
@@ -43,16 +43,14 @@ def test_readme_documents_credential_boundaries() -> None:
 
     assert "environment variable" in content
     assert ".env" in content
-    assert "no fallback" in content or "not supported" in content
+    assert "fallback" in content
 
 
 def test_readme_documents_platform_and_scope() -> None:
     _, content = _readme_content()
 
     assert "python 3.11" in content
-    assert "macos" in content
-    assert "windows" in content
-    assert "linux" in content
+    assert "compatible terminal" in content
     assert "webui" in content or "web ui" in content
     assert "cloud" in content
 
