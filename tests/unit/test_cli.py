@@ -213,3 +213,80 @@ def test_credentials_cli_does_not_accept_raw_api_key_argument() -> None:
 
     with pytest.raises(SystemExit):
         build_parser().parse_args(["credentials", "set", "--role", "test", "raw-key"])
+
+
+def test_no_arguments_launches_tty_wizard_and_bootstraps_repair_config(
+    tmp_path: Path,
+) -> None:
+    from safefix.cli import main
+
+    answers = iter(["", "", "repair-model"])
+    config = Config(base_url="https://llm.example/v1", model="repair-model")
+    seen: dict[str, object] = {}
+    credentials = FakeCredentials()
+    credentials.set("demo-key")
+
+    def runner_factory(project_root: Path, **kwargs: object) -> FakeRunner:
+        seen["project_root"] = project_root
+        return FakeRunner(SessionResult(stop_reason=StopReason.SUCCESS))
+
+    class WizardTui:
+        def __init__(self, _queue: object, controller_factory: object, *_args: object) -> None:
+            self._controller_factory = controller_factory
+
+        def run(self) -> SessionResult:
+            return self._controller_factory(object()).run()
+
+    assert main(
+        [],
+        credentials_factory=lambda: credentials,
+        config_loader=lambda *_args, **_kwargs: config,
+        runner_factory=runner_factory,
+        client_factory=lambda **_kwargs: object(),
+        tty_detector=lambda _stream: True,
+        tui_factory=WizardTui,
+        input_fn=lambda _prompt: next(answers),
+        output_fn=lambda line: seen.setdefault("output", []).append(line),
+        cwd=tmp_path,
+    ) == 0
+
+    assert seen["project_root"] == tmp_path.resolve()
+    assert (tmp_path / "safefix.toml").read_text() == (
+        'base_url = "https://api.openai.com/v1"\n'
+        'model = "repair-model"\n'
+    )
+
+
+def test_no_arguments_fail_closed_without_tty() -> None:
+    from safefix.cli import main
+
+    assert main([], tty_detector=lambda _stream: False) == 2
+
+
+def test_wizard_requires_a_model_when_config_is_missing(tmp_path: Path) -> None:
+    from safefix.cli import main
+
+    answers = iter(["", "https://llm.example/v1", "", "repair-model"])
+    messages: list[str] = []
+    config = Config(base_url="https://llm.example/v1", model="repair-model")
+    credentials = FakeCredentials()
+    credentials.set("demo-key")
+
+    assert main(
+        [],
+        credentials_factory=lambda: credentials,
+        config_loader=lambda *_args, **_kwargs: config,
+        runner_factory=lambda _root, **_kwargs: FakeRunner(
+            SessionResult(stop_reason=StopReason.SUCCESS)
+        ),
+        client_factory=lambda **_kwargs: object(),
+        tty_detector=lambda _stream: True,
+        tui_factory=lambda *_args: FakeRunner(
+            SessionResult(stop_reason=StopReason.SUCCESS)
+        ),
+        input_fn=lambda _prompt: next(answers),
+        output_fn=messages.append,
+        cwd=tmp_path,
+    ) == 0
+
+    assert any("required" in message.lower() for message in messages)

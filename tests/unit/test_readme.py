@@ -38,6 +38,16 @@ def test_readme_documents_run_and_credentials() -> None:
     assert "does not store" in content
 
 
+def test_readme_documents_no_argument_wizard() -> None:
+    _, content = _readme_content()
+
+    assert "safefix` without arguments" in content
+    assert "https://api.openai.com/v1" in content
+    assert "required model name" in content
+    assert "does not create test or review model settings" in content
+    assert "safefix run path" in content
+
+
 def test_readme_documents_credential_boundaries() -> None:
     _, content = _readme_content()
 

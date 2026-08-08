@@ -64,6 +64,31 @@ python -m pip install dist/*.tar.gz
 
 ## Configure and run
 
+For the simplest interactive start, change to a Python project and run
+`safefix` without arguments:
+
+```bash
+cd /path/to/project
+export SAFEFIX_REPAIR_API_KEY="..."
+safefix
+```
+
+In a TTY, the lightweight wizard uses the current directory, detects existing
+tests, selects standard mode and the TUI, and reuses the normal `run` path.
+When `safefix.toml` is missing, it asks for a Repair Model base URL (defaulting
+to `https://api.openai.com/v1`) and a required model name, then writes only
+the current Repair configuration schema:
+
+```toml
+base_url = "..."
+model = "..."
+```
+
+It does not create Test or Review Model settings and never reuses Repair
+settings for those roles. Use `safefix run PATH ...` for scripts, CI, or
+explicit advanced options. No-argument startup requires a TTY; redirected or
+non-TTY execution remains plain and fail-closed.
+
 Create `safefix.toml` in the project root. `base_url` and `model` are
 required for `safefix run`; pytest arguments must use the allowlist described
 below.

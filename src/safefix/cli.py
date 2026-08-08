@@ -1,6 +1,7 @@
 """Command-line entrypoints for SafeFix."""
 
 import argparse
+import json
 import os
 import sys
 from collections.abc import Callable
@@ -139,8 +140,28 @@ def main(
     approval_factory: Callable[[], ApprovalProvider] = ApprovalProvider,
     tty_detector: Callable[[object], bool] = lambda stream: bool(stream.isatty()),
     tui_factory: TuiFactory = production_tui,
+    input_fn: Callable[[str], str] | None = None,
+    output_fn: Callable[[str], None] | None = None,
+    cwd: Path | None = None,
 ) -> int:
-    args = build_parser().parse_args(argv)
+    raw_argv = list(sys.argv[1:] if argv is None else argv)
+    capable_tty = tty_detector(sys.stdin) and tty_detector(sys.stdout)
+    if not raw_argv:
+        return _launch_wizard(
+            capable_tty=capable_tty,
+            credentials_factory=credentials_factory,
+            config_loader=config_loader,
+            runner_factory=runner_factory,
+            client_factory=client_factory,
+            approval_factory=approval_factory,
+            tty_detector=tty_detector,
+            tui_factory=tui_factory,
+            input_fn=input_fn,
+            output_fn=output_fn,
+            cwd=cwd,
+        )
+
+    args = build_parser().parse_args(raw_argv)
     credentials = credentials_factory()
     if args.command == "credentials":
         try:
@@ -301,6 +322,72 @@ def _run_command(
     exit_code = EXIT_CODES[result.stop_reason]
     print(f"SafeFix stopped: {result.stop_reason.value} (exit code {exit_code})")
     return exit_code
+
+
+def _launch_wizard(
+    *,
+    capable_tty: bool,
+    credentials_factory: Callable[[], CredentialsResolver],
+    config_loader: Callable[..., Config],
+    runner_factory: Callable[..., SessionRunner],
+    client_factory: Callable[..., OpenAICompatibleClient],
+    approval_factory: Callable[[], ApprovalProvider],
+    tty_detector: Callable[[object], bool],
+    tui_factory: TuiFactory,
+    input_fn: Callable[[str], str] | None,
+    output_fn: Callable[[str], None] | None,
+    cwd: Path | None,
+) -> int:
+    write = print if output_fn is None else output_fn
+    if not capable_tty:
+        write("SafeFix: no-argument startup requires an interactive TTY; use 'safefix run PATH'.")
+        return EXIT_CODES[StopReason.CONFIG_ERROR]
+
+    ask = input if input_fn is None else input_fn
+    default_project = (Path.cwd() if cwd is None else cwd).resolve()
+    project_text = ask(f"Project [{default_project}] > ").strip()
+    project_root = Path(project_text or default_project).expanduser().resolve()
+    if not project_root.is_dir():
+        write(f"SafeFix configuration error: project directory does not exist: {project_root}")
+        return EXIT_CODES[StopReason.CONFIG_ERROR]
+
+    config_path = project_root / "safefix.toml"
+    has_tests = (project_root / "tests").is_dir()
+    write("SafeFix v0.2")
+    write(f"Project: {project_root}")
+    write("Mode: standard")
+    write(f"Tests: {'existing' if has_tests else 'not detected'}")
+    write("UI: TUI")
+
+    if not config_path.exists():
+        write("No safefix.toml found.")
+        base_url = ask("API base URL [https://api.openai.com/v1] > ").strip()
+        base_url = base_url or "https://api.openai.com/v1"
+        model = ""
+        while not model:
+            model = ask("Model > ").strip()
+            if not model:
+                write("Model is required.")
+        config_path.write_text(
+            f"base_url = {json.dumps(base_url)}\nmodel = {json.dumps(model)}\n",
+            encoding="utf-8",
+        )
+        write(f"Created {config_path}")
+
+    write("Starting...")
+    return main(
+        ["run", str(project_root), "--tui"],
+        credentials_factory=credentials_factory,
+        config_loader=config_loader,
+        runner_factory=runner_factory,
+        client_factory=client_factory,
+        approval_factory=approval_factory,
+        tty_detector=tty_detector,
+        tui_factory=tui_factory,
+        input_fn=input_fn,
+        output_fn=output_fn,
+        cwd=cwd,
+    )
 
 
 def _overrides(args: argparse.Namespace) -> dict[str, object]:
