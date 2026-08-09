@@ -113,16 +113,17 @@ Security-themed bugs may appear later as fixtures; they are **out of v1 product 
 ### US-3 — Credential safety
 
 **As** a user,
-**I want** to store an API key in the OS keyring and have the client read keyring (no environment variable fallback),
-**so that** keys are not committed, not printed by `status`, and not written to plaintext files by SafeFix.
+**I want** to supply role-specific API keys through the current process environment,
+**so that** keys are not committed, printed, or written to plaintext files by SafeFix.
 
 **Acceptance**
 
-- `safefix credentials set | status | clear`.
-- `status` shows whether a key is configured; may show `source: keyring`; never key material.
-- `clear` deletes the keyring entry only.
-- Real CLI reads credentials **only** from OS keyring (no environment variable, `.env`, or plaintext file fallback).
-- Keyring unavailable on `set` → error; **no** plaintext file fallback.
+- Real CLI reads only `SAFEFIX_TEST_API_KEY`, `SAFEFIX_REPAIR_API_KEY`, and
+  `SAFEFIX_REVIEW_API_KEY` from the current process environment.
+- SafeFix has no API-key command-line argument, `.env` loading, plaintext
+  credential file, or fallback credential source.
+- Diagnostic output identifies a missing variable by name only; it never
+  prints key material.
 - Unit tests / MockLLM paths never require a real key or network.
 
 ### US-4 — Hard deny of dangerous writes
@@ -186,7 +187,7 @@ Security-themed bugs may appear later as fixtures; they are **out of v1 product 
 
 - Release provides wheel and sdist.
 - README: obtain, install, run, credential setup, platform limits; no WebUI/cloud required.
-- GitHub Actions and GitLab CI both run tests; GitLab job named **`unit-test`**.
+- GitHub Actions runs tests on every push.
 
 ---
 
@@ -231,7 +232,7 @@ CLI
  ├── credentials (set | status | clear)
  └── run
       → ConfigLoader
-      → CredentialsResolver (keyring only)
+      → CredentialsResolver (role-specific environment variables)
       → SessionRunner (phases)
            ├── ContextBuilder
            ├── LLMClient
@@ -251,7 +252,7 @@ CLI
 
 **Dependency rule:** Tools, Feedback, Guardrail, Snapshot, Config do **not** depend on LLM. Runner orchestrates.
 
-**Implementation boundary (A.4):** Own the agent loop. Do **not** build on LangChain `AgentExecutor`, AutoGen, CrewAI, LlamaIndex agents, or a host coding-agent SDK runner. Allowed: HTTP client, TOML, keyring, pytest as the *target* runner, stdlib.
+**Implementation boundary (A.4):** Own the agent loop. Do **not** build on LangChain `AgentExecutor`, AutoGen, CrewAI, LlamaIndex agents, or a host coding-agent SDK runner. Allowed: HTTP client, TOML, pytest as the *target* runner, stdlib.
 
 ### 5.2 Phase state machine
 
@@ -332,9 +333,7 @@ LLM network/service errors: **fixed finite retries** in code; still failing → 
 | Command | Purpose |
 |---------|---------|
 | `safefix run <project_path> [options]` | One repair session (exclusive use of project dir by convention) |
-| `safefix credentials set` | Hidden prompt → OS keyring |
-| `safefix credentials status` | Configured? optional `source: keyring`; no secrets |
-| `safefix credentials clear` | Delete keyring entry only |
+| `safefix credentials status` | Lists accepted role-specific environment variable names; no secrets |
 
 No other v1 subcommands.
 
@@ -711,8 +710,8 @@ ProjectMemory
 | Threat | Mitigation |
 |--------|------------|
 | Key in git / TOML / logs | Forbidden in TOML; status never prints key; log redaction |
-| Key in shell history | No key CLI flags; hidden `credentials set` |
-| Keyring failure | `set` errors; no plaintext file, `.env`, or environment-variable fallback |
+| Key in shell history | No key CLI flags; users must avoid placing exports in shell-history files |
+| Process environment exposure | Role-specific variables are read only by the current process; SafeFix does not persist them |
 | Model tries unsafe edits | Code guardrails; sole write tool; no shell |
 | CI exfiltration | Tests use Mock; no real keys in CI secrets required for unit-test job |
 
@@ -743,10 +742,9 @@ ProjectMemory
 
 ### 10.1 Credentials
 
-- **Only production source:** OS keyring via `credentials set` / real `run` read.
-- **No** environment-variable, `.env`, or plaintext-file fallback in v1.
-- `status`: whether configured; may show `source: keyring`; never key material.
-- `clear`: delete keyring entry only.
+- **Only production source:** role-specific environment variables in the current process.
+- No raw-key CLI flag, `.env` loading, or plaintext credential-file support.
+- `credentials status`: lists variable names only; it does not inspect or display values.
 - MockLLM / unit tests remain credential-free.
 
 ### 10.2 Distribution
@@ -759,8 +757,7 @@ ProjectMemory
 ### 10.3 CI
 
 - **GitHub Actions:** run test suite on push.
-- **GitLab CI (`.gitlab-ci.yml`):** must include job named **`unit-test`**.
-- dual CI addresses course-doc conflict (GitHub vs NJU GitLab).
+- GitHub Actions is the sole CI system and runs the full test suite on every push.
 
 ---
 
@@ -785,7 +782,7 @@ Detailed `StopReason` always appears in terminal summary and session JSON.
 | Packaging | wheel + sdist | Course Release distribution |
 | Dev tests | pytest | Consistency with domain |
 | LLM | One `OpenAICompatibleClient` + injectable `MockLLMClient` | Thin HTTP; no provider plugin system |
-| Secrets | **keyring** | Meets storage requirement; environment variable fallback removed in v1. |
+| Secrets | Role-specific process environment variables | No persistence, raw-key CLI flag, or `.env` support. |
 | Config | TOML (`safefix.toml`) | Small surface, stdlib parse |
 | UI | CLI only | Teacher-allowed for pure CLI + Release |
 
@@ -800,7 +797,7 @@ Detailed `StopReason` always appears in terminal summary and session JSON.
 | **A3** | \(F_0\) frozen; new failures not added to \(F_0\); SUCCESS ⇔ \(F = \emptyset\) on valid suite; subset progress rules |
 | **A4** | Exact-replacement patches; all-or-nothing harness semantics; no create/delete/rename |
 | **A5** | Config/CLI/credentials/`pytest_args` allowlist behaviors per §6 |
-| **A6** | Dual CI; GitLab job `unit-test`; Release wheel+sdist; README completeness |
+| **A6** | GitHub Actions; Release wheel+sdist; README completeness |
 | **A7** | Mechanism unit tests: no network, no real API key |
 | **A8** | HITL: >3 files or >80 lines → REQUIRE_APPROVAL; stub deny/allow; permanent deny not bypassable; non-interactive default deny |
 | **A9** | Session JSON always; default no project memory load; `--use-memory` loads capped per-project JSON; isolation; no keys/full source in memory; mock-testable |
@@ -842,7 +839,6 @@ Submit deterministic demos (tests and/or scripts) under MockLLM:
 | `SPEC_PROCESS.md` | Brainstorming process, decisions, rejections |
 | `PLAN.md` | Finalized implementation plan and execution handoff |
 | `AGENT_LOG.md` | Implementation, review, verification, and traceability evidence |
-| `docs/COURSE_INDEX.md` | Course material index |
-| `docs/course-requirements/*` | Authoritative course constraints |
+| `docs/decision-records/` | Project design-decision records |
 
-When design conflicts with course files, **course wins**; record SPEC amendments in `SPEC_PROCESS.md`.
+Course material was consulted during design but is not shipped in the final repository.

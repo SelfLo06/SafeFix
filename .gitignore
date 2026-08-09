@@ -7,3 +7,8 @@ dist/
 *.egg-info/
 .worktrees/
 .superpowers/sdd/
+/docs/COURSE_INDEX.md
+/docs/course-materials/
+/docs/course-requirements/
+/docs/superpowers/
+/whole-branch-*.md

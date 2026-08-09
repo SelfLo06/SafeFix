@@ -400,3 +400,19 @@ On 2026-08-09, the user explicitly authorized direct replacement of the root
 `main` worktree with the complete current `safefix-v0.2` implementation. This
 supersedes preservation of the four pre-existing uncommitted `main` edits and
 records an intentional integration decision rather than an accidental reset.
+
+---
+
+## 17. Final delivery reconciliation
+
+The repository shipped for assessment is GitHub-hosted and CLI-only. Course
+slides, copied requirement files, and Superpowers draft artifacts were used
+during development but removed from final tracking because root `SPEC.md`,
+`PLAN.md`, `SPEC_PROCESS.md`, and `AGENT_LOG.md` provide the required project
+evidence. GitHub Actions is the sole retained CI configuration.
+
+The delivered v0.2 implementation reads role-specific credentials from the
+current process environment. This differs from the earlier keyring-only design
+proposal recorded above; the final `SPEC.md` documents the implemented model
+and its limits rather than claiming a credential-storage feature that is not
+present.

@@ -2,25 +2,25 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Implement SafeFix v1 — a self-owned Python CLI coding-agent harness that repairs pytest failures under path guardrails, strict-subset feedback progress, file snapshots, keyring credentials, and MockLLM-deterministic tests (per `SPEC.md`).
+**Goal:** Implement SafeFix v1 — a self-owned Python CLI coding-agent harness that repairs pytest failures under path guardrails, strict-subset feedback progress, file snapshots, role-specific environment credentials, and MockLLM-deterministic tests (per `SPEC.md`).
 
 **Architecture:** Single-process layered pipeline with an **embedded phase state machine** in `SessionRunner` (no event bus, no LangChain/AutoGen/etc.):
 
 ```
 CLI (run | credentials)
-  → ConfigLoader + CredentialsResolver (keyring only)
+  → ConfigLoader + CredentialsResolver (role-specific environment variables)
   → SessionRunner (phases)
        INIT → READY → DISPATCH → EVALUATE → STOP
 ```
 
-**Tech Stack:** Python ≥ 3.11, stdlib `tomllib`, `pytest`, `keyring`, HTTP client for OpenAI-compatible API, packaging (wheel/sdist), GitHub Actions + GitLab CI (`unit-test`).
+**Tech Stack:** Python ≥ 3.11, stdlib `tomllib`, `pytest`, HTTP client for OpenAI-compatible API, packaging (wheel/sdist), GitHub Actions.
 
 ## Global Constraints
 
 - Source of truth: root `SPEC.md` (final errata + consistency cleanup applied).
 - Own agent loop; no high-level agent frameworks.
 - Core mechanisms unit-testable with injected `MockLLMClient` (no network, no real API key).
-- Real CLI credentials: **OS keyring only** (no env / `.env` / plaintext fallback).
+- Real CLI credentials: explicit role-specific environment variables; no `.env`, raw-key CLI option, plaintext storage, or fallback source.
 - LLM tools only: `read_file`, `list_dir`, `search_code`, `apply_patch`, `finish`.
 - Paths in ToolCalls are **project-root relative**; `"."` = root; no absolute paths; normalize then no escape.
 - Tests are **readable**, never writable via `apply_patch`.
@@ -39,7 +39,6 @@ CLI (run | credentials)
 pyproject.toml
 README.md
 .github/workflows/ci.yml
-.gitlab-ci.yml
 src/safefix/
   __init__.py
   __main__.py
@@ -183,15 +182,15 @@ test_allowlisted_pytest_args_ok moved from Task 1)
 
 ---
 
-### Task 4: Credentials (keyring-only)
+### Task 4: Credentials (environment-only)
 
 **Files:**
 - Create: `src/safefix/credentials.py`
 - Test: `tests/unit/test_credentials.py`
 
-**Red tests** (status, set, get, clear, no env fallback)
+**Red tests** (role isolation, missing credential failure, no unrelated-variable fallback)
 
-**Minimal implementation + commit** `feat: keyring-only credentials`
+**Minimal implementation + commit** `fix: read model credentials from environment`
 
 ---
 
@@ -497,13 +496,13 @@ tests/unit/test_cli.py.
 Dependencies: Tasks 2, 4, and 13.
 
 1. First write test_run_command_passes_config_overrides,
-   test_credentials_set_status_clear, test_noninteractive_approval_denies,
-   and test_exit_code_mapping_for_all_stop_reasons. Use injected keyring,
-   SessionRunner, and approval boundaries; do not use a real key or network.
+   role-specific credential tests, test_noninteractive_approval_denies, and
+   test_exit_code_mapping_for_all_stop_reasons. Use injected environment
+   mappings, SessionRunner, and approval boundaries; do not use a real key or network.
 2. Run python -m pytest tests/unit/test_cli.py -q.
    Expected: collection fails because safefix.cli and safefix.__main__ are absent.
-3. Implement argparse entrypoints for exactly run and credentials
-   set/status/clear, reject raw API-key options, pass CLI overrides to
+3. Implement argparse entrypoints for `run` and `credentials status`, reject
+   raw API-key options, pass CLI overrides to
    ConfigLoader, select the production client for run, and map StopReason to
    exit codes 0/1/2/3.
 4. Run python -m pytest tests/unit/test_cli.py tests/unit/test_config.py tests/unit/test_credentials.py tests/unit/test_runner_limits.py -q.
@@ -557,8 +556,8 @@ Files: create README.md and tests/unit/test_readme.py.
 Dependencies: Task 15a.
 
 1. First write test_readme_documents_install_run_credentials_and_limits. Assert
-   obtain/install, wheel/sdist, safefix run, keyring setup, no environment or
-   .env fallback, platform limits, and no-WebUI/cloud scope.
+   obtain/install, wheel/sdist, safefix run, role-specific environment setup,
+   no `.env` loading, platform limits, and no-WebUI/cloud scope.
 2. Run python -m pytest tests/unit/test_readme.py -q.
    Expected: the test is collected and its assertion fails because README.md is absent.
 3. Write the reproduction guide with valid install/run commands, credentials
@@ -570,25 +569,23 @@ Dependencies: Task 15a.
    git add README.md tests/unit/test_readme.py AGENT_LOG.md
    and git commit -m "docs: add installation and usage guide".
 
-#### Task 15c: GitHub Actions and GitLab unit-test job
+#### Task 15c: GitHub Actions unit-test job
 
-Files: create .github/workflows/ci.yml, .gitlab-ci.yml, and
-tests/unit/test_ci_config.py.
+Files: create .github/workflows/ci.yml and tests/unit/test_ci_config.py.
 Dependencies: Task 15a.
 
-1. First write test_github_workflow_runs_unit_tests and
-   test_gitlab_has_unit_test_job. Parse the files and assert Python setup,
-   dependency installation, pytest execution, and exact GitLab job key unit-test.
+1. First write test_github_workflow_runs_unit_tests. Parse the workflow and
+   assert Python setup, dependency installation, and pytest execution.
 2. Run python -m pytest tests/unit/test_ci_config.py -q.
    Expected: the test is collected and its assertion fails because the CI files are absent.
-3. Add push-triggered GitHub Actions and a GitLab unit-test job that installs
-   package/test dependencies and runs python -m pytest.
+3. Add push-triggered GitHub Actions that installs package/test dependencies
+   and runs python -m pytest.
 4. Run python -m pytest tests/unit/test_ci_config.py tests/unit/test_packaging.py -q.
    Expected: all selected tests pass; validate YAML syntax if a YAML parser is
    available.
 5. Review CI secret-free behavior, append both reviews, then run
-   git add .github/workflows/ci.yml .gitlab-ci.yml tests/unit/test_ci_config.py AGENT_LOG.md
-   and git commit -m "ci: add GitHub and GitLab test pipelines".
+   git add .github/workflows/ci.yml tests/unit/test_ci_config.py AGENT_LOG.md
+   and git commit -m "ci: add GitHub Actions test pipeline".
 
 
 ---
@@ -653,7 +650,7 @@ focused tests green; replacement full verification is pending.
 | Models / stop reasons | 1 |
 | Config TOML/CLI / pytest_args | 2, 14 |
 | Path read/write policies | 3, 6, 8 |
-| Credentials keyring-only | 4, 14 |
+| Credentials environment-only | 4, 14 |
 | ToolCall JSON contract | 5 |
 | Guardrail + HITL | 6 |
 | Snapshots + apply_patch txn | 7a/7b |
@@ -708,3 +705,31 @@ prerequisite; after its dedicated commit, begin Task 1.
 
 This section is a traceability correction only; it does not redesign Tasks 1–16
 or reopen brainstorming.
+
+## Final Completion Traceability
+
+The following commits are the completed vertical slices retained in the final
+history. Later fixes and release-readiness commits build on these slices.
+
+| Task | Completion commit |
+|------|-------------------|
+| 1 Models | `530c0b0` |
+| 2 Configuration | `66be27f` |
+| 3 Paths | `caf77ad` |
+| 4 Credentials | `3cf9e23` |
+| 5 Action parser | `06c9268` |
+| 6 Guardrail and approval | `cf44544` |
+| 7 Snapshots and patching | `7c6d573`, `c6bc875` |
+| 8 Read tools and dispatch | `8be50a3` |
+| 9 Test runner and JUnit IDs | `9a83ae5` |
+| 10 Feedback engine | `8ed9a25` |
+| 11 LLM clients | `9de7435` |
+| 12 State, artifacts, memory, context | `a54c773`, `ac41c1f`, `7b69e4f`, `72d5073` |
+| 13 Session runner | `93be389`, `cf585d4`, `b657d6e`, `55a51fa` |
+| 14 CLI | `529027d` |
+| 15 Packaging, README, GitHub Actions | `2a9e7a7`, `b0624bb`, `1cd6fb5` |
+| 16 Mechanism demos | `ba882ea` |
+
+Final delivery policy: SafeFix is GitHub-hosted, CLI-only, and distributed
+through the GitHub Release wheel and sdist. GitLab CI and course-source files
+are intentionally excluded from the final repository.

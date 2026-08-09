@@ -115,6 +115,17 @@ them. It does not load `.env` files and does not provide shared or provider
 fallback variables. Missing credentials report only the required role
 variable name.
 
+To update a key, replace the corresponding variable in the shell that will
+launch SafeFix. To remove a key from the current POSIX shell, run:
+
+```bash
+unset SAFEFIX_TEST_API_KEY SAFEFIX_REPAIR_API_KEY SAFEFIX_REVIEW_API_KEY
+```
+
+SafeFix has no raw-key CLI argument and no persistent credential command; use
+your operating system's environment-management facilities when persistent
+secret storage is required.
+
 ## Terminal presentation
 
 SafeFix installs `prompt_toolkit` and Rich with the normal package installation.
@@ -179,3 +190,37 @@ deny; non-interactive mode SafeFix must deny approval-required actions.
 Project memory is bounded and opt-in. Library callers must explicitly request
 `use_memory=True`; the default context and `safefix run` do not load project
 memory. Memory stores summaries only, not credentials or source files.
+
+## Test and mechanism demos
+
+Run the complete offline suite with one command:
+
+```bash
+python -m pytest
+```
+
+The deterministic mechanism demonstrations are included in that suite and can
+also be run directly:
+
+```bash
+python -m pytest tests/mechanism -q
+```
+
+They demonstrate permanent denial of unsafe test-file edits, feedback causing
+the scripted agent to choose a different next action, and feedback rollback /
+strict-subset progress behavior. They use MockLLM or injected fakes only: no
+network request or API credential is required.
+
+## Project layout
+
+```text
+src/safefix/       CLI, loop, tools, guardrails, feedback, memory, and clients
+tests/unit/        deterministic unit tests for the harness mechanisms
+tests/mechanism/   reproducible A-class mechanism demonstrations
+docs/decision-records/
+                   retained product design decisions
+SPEC.md            product and mechanism specification
+PLAN.md            implementation-plan and commit traceability
+SPEC_PROCESS.md    brainstorming and cold-start process record
+AGENT_LOG.md       implementation and verification evidence
+```

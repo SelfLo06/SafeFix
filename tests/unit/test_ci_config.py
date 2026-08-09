@@ -17,15 +17,3 @@ def test_github_workflow_runs_unit_tests():
         workflow,
     )
     assert "python -m pytest" in workflow
-
-
-def test_gitlab_has_unit_test_job():
-    pipeline = (PROJECT_ROOT / ".gitlab-ci.yml").read_text()
-
-    assert re.search(r"(?m)^unit-test:\s*$", pipeline)
-    assert re.search(r"(?m)^image:\s*python:3\.11\s*$", pipeline)
-    assert re.search(
-        r"(?m)^\s*-\s*(?:python -m )?pip install -e \. pytest\s*$",
-        pipeline,
-    )
-    assert "python -m pytest" in pipeline

@@ -3802,3 +3802,20 @@
   count clarification preserves bounded context. Code-quality review: PASS;
   changes are direct mappings and two scalar fields with no new abstraction,
   broad exception handling, fallback, or scope expansion.
+
+## Final Delivery Cleanup
+
+- Date: 2026-08-09. Scope: remove copied course resources, draft process
+  artifacts, GitLab CI, and obsolete review reports from tracking; retain root
+  delivery documents and `docs/decision-records/`. The user explicitly
+  requested no further behavioral redesign, so credentials remain the current
+  environment-only implementation and final documents now state that fact.
+- Documentation reconciliation: `SPEC.md`, `PLAN.md`, `SPEC_PROCESS.md`, and
+  README now describe GitHub Actions as the sole CI system, role-specific
+  process environment credentials, the absence of persistent credential
+  commands, deterministic mechanism-demo commands, and final commit
+  traceability. `.gitignore` prevents removed material from being re-added.
+- Verification pending release commit: full pytest, mechanism suite, CLI help,
+  distribution build/install smoke, secret scan, GitHub Actions, and v0.2.0
+  Release asset inspection. `SafeFix.zip` and `submission.jsonc` are excluded
+  by explicit user instruction and will be handed back before those actions.
