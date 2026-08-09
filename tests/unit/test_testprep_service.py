@@ -847,6 +847,32 @@ def test_test_model_timeout_names_the_extended_request_limit(tmp_path: Path) -> 
     )
 
 
+def test_test_model_transport_failure_stops_the_running_tui_activity(tmp_path: Path) -> None:
+    class DisconnectedClient:
+        def complete(self, _prompt: str) -> str:
+            raise LLMTransportError("Remote end closed connection without response")
+
+    events = []
+    request, _, _, _ = _request(
+        tmp_path,
+        source=BaselineSource.GENERATED,
+        test_client=DisconnectedClient(),
+    )
+    request = replace(request, event_sink=events.append)
+
+    result = PreparationService().prepare(request)
+
+    assert result.summary.candidate_records[0].reason == (
+        "测试模型连接在完整响应前被服务端断开。"
+        "请稍后重试；若持续发生，请检查服务端负载或代理连接。"
+    )
+    assert events[-1].safe_payload == {
+        "role": "test",
+        "status": "error",
+        "summary": result.summary.candidate_records[0].reason,
+    }
+
+
 def test_generation_without_a_test_client_reports_its_missing_credential(tmp_path: Path) -> None:
     request, _, _, _ = _request(
         tmp_path,

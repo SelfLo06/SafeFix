@@ -3708,3 +3708,16 @@
   600-second timeout in Chinese.
 - Verification: focused CLI/test-model/TUI suites passed 81 tests, followed by
   the complete test suite, `compileall`, and `git diff --check`.
+
+## Test Model Failure Event And Disconnect Diagnostics
+
+- Date: 2026-08-09. A live stress run showed a Test Model request error while
+  the TUI continued displaying the running spinner. The preparation service
+  emitted a running model event but no matching error event when transport
+  preparation failed.
+- TDD red/green: a transport-disconnect test first reproduced both the generic
+  network summary and the missing terminal activity completion. The boundary
+  now emits a safe `model-call` error event, classifies server-side disconnects
+  separately in Chinese, and leaves timeout/auth/HTTP classifications intact.
+- Verification: focused service/TUI tests passed 30; the full test suite,
+  `compileall`, and `git diff --check` passed.

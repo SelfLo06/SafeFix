@@ -218,8 +218,14 @@ class TestPreparationService:
             # This is the deliberate preparation boundary: model, staging, and
             # review infrastructure failures stop preparation without inventing
             # candidates or allowing a partial formal manifest.
+            failure = self._failure_summary(error)
+            self._emit(
+                request,
+                "model-call",
+                {"role": "test", "status": "error", "summary": failure},
+            )
             result = self._failed_preparation(
-                source, existing_count, self._failure_summary(error)
+                source, existing_count, failure
             )
         finally:
             try:
@@ -691,6 +697,19 @@ class TestPreparationService:
             detail = str(error).lower()
             if "timed out" in detail or "timeout" in detail:
                 return "测试模型请求超时（600 秒）。项目较大或覆盖要求较多时可重试。"
+            if any(
+                phrase in detail
+                for phrase in (
+                    "remote end closed",
+                    "remote disconnected",
+                    "connection reset",
+                    "connection aborted",
+                )
+            ):
+                return (
+                    "测试模型连接在完整响应前被服务端断开。"
+                    "请稍后重试；若持续发生，请检查服务端负载或代理连接。"
+                )
             if "http error 401" in detail or "http error 403" in detail:
                 return "测试模型认证被拒绝。请检查 SAFEFIX_TEST_API_KEY。"
             if "http error 429" in detail:
