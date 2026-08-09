@@ -3755,3 +3755,4 @@
   cover those cases and header control bytes.
 - Final reviews: specification-compliance PASS and code-quality PASS. Final
   full-suite, compile, and diff checks passed before commit.
+- Implementation commit: `53339e6 fix: use curl for model transport`.
