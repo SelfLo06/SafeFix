@@ -3852,3 +3852,4 @@
   passed 15; MockLLM unit tests passed 2. Specification-compliance review:
   PASS. Documentation-quality review identified and corrected one premature
   claim about future verification; no other material issue was found.
+- Documentation commit: `57d7b0c docs: localize SafeFix README`.
