@@ -667,7 +667,20 @@ class SessionRunner:
         """Answer a post-run read-only question without restarting repair."""
         if self.state is None:
             raise RuntimeError("session has not prepared a baseline")
-        response = self._complete_explanation(question)
+        try:
+            response = self._complete_explanation(question)
+        except LLMTransportError:
+            response = "说明模型请求失败，未修改任何文件。请稍后重试或继续使用 /status、/logs on、/stop。"
+            self._emit_event(
+                "explain", response, status="error", phase=self._phase
+            )
+            return response
+        except LLMResponseError:
+            response = "说明模型返回了无效响应，未修改任何文件。请稍后重试或继续使用 /status、/logs on、/stop。"
+            self._emit_event(
+                "explain", response, status="error", phase=self._phase
+            )
+            return response
         self.state.record_explanation(question, response)
         self._emit_event(
             "explain", response, status="completed", phase=self._phase, raw_text=response

@@ -4,6 +4,7 @@ import time
 
 from safefix.events import SessionEvent
 from safefix.junit import TestCaseResult as _TestCaseResult
+from safefix.llm.base import LLMTransportError
 from safefix.llm.mock import MockLLM
 from safefix.models import BaselineSource, Config, FailureSet, GuardDecision, StopReason
 from safefix.operator import OperatorCommandQueue
@@ -209,6 +210,35 @@ def test_completed_runner_answers_explain_without_starting_a_repair_decision(tmp
     assert runner.answer_explanation("what happened?") == "The run ended by request."
     assert runner.state is not None
     assert runner.state.steps == 1
+
+
+def test_completed_runner_returns_chinese_explanation_failure_instead_of_raising(tmp_path: Path) -> None:
+    _legacy_project(tmp_path)
+
+    class FinishThenFailLLM:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def complete(self, prompt: str) -> str:
+            del prompt
+            self.calls += 1
+            if self.calls == 1:
+                return '{"tool": "finish"}'
+            raise LLMTransportError("curl request failed")
+
+    from safefix.runner import SessionRunner
+
+    runner = SessionRunner(
+        tmp_path,
+        credentials=FakeCredentials(),
+        llm_client=FinishThenFailLLM(),
+        test_runner_factory=lambda _root, _args: SequentialRunner(
+            [_report("tests.app::test_value")]
+        ),
+    )
+
+    assert runner.run().stop_reason is StopReason.REQUESTED
+    assert "说明模型请求失败" in runner.answer_explanation("what happened?")
 
 
 def test_pause_gates_next_repair_decision_until_resume(tmp_path: Path) -> None:
