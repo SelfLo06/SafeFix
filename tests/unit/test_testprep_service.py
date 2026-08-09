@@ -829,6 +829,24 @@ def test_test_model_request_failure_records_a_safe_authentication_reason(tmp_pat
     )
 
 
+def test_test_model_timeout_names_the_extended_request_limit(tmp_path: Path) -> None:
+    class TimeoutClient:
+        def complete(self, _prompt: str) -> str:
+            raise LLMTransportError("timed out")
+
+    request, _, _, _ = _request(
+        tmp_path,
+        source=BaselineSource.GENERATED,
+        test_client=TimeoutClient(),
+    )
+
+    result = PreparationService().prepare(request)
+
+    assert result.summary.candidate_records[0].reason == (
+        "测试模型请求超时（600 秒）。项目较大或覆盖要求较多时可重试。"
+    )
+
+
 def test_generation_without_a_test_client_reports_its_missing_credential(tmp_path: Path) -> None:
     request, _, _, _ = _request(
         tmp_path,

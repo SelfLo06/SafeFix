@@ -218,10 +218,10 @@ def test_cli_wires_configured_role_clients_and_review_adapter(tmp_path: Path) ->
         review_base_url="https://review.example/v1",
         review_model="review-model",
     )
-    clients: list[dict[str, str]] = []
+    clients: list[dict[str, object]] = []
     seen: dict[str, object] = {}
 
-    def client_factory(**kwargs: str) -> object:
+    def client_factory(**kwargs: object) -> object:
         clients.append(kwargs)
         return kwargs
 
@@ -244,6 +244,8 @@ def test_cli_wires_configured_role_clients_and_review_adapter(tmp_path: Path) ->
     assert seen["llm_client"] is clients[0]
     assert seen["test_client"] is None
     assert callable(seen["test_client_factory"])
+    test_client = seen["test_client_factory"]()
+    assert test_client["timeout"] == 600
     assert isinstance(seen["review_client"], ReviewModelClient)
     assert isinstance(seen["final_review_client"], ReviewModelClient)
 

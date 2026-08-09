@@ -689,6 +689,8 @@ class TestPreparationService:
             return "测试模型返回了无效的 OpenAI 兼容响应。"
         if isinstance(error, LLMTransportError):
             detail = str(error).lower()
+            if "timed out" in detail or "timeout" in detail:
+                return "测试模型请求超时（600 秒）。项目较大或覆盖要求较多时可重试。"
             if "http error 401" in detail or "http error 403" in detail:
                 return "测试模型认证被拒绝。请检查 SAFEFIX_TEST_API_KEY。"
             if "http error 429" in detail:

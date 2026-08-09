@@ -11,7 +11,10 @@ from typing import Protocol
 from .approval import ApprovalProvider, DeferredApprovalProvider
 from .config import ConfigError, load_config
 from .credentials import CredentialError, CredentialsResolver
-from .llm.openai_compatible import OpenAICompatibleClient
+from .llm.openai_compatible import (
+    DEFAULT_MODEL_TIMEOUT_SECONDS,
+    OpenAICompatibleClient,
+)
 from .llm.roles import UrllibHTTPTransport
 from .models import (
     AcceptanceMode,
@@ -28,6 +31,7 @@ from .runner import SessionRunner
 
 
 EXIT_CODES = {reason: exit_code_for_stop_reason(reason) for reason in StopReason}
+TEST_MODEL_TIMEOUT_SECONDS = 600
 
 
 class _Tui(Protocol):
@@ -48,13 +52,21 @@ class _CachedCredentials:
         return self._api_key
 
 
-def production_client(*, base_url: str, model: str, api_key: str, temperature: float = 0.2) -> OpenAICompatibleClient:
+def production_client(
+    *,
+    base_url: str,
+    model: str,
+    api_key: str,
+    temperature: float = 0.2,
+    timeout: float = DEFAULT_MODEL_TIMEOUT_SECONDS,
+) -> OpenAICompatibleClient:
     return OpenAICompatibleClient(
         base_url=base_url,
         model=model,
         api_key=api_key,
         transport=UrllibHTTPTransport(),
         temperature=temperature,
+        timeout=timeout,
     )
 
 
@@ -242,6 +254,7 @@ def _run_command(
                 base_url=config.test_base_url,
                 model=config.test_model,
                 api_key=credentials.for_role(ModelRole.TEST).get(),
+                timeout=TEST_MODEL_TIMEOUT_SECONDS,
                 **client_options,
             )
         def make_review_client() -> ReviewModelClient:

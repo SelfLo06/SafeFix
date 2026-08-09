@@ -3694,3 +3694,17 @@
 - End-to-end preflight replay used the actual stress project and a local empty
   Test Model response: `mixed` produced a manifest containing
   `tests/test_pricing_rules.py` with no setup failure and no network request.
+
+## Test Model Timeout For Large Coverage Requests
+
+- Date: 2026-08-09. The large stress project reached the real Test Model call
+  and exceeded the prior 120-second transport timeout. Its bounded project
+  context and coverage-driven test generation can legitimately require longer
+  inference; this is not treated as a connectivity defect.
+- TDD red: CLI wiring lacked a Test Model timeout override and a simulated
+  `LLMTransportError("timed out")` was reported as a network error. Green:
+  Test Model construction now uses a 600-second timeout while Repair and
+  Review retain the 120-second default; the failure summary identifies the
+  600-second timeout in Chinese.
+- Verification: focused CLI/test-model/TUI suites passed 81 tests, followed by
+  the complete test suite, `compileall`, and `git diff --check`.
