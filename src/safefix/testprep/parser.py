@@ -19,6 +19,7 @@ _CANDIDATE_FIELDS = {
     "basis",
     "sources",
     "touched_existing_tests",
+    "covers",
 }
 
 
@@ -110,6 +111,13 @@ class CandidateParser:
             raise ParseError("touched_existing_tests must be an array of strings")
         if raw_touched:
             raise ParseError("candidates cannot write existing tests")
+        raw_covers = raw_candidate.get("covers", [])
+        if not isinstance(raw_covers, list) or any(
+            not isinstance(item, str) or not item.strip() for item in raw_covers
+        ):
+            raise ParseError("covers must be an array of non-empty strings")
+        if len(set(raw_covers)) != len(raw_covers):
+            raise ParseError("coverage IDs must be unique")
 
         return GeneratedTestCandidate(
             candidate_id=candidate_id,
@@ -117,6 +125,7 @@ class CandidateParser:
             basis=basis,
             sources=sources,
             touched_existing_tests=(),
+            covers=tuple(raw_covers),
         )
 
     def _source_references(self, value: Any) -> tuple[str, ...]:

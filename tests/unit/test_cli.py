@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from safefix.approval import ApprovalProvider
-from safefix.models import Config, SessionResult, StopReason
+from safefix.models import BaselineSource, Config, SessionResult, StopReason
 from safefix.credentials import CredentialsResolver
 from safefix.models import ModelRole
 
@@ -85,6 +85,52 @@ def test_run_command_caches_validated_boundaries_for_runner(tmp_path: Path) -> N
     }
 
 
+def test_runtime_preflight_overrides_reload_the_cached_config(tmp_path: Path) -> None:
+    from safefix.cli import main
+
+    credentials = FakeCredentials()
+    credentials.set("stored-test-key")
+    loaded_overrides: list[dict[str, object]] = []
+
+    def config_loader(
+        _root: Path, overrides: dict[str, object], require_llm: bool
+    ) -> Config:
+        del require_llm
+        loaded_overrides.append(dict(overrides))
+        return Config(
+            base_url="https://llm.example/v1",
+            model="repair-model",
+            baseline_source=BaselineSource(overrides.get("baseline_source", "existing")),
+            generate_tests=bool(overrides.get("generate_tests", False)),
+        )
+
+    def runner_factory(project_root: Path, **kwargs: object) -> FakeRunner:
+        runtime_overrides = kwargs["cli_overrides"]
+        assert isinstance(runtime_overrides, dict)
+        runtime_overrides.update(
+            {"baseline_source": "generated", "generate_tests": True}
+        )
+        loader = kwargs["config_loader"]
+        assert callable(loader)
+        refreshed = loader(project_root, runtime_overrides, require_llm=True)
+        assert refreshed.baseline_source.value == "generated"
+        assert refreshed.generate_tests is True
+        return FakeRunner(SessionResult(stop_reason=StopReason.SUCCESS))
+
+    assert main(
+        ["run", str(tmp_path)],
+        credentials_factory=lambda: credentials,
+        config_loader=config_loader,
+        runner_factory=runner_factory,
+        client_factory=lambda **_kwargs: object(),
+    ) == 0
+
+    assert loaded_overrides[-1] == {
+        "baseline_source": "generated",
+        "generate_tests": True,
+    }
+
+
 def test_run_command_passes_config_overrides(tmp_path: Path) -> None:
     from safefix.cli import main
 
@@ -144,7 +190,7 @@ def test_credentials_commands_explain_environment_storage(
 
     assert main(["credentials", "status"]) == 0
     output = capsys.readouterr().out
-    assert "does not store them" in output
+    assert "不会存储凭据" in output
     assert "SAFEFIX_TEST_API_KEY" in output
     assert "SAFEFIX_REPAIR_API_KEY" in output
     assert "SAFEFIX_REVIEW_API_KEY" in output
@@ -289,4 +335,4 @@ def test_wizard_requires_a_model_when_config_is_missing(tmp_path: Path) -> None:
         cwd=tmp_path,
     ) == 0
 
-    assert any("required" in message.lower() for message in messages)
+    assert any("不能为空" in message for message in messages)

@@ -136,20 +136,6 @@ def _normalize_enums(values: dict) -> None:
 
 
 def _validate_role_pairs(values: dict) -> None:
-    configured: dict[tuple[str, str], str] = {}
-    for role, base_key, model_key in (
-        ("repair", "base_url", "model"),
-        ("test", "test_base_url", "test_model"),
-        ("review", "review_base_url", "review_model"),
-    ):
-        base_url = values.get(base_key, "")
-        model = values.get(model_key, "")
-        if not base_url.strip() or not model.strip():
-            continue
-        pair = (base_url.rstrip("/"), model)
-        previous = configured.get(pair)
-        if previous is not None:
-            raise ConfigError(
-                f"roles {previous} and {role} use the same base_url and model"
-            )
-        configured[pair] = role
+    # Roles may intentionally share an endpoint/model while retaining
+    # independent credentials and lifecycle semantics.
+    return None

@@ -31,10 +31,10 @@ def test_transcript_renderer_uses_safe_payload_and_ascii_fallback() -> None:
 def test_transcript_renderer_uses_unicode_marker_when_supported() -> None:
     event = SessionEvent(2, "2026-08-07T00:00:00Z", Phase.READY, "guardrail", {"summary": "safe"})
     entry = render_event(event, TerminalCapabilities(True, True, True, False))
-    assert entry.text.startswith("[GUARD] ✓")
+    assert entry.text.startswith("● SAFE ")
 
 
-def test_console_renders_concise_current_phase_header() -> None:
+def test_console_renders_semantic_event_without_internal_phase_header() -> None:
     console_output = FakeConsole()
     console = GuidedRepairConsole(
         OperatorCommandQueue(),
@@ -48,4 +48,4 @@ def test_console_renders_concise_current_phase_header() -> None:
 
     console.drain_events_once()
 
-    assert console_output.lines[0] == ("Status: evaluate", "bold")
+    assert console_output.lines[0] == ("● TEST running", "cyan")

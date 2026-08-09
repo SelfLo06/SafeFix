@@ -1032,6 +1032,10 @@ def _undeclared_imports(tree: ast.AST, project_root: Path) -> tuple[str, ...]:
 
 def _project_module_roots(project_root: Path) -> set[str]:
     roots: set[str] = set()
+    if (project_root / "src").is_dir():
+        # A src-layout project may be referenced as ``src.package`` by a
+        # generated test when the project root is on sys.path.
+        roots.add("src")
     for path in project_root.rglob("*.py"):
         if any(part in {".git", ".venv", "venv", "__pycache__", "tests"} for part in path.parts):
             continue

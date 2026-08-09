@@ -82,6 +82,34 @@ def test_empty_result_is_invalid_by_default():
     assert result.valid is False
 
 
+def test_runner_collects_only_requested_project_source_lines(tmp_path: Path):
+    source = tmp_path / "calculator.py"
+    source.write_text(
+        "def price(value):\n"
+        "    if value:\n"
+        "        return 1\n"
+        "    return 0\n",
+        encoding="utf-8",
+    )
+    test = tmp_path / "test_calculator.py"
+    test.write_text(
+        "from calculator import price\n\n"
+        "def test_price():\n"
+        "    assert price(True) == 1\n"
+        "    assert price(False) == 0\n",
+        encoding="utf-8",
+    )
+
+    result = Runner(
+        tmp_path,
+        target_paths=(test.name,),
+        trace_paths=(source.name,),
+    ).run()
+
+    assert result.valid is True
+    assert result.executed_lines == {"calculator.py": frozenset({1, 2, 3, 4})}
+
+
 def test_runner_marks_nonempty_junit_report_valid(tmp_path: Path, monkeypatch):
     report_paths = []
 

@@ -7,7 +7,7 @@ from urllib.request import Request, urlopen
 from ..credentials import CredentialsResolver
 from ..models import ModelRoleConfig
 from .base import HTTPTransport, LLMClient, LLMResponseError
-from .openai_compatible import OpenAICompatibleClient
+from .openai_compatible import DEFAULT_MODEL_TEMPERATURE, DEFAULT_MODEL_TIMEOUT_SECONDS, OpenAICompatibleClient
 
 
 class UrllibHTTPTransport:
@@ -32,9 +32,15 @@ class UrllibHTTPTransport:
 class ModelClientFactory:
     """Construct an OpenAI-compatible client from one role's environment key."""
 
-    def __init__(self, transport: HTTPTransport | None = None, timeout: float = 30) -> None:
+    def __init__(
+        self,
+        transport: HTTPTransport | None = None,
+        timeout: float = DEFAULT_MODEL_TIMEOUT_SECONDS,
+        temperature: float = DEFAULT_MODEL_TEMPERATURE,
+    ) -> None:
         self._transport = transport if transport is not None else UrllibHTTPTransport()
         self._timeout = timeout
+        self._temperature = temperature
 
     def create(self, role_config: ModelRoleConfig, environ: Any) -> LLMClient:
         api_key = CredentialsResolver(environ, env_name=role_config.credential_env).get()
@@ -44,4 +50,5 @@ class ModelClientFactory:
             api_key=api_key,
             transport=self._transport,
             timeout=self._timeout,
+            temperature=self._temperature,
         )

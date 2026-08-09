@@ -18,6 +18,7 @@ from safefix.review import ReviewResult
 from safefix.session_state import SessionState
 from safefix.test_manifest import FrozenTestManifest, ManifestEntry
 from safefix.testprep import PreparationSummary
+from safefix.testprep.models import CoverageRequirement
 
 
 def failures(*ids: str) -> FailureSet:
@@ -106,6 +107,67 @@ def test_context_contains_bounded_guidance_and_safe_review_summary(tmp_path):
     assert "context-secret" not in rendered
     assert "review-secret" not in rendered
     assert "complete source response" not in rendered
+
+
+def test_context_contains_frozen_test_counts(tmp_path):
+    state = SessionState(failures("case-a"))
+    manifest = FrozenTestManifest(
+        session_id="session-1",
+        baseline_source=BaselineSource.MIXED,
+        entries=(
+            ManifestEntry(
+                path="tests/test_existing.py",
+                sha256="a" * 64,
+                origin=BaselineSource.EXISTING,
+            ),
+        ),
+        stability_runs=3,
+        manifest_hash="b" * 64,
+    )
+    state.set_preparation(
+        PreparationSummary(
+            baseline_source=BaselineSource.MIXED,
+            existing_test_count=2,
+            generated_candidate_count=3,
+            generated_accepted_count=1,
+            baseline_test_count=4,
+            coverage_requirements=(
+                CoverageRequirement("behavior-1", "lowercase text"),
+                CoverageRequirement(
+                    "branch-1", "exercise the decision at src/app.py:4", "src/app.py", (5, 7)
+                ),
+            ),
+            covered_requirement_ids=("behavior-1", "branch-1"),
+        ),
+        manifest,
+    )
+
+    context = ContextBuilder(
+        ProjectMemoryStore(tmp_path / "project", data_dir=tmp_path / "data")
+    ).build(state)
+
+    assert context["test_summary"] == {
+        "baseline_mode": "mixed",
+        "baseline_test_count": 4,
+        "existing_test_count": 2,
+        "generated_candidate_count": 3,
+        "generated_accepted_count": 1,
+        "coverage_requirements": [
+            {
+                "id": "behavior-1",
+                "behavior": "lowercase text",
+                "source_path": None,
+                "required_lines": [],
+            },
+            {
+                "id": "branch-1",
+                "behavior": "exercise the decision at src/app.py:4",
+                "source_path": "src/app.py",
+                "required_lines": [5, 7],
+            },
+        ],
+        "covered_requirement_ids": ["behavior-1", "branch-1"],
+    }
 
 
 def test_context_never_retains_code_like_review_source_or_url_data(tmp_path):

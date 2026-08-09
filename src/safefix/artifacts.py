@@ -122,6 +122,39 @@ class ArtifactWriter:
         sanitized = sanitize_untrusted(payload)
         if not isinstance(sanitized, dict):
             raise SessionStateBoundaryError("invalid session artifact payload")
+        # These records are already validated at their typed boundaries.  Add
+        # them after generic sanitization so semantic names such as "response"
+        # are not mistaken for untrusted transport payloads.
+        sanitized["explanations"] = [
+            {"question": question, "response": response}
+            for question, response in state.explanation_records
+        ]
+        sanitized["coverage_requirements"] = (
+            [
+                {
+                    "id": item.requirement_id,
+                    "behavior": safe_summary(item.behavior),
+                    "source_path": item.source_path,
+                    "required_lines": list(item.required_lines),
+                }
+                for item in preparation.coverage_requirements
+            ]
+            if preparation is not None
+            else None
+        )
+        sanitized["covered_requirement_ids"] = (
+            list(preparation.covered_requirement_ids) if preparation is not None else None
+        )
+        sanitized["semantic_events"] = [
+            {
+                "sequence": event.sequence,
+                "timestamp": event.timestamp,
+                "phase": event.phase.value,
+                "kind": event.kind,
+                "payload": event.safe_payload,
+            }
+            for event in state.recent_events
+        ]
         return sanitized
 
 
@@ -186,6 +219,7 @@ def _validate_metadata(state: SessionState) -> None:
             raise SessionStateBoundaryError("invalid session metadata: preparation_summary")
         for name in (
             "existing_test_count",
+            "baseline_test_count",
             "generated_candidate_count",
             "generated_accepted_count",
             "generated_pass_accepted",

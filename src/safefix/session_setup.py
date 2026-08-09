@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 import secrets
 from typing import Callable, Protocol, Sequence
@@ -63,6 +63,7 @@ class SetupResult:
     writable_paths: frozenset[Path]
     preparation_summary: PreparationSummary | None
     early_stop: SessionResult | None = None
+    failure_detail: str | None = None
 
     @property
     def test_manifest(self) -> FrozenTestManifest | None:
@@ -88,6 +89,7 @@ class SessionSetup:
         test_client: object | None = None,
         review_client: object | None = None,
         approval_provider: object | None = None,
+        event_sink: object | None = None,
         guidance: str = "",
         high_risk_confirmation: bool | None = None,
     ) -> None:
@@ -100,6 +102,7 @@ class SessionSetup:
         self._test_client = test_client
         self._review_client = review_client
         self._approval_provider = approval_provider
+        self._event_sink = event_sink
         self._guidance = guidance
         self._high_risk_confirmation = high_risk_confirmation
 
@@ -116,8 +119,10 @@ class SessionSetup:
                     self.project_root, config.allowed_paths, config.excluded_paths
                 )
             )
-        except (ConfigError, CredentialError, ValueError):
-            return self._early(None, None, None, (), StopReason.CONFIG_ERROR)
+        except (ConfigError, CredentialError, ValueError) as error:
+            return self._early(
+                None, None, None, (), StopReason.CONFIG_ERROR, str(error)
+            )
 
         try:
             discovery_runner = runner_for(
@@ -127,29 +132,37 @@ class SessionSetup:
                 allow_empty=True,
             )
             discovery = discover_existing_tests(self.project_root, discovery_runner)
-        except (OSError, TypeError, ValueError, AttributeError):
-            return self._early(config, None, None, writable_paths, StopReason.ERROR)
+        except (OSError, TypeError, ValueError, AttributeError) as error:
+            return self._early(
+                config, None, None, writable_paths, StopReason.ERROR, str(error)
+            )
         if not discovery.result.valid:
             reason = (
                 StopReason.ERROR
                 if discovery.result.exit_code == 3
                 else StopReason.CONFIG_ERROR
             )
-            return self._early(config, None, None, writable_paths, reason)
+            return self._early(
+                config,
+                None,
+                None,
+                writable_paths,
+                reason,
+                "pytest 未能成功发现现有测试。",
+            )
 
         source = BaselineSource(config.baseline_source)
-        if source is BaselineSource.GENERATED and discovery.collected_count:
-            return self._early(config, None, None, writable_paths, StopReason.CONFIG_ERROR)
 
         try:
             preparation = self._prepare(config, discovery)
-        except (OSError, RuntimeError, TypeError, ValueError):
+        except (OSError, RuntimeError, TypeError, ValueError) as error:
             return self._early(
                 config,
                 None,
                 None,
                 writable_paths,
                 StopReason.TEST_PREPARATION_ERROR,
+                str(error),
             )
         if preparation.stop_reason is not None:
             return self._early(
@@ -158,16 +171,23 @@ class SessionSetup:
                 preparation.summary,
                 writable_paths,
                 preparation.stop_reason,
+                _preparation_failure_detail(preparation),
             )
         if not preparation.manifest_entries:
+            reason = (
+                StopReason.TEST_PREPARATION_ERROR
+                if source in {BaselineSource.GENERATED, BaselineSource.MIXED}
+                else StopReason.CONFIG_ERROR
+            )
             return self._early(
                 config,
                 None,
                 preparation.summary,
                 writable_paths,
-                StopReason.CONFIG_ERROR,
+                reason,
+                _preparation_failure_detail(preparation),
             )
-        if source in {BaselineSource.EXISTING, BaselineSource.MIXED}:
+        if discovery.collected_count:
             existing_paths = {path for path in discovery.test_paths}
             manifest_paths = {entry.path for entry in preparation.manifest_entries}
             if not existing_paths.issubset(manifest_paths):
@@ -187,13 +207,14 @@ class SessionSetup:
                 config.stability_runs,
             )
             manifest.verify(self.project_root)
-        except (ManifestError, OSError, TypeError, ValueError):
+        except (ManifestError, OSError, TypeError, ValueError) as error:
             return self._early(
                 config,
                 None,
                 preparation.summary,
                 writable_paths,
                 StopReason.CONFIG_ERROR,
+                str(error),
             )
 
         try:
@@ -204,13 +225,14 @@ class SessionSetup:
                 target_paths=tuple(entry.path for entry in manifest.entries),
             )
             baseline = baseline_runner.run()
-        except (OSError, TypeError, ValueError, AttributeError):
+        except (OSError, TypeError, ValueError, AttributeError) as error:
             return self._early(
                 config,
                 manifest,
                 None,
                 writable_paths,
                 StopReason.ERROR,
+                str(error),
             )
         if not baseline.valid or not _has_collected_tests(baseline):
             reason = (
@@ -224,7 +246,18 @@ class SessionSetup:
                 None,
                 writable_paths,
                 reason,
+                "pytest 未能成功运行冻结的测试清单。",
             )
+
+        preparation = replace(
+            preparation,
+            summary=replace(
+                preparation.summary,
+                baseline_test_count=sum(
+                    not case.is_collection_error for case in baseline.cases
+                ),
+            ),
+        )
 
         early_stop = (
             SessionResult(stop_reason=StopReason.SUCCESS)
@@ -255,6 +288,7 @@ class SessionSetup:
             config=config,
             approval_provider=self._approval_provider,
             workspace=workspace,
+            event_sink=self._event_sink,
             guidance=self._guidance,
             high_risk_confirmation=self._high_risk_confirmation,
         )
@@ -279,6 +313,7 @@ class SessionSetup:
         summary: PreparationSummary | None,
         writable_paths: frozenset[Path] | tuple[()],
         reason: StopReason,
+        failure_detail: str | None = None,
     ) -> SetupResult:
         return SetupResult(
             config=config,
@@ -287,6 +322,7 @@ class SessionSetup:
             writable_paths=frozenset(writable_paths),
             preparation_summary=summary,
             early_stop=SessionResult(stop_reason=reason),
+            failure_detail=failure_detail,
         )
 
 
@@ -343,6 +379,19 @@ def runner_for(
     if actual_allow_empty is not allow_empty:
         raise ValueError("v2 runner allow_empty does not match requested scope")
     return runner
+
+
+def _preparation_failure_detail(preparation: PreparationResult) -> str:
+    if not preparation.summary.candidate_records:
+        return "Test Model 没有产生可接受的测试。"
+    reasons = [
+        record.reason
+        for record in preparation.summary.candidate_records
+        if record.reason
+    ]
+    if not reasons:
+        return "Test Model 没有产生可接受的测试。"
+    return reasons[-1]
 
 
 def _has_collected_tests(result: TestRunResult) -> bool:

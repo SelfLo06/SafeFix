@@ -35,6 +35,8 @@ Ordinary standard/review modes and existing-only paths were left unchanged.
 - `git diff --check` — passed.
 - Dirty plan-local `progress.md` remains unstaged and preserved.
 - `SPEC.md`, `PLAN.md`, and tag `v0.1.0` were not modified.
+- Implementation commit: `c85632d` (`fix: close whole-branch P1 specification
+  findings`).
 
 ## Reviews
 

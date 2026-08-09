@@ -84,32 +84,32 @@ def test_invalid_acceptance_mode_is_rejected(tmp_path: Path):
         load_config(tmp_path, {"acceptance_mode": "unsafe"})
 
 
-def test_duplicate_role_endpoint_model_is_rejected(tmp_path: Path):
-    with pytest.raises(ConfigError, match="same base_url.*model"):
-        load_config(
-            tmp_path,
-            {
-                "base_url": "https://same/v1",
-                "model": "m",
-                "review_base_url": "https://same/v1",
-                "review_model": "m",
-            },
-            require_llm=True,
-        )
+def test_duplicate_role_endpoint_model_is_allowed(tmp_path: Path):
+    config = load_config(
+        tmp_path,
+        {
+            "base_url": "https://same/v1",
+            "model": "m",
+            "review_base_url": "https://same/v1",
+            "review_model": "m",
+        },
+        require_llm=True,
+    )
+    assert config.review_model == "m"
 
 
-def test_duplicate_role_effective_endpoint_model_is_rejected(tmp_path: Path):
-    with pytest.raises(ConfigError, match="same base_url.*model"):
-        load_config(
-            tmp_path,
-            {
-                "base_url": "https://same/v1",
-                "model": "m",
-                "review_base_url": "https://same/v1/",
-                "review_model": "m",
-            },
-            require_llm=True,
-        )
+def test_duplicate_role_effective_endpoint_model_is_allowed(tmp_path: Path):
+    config = load_config(
+        tmp_path,
+        {
+            "base_url": "https://same/v1",
+            "model": "m",
+            "review_base_url": "https://same/v1/",
+            "review_model": "m",
+        },
+        require_llm=True,
+    )
+    assert config.review_model == "m"
 
 
 def test_same_endpoint_with_different_models_is_allowed(tmp_path: Path):

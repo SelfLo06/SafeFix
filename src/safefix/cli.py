@@ -8,7 +8,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol
 
-from .approval import ApprovalProvider
+from .approval import ApprovalProvider, DeferredApprovalProvider
 from .config import ConfigError, load_config
 from .credentials import CredentialError, CredentialsResolver
 from .llm.openai_compatible import OpenAICompatibleClient
@@ -48,12 +48,13 @@ class _CachedCredentials:
         return self._api_key
 
 
-def production_client(*, base_url: str, model: str, api_key: str) -> OpenAICompatibleClient:
+def production_client(*, base_url: str, model: str, api_key: str, temperature: float = 0.2) -> OpenAICompatibleClient:
     return OpenAICompatibleClient(
         base_url=base_url,
         model=model,
         api_key=api_key,
         transport=UrllibHTTPTransport(),
+        temperature=temperature,
     )
 
 
@@ -102,6 +103,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--pytest-args", action="append")
     run.add_argument("--base-url")
     run.add_argument("--model")
+    run.add_argument("--temperature", type=float)
     run.add_argument("--generate-tests", action="store_true")
     run.add_argument("--baseline-source", choices=["existing", "generated", "mixed"])
     run.add_argument("--acceptance-mode", choices=["review", "standard", "high-risk"])
@@ -168,7 +170,7 @@ def main(
             return _credentials_command(args, credentials)
         except CredentialError as exc:
             exit_code = EXIT_CODES[StopReason.CONFIG_ERROR]
-            print(f"SafeFix credential error: {exc} (exit code {exit_code})")
+            print(f"SafeFix 凭据错误：{exc}（退出码 {exit_code}）")
             return exit_code
     return _run_command(
         args,
@@ -187,7 +189,7 @@ def _credentials_command(args: argparse.Namespace, credentials: CredentialsResol
         names = (ROLE_API_KEY_ENV[ModelRole(args.role)],)
     else:
         names = tuple(ROLE_API_KEY_ENV[role] for role in ModelRole)
-    print("SafeFix reads API credentials from environment variables and does not store them:")
+    print("SafeFix 仅从环境变量读取 API 凭据，不会存储凭据：")
     for name in names:
         print(name)
     return 0
@@ -206,6 +208,7 @@ def _run_command(
 ) -> int:
     project_root = args.project_path.resolve()
     overrides = _overrides(args)
+    initial_overrides = dict(overrides)
     capable_tty = tty_detector(sys.stdin) and tty_detector(sys.stdout)
     try:
         config = config_loader(project_root, overrides, require_llm=True)
@@ -227,47 +230,65 @@ def _run_command(
             )
 
         api_key = credentials.for_role(ModelRole.REPAIR).get()
+        client_options = {} if args.temperature is None else {"temperature": args.temperature}
         client = client_factory(
             base_url=config.base_url,
             model=config.model,
             api_key=api_key,
+            **client_options,
         )
-        test_client = None
-        if config.generate_tests and BaselineSource(config.baseline_source) in {
-            BaselineSource.GENERATED,
-            BaselineSource.MIXED,
-        }:
-            test_client = client_factory(
+        def make_test_client() -> OpenAICompatibleClient:
+            return client_factory(
                 base_url=config.test_base_url,
                 model=config.test_model,
                 api_key=credentials.for_role(ModelRole.TEST).get(),
+                **client_options,
             )
-        review_client = None
-        final_review_client = None
-        if config.review_base_url.strip() and config.review_model.strip():
-            review_client = ReviewModelClient(
+        def make_review_client() -> ReviewModelClient:
+            return ReviewModelClient(
                 client_factory(
                     base_url=config.review_base_url,
                     model=config.review_model,
                     api_key=credentials.for_role(ModelRole.REVIEW).get(),
+                    **client_options,
                 )
             )
+        defer_role_clients = not args.non_interactive and not args.plain and capable_tty
+        test_client = None
+        review_client = None
+        final_review_client = None
+        if not defer_role_clients and config.generate_tests and BaselineSource(config.baseline_source) in {
+            BaselineSource.GENERATED,
+            BaselineSource.MIXED,
+        }:
+            test_client = make_test_client()
+        if config.review_base_url.strip() and config.review_model.strip() and (
+            not defer_role_clients or resolved_high_risk
+        ):
+            review_client = make_review_client()
             final_review_client = review_client
     except (ConfigError, CredentialError) as exc:
         exit_code = EXIT_CODES[StopReason.CONFIG_ERROR]
-        print(f"SafeFix configuration error: {exc} (exit code {exit_code})")
+        print(f"SafeFix 配置错误：{exc}（退出码 {exit_code}）")
         return exit_code
 
     def cached_config_loader(
         _project_root: Path, _cli_overrides: dict, *, require_llm: bool = False
     ) -> Config:
-        return config
+        merged_overrides = {**initial_overrides, **_cli_overrides}
+        if merged_overrides == initial_overrides:
+            return config
+        return config_loader(project_root, merged_overrides, require_llm=require_llm)
 
-    approval = (
-        ApprovalProvider(interactive=False)
-        if args.non_interactive or not capable_tty
-        else approval_factory()
-    )
+    use_tui = not args.non_interactive and not args.plain and capable_tty
+    if args.non_interactive or not capable_tty:
+        approval = ApprovalProvider(interactive=False)
+    elif args.acceptance_mode == AcceptanceMode.HIGH_RISK.value:
+        approval = approval_factory()
+    elif use_tui:
+        approval = DeferredApprovalProvider()
+    else:
+        approval = approval_factory()
     high_risk_confirmation = None
     if args.acceptance_mode == AcceptanceMode.HIGH_RISK.value:
         if not approval.approve(
@@ -279,8 +300,8 @@ def _run_command(
         ):
             exit_code = EXIT_CODES[StopReason.CONFIG_ERROR]
             print(
-                "SafeFix configuration error: high-risk acceptance requires interactive confirmation "
-                f"(exit code {exit_code})"
+                "SafeFix 配置错误：高风险验收需要交互式确认"
+                f"（退出码 {exit_code}）"
             )
             return exit_code
         high_risk_confirmation = True
@@ -288,21 +309,23 @@ def _run_command(
     def make_runner(event_sink: object, command_queue: object | None = None) -> SessionRunner:
         return runner_factory(
             project_root,
-            cli_overrides=overrides,
+            cli_overrides=dict(initial_overrides),
             credentials=_CachedCredentials(api_key),
             config_loader=cached_config_loader,
             llm_client=client,
             test_client=test_client,
             review_client=review_client,
             final_review_client=final_review_client,
+            test_client_factory=make_test_client if config.test_base_url.strip() and config.test_model.strip() else None,
+            review_client_factory=make_review_client if config.review_base_url.strip() and config.review_model.strip() else None,
             event_sink=event_sink,
             operator_queue=command_queue,
             use_memory=args.use_memory,
             approval=approval,
             high_risk_confirmation=high_risk_confirmation,
+            progress_events=True,
         )
 
-    use_tui = not args.non_interactive and not args.plain and capable_tty
     if use_tui:
         from .operator import OperatorCommandQueue
         from .tui import TerminalCapabilities
@@ -320,7 +343,7 @@ def _run_command(
     else:
         result = make_runner(print).run()
     exit_code = EXIT_CODES[result.stop_reason]
-    print(f"SafeFix stopped: {result.stop_reason.value} (exit code {exit_code})")
+    print(f"SafeFix 已结束：{result.stop_reason.value}（退出码 {exit_code}）")
     return exit_code
 
 
@@ -340,41 +363,41 @@ def _launch_wizard(
 ) -> int:
     write = print if output_fn is None else output_fn
     if not capable_tty:
-        write("SafeFix: no-argument startup requires an interactive TTY; use 'safefix run PATH'.")
+        write("SafeFix：无参数启动需要交互式 TTY；请使用 'safefix run PATH'。")
         return EXIT_CODES[StopReason.CONFIG_ERROR]
 
     ask = input if input_fn is None else input_fn
     default_project = (Path.cwd() if cwd is None else cwd).resolve()
-    project_text = ask(f"Project [{default_project}] > ").strip()
+    project_text = ask(f"项目 [{default_project}] > ").strip()
     project_root = Path(project_text or default_project).expanduser().resolve()
     if not project_root.is_dir():
-        write(f"SafeFix configuration error: project directory does not exist: {project_root}")
+        write(f"SafeFix 配置错误：项目目录不存在：{project_root}")
         return EXIT_CODES[StopReason.CONFIG_ERROR]
 
     config_path = project_root / "safefix.toml"
     has_tests = (project_root / "tests").is_dir()
     write("SafeFix v0.2")
-    write(f"Project: {project_root}")
-    write("Mode: standard")
-    write(f"Tests: {'existing' if has_tests else 'not detected'}")
-    write("UI: TUI")
+    write(f"项目：{project_root}")
+    write("模式：standard")
+    write(f"测试：{'检测到已有测试' if has_tests else '未检测到已有测试'}")
+    write("界面：TUI")
 
     if not config_path.exists():
-        write("No safefix.toml found.")
-        base_url = ask("API base URL [https://api.openai.com/v1] > ").strip()
+        write("未找到 safefix.toml。")
+        base_url = ask("Repair API 地址 [https://api.openai.com/v1] > ").strip()
         base_url = base_url or "https://api.openai.com/v1"
         model = ""
         while not model:
-            model = ask("Model > ").strip()
+            model = ask("Repair 模型 > ").strip()
             if not model:
-                write("Model is required.")
+                write("Repair 模型不能为空。")
         config_path.write_text(
             f"base_url = {json.dumps(base_url)}\nmodel = {json.dumps(model)}\n",
             encoding="utf-8",
         )
-        write(f"Created {config_path}")
+        write(f"已创建 {config_path}")
 
-    write("Starting...")
+    write("正在启动...")
     return main(
         ["run", str(project_root), "--tui"],
         credentials_factory=credentials_factory,

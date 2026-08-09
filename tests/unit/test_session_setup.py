@@ -156,6 +156,47 @@ def test_setup_builds_existing_only_formal_manifest(tmp_path: Path):
     assert result.baseline is not None and result.baseline.valid
 
 
+def test_generated_setup_without_an_accepted_test_is_a_preparation_error(tmp_path: Path):
+    result = _setup(
+        tmp_path,
+        source=BaselineSource.GENERATED,
+        generate_tests=True,
+    ).prepare()
+
+    assert result.early_stop is not None
+    assert result.early_stop.stop_reason is StopReason.TEST_PREPARATION_ERROR
+    assert result.failure_detail == "Test Model 没有产生可接受的测试。"
+
+
+def test_setup_passes_event_sink_to_test_preparation(tmp_path: Path):
+    seen: list[object] = []
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "app.py").write_text("value = 1\n", encoding="utf-8")
+
+    def preparation_factory(request):
+        seen.append(request.event_sink)
+        return PreparationResult(
+            (), PreparationSummary(baseline_source=BaselineSource.GENERATED)
+        )
+
+    setup = SessionSetup(
+        tmp_path,
+        lambda *_args, **_kwargs: _config(BaselineSource.GENERATED, generate_tests=True),
+        FakeCredentials(),
+        lambda _root, _args, *, target_paths, allow_empty: FakeRunner(
+            _TestRunResult(0, (), valid=True),
+            target_paths=tuple(target_paths),
+            allow_empty=allow_empty,
+        ),
+        preparation_factory,
+        event_sink="test-event-sink",
+    )
+
+    setup.prepare()
+
+    assert seen == ["test-event-sink"]
+
+
 def test_setup_preserves_existing_and_generated_entries_in_mixed_manifest(tmp_path: Path):
     existing = "tests/test_existing.py"
     generated = "generated/test_generated.py"
@@ -199,19 +240,25 @@ def test_setup_allows_generated_only_after_empty_existing_discovery(tmp_path: Pa
     assert [entry.origin for entry in result.manifest.entries] == [BaselineSource.GENERATED]
 
 
-def test_setup_rejects_generated_only_with_existing_tests(tmp_path: Path):
+def test_setup_allows_generated_with_existing_tests(tmp_path: Path):
     path = "tests/test_existing.py"
+    generated = "generated/test_generated.py"
+    generated_path = tmp_path / generated
+    generated_path.parent.mkdir(parents=True)
+    generated_path.write_text("def test_generated():\n    assert True\n", encoding="utf-8")
     result = _setup(
         tmp_path,
         source=BaselineSource.GENERATED,
         existing_paths=(path,),
         existing_count=1,
+        generated_entries=(_entry(generated, BaselineSource.GENERATED, "candidate-1"),),
         generate_tests=True,
     ).prepare()
 
     assert result.early_stop is not None
-    assert result.early_stop.stop_reason is StopReason.CONFIG_ERROR
-    assert result.baseline is None
+    assert result.early_stop.stop_reason is StopReason.SUCCESS
+    assert result.manifest is not None
+    assert {entry.path for entry in result.manifest.entries} == {path, generated}
 
 
 def test_setup_closes_test_model_before_formal_baseline(tmp_path: Path):
@@ -287,3 +334,5 @@ def test_setup_closes_test_model_before_formal_baseline(tmp_path: Path):
     assert len(formal_calls) == 2
     assert result.manifest is not None
     assert result.baseline is baseline
+    assert result.preparation_summary is not None
+    assert result.preparation_summary.baseline_test_count == 1

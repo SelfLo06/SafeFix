@@ -115,6 +115,22 @@ def test_artifact_redacts_secret_values(tmp_path):
     assert "new_text" not in rendered
 
 
+def test_artifact_records_explain_conversation_but_not_view_state(tmp_path) -> None:
+    state = SessionState(failures("case-a"))
+    state.record_explanation("why did it roll back?", "The failure count did not improve.")
+
+    ArtifactWriter(tmp_path / "artifact.json").write(
+        state, SessionResult(stop_reason=StopReason.REQUESTED)
+    )
+
+    payload = json.loads((tmp_path / "artifact.json").read_text())
+    assert payload["explanations"] == [
+        {"question": "why did it roll back?", "response": "The failure count did not improve."}
+    ]
+    assert "raw_logs" not in payload
+    assert "input_mode" not in payload
+
+
 def test_artifact_written_for_stop_result(tmp_path):
     path = tmp_path / "artifact.json"
     stop_result = SessionResult(stop_reason=StopReason.MAX_STEPS)

@@ -151,3 +151,62 @@
   PASS. Report:
   `task-11-fix-round-3-report.md`.
 - Implementation commit: `36ce30d`.
+- Task 11: complete after fix round 3/5 (commits `ba54550..4a6063a`;
+  specification-compliance and code-quality PASS with no findings). The
+  in-flight apply-patch and evaluation command-deferral tests now prove
+  enqueue-before-release deterministically. Targeted test passed 11
+  consecutive runs; focused 48 and full 542 tests passed. Re-review:
+  `task-11-re-review-round-3.md`.
+- Task 12: complete after fix round 1/5 (commits `2f8a7c2..c4b8d87`;
+  specification-compliance and code-quality PASS with no findings). High-risk
+  final-review rejection restores the terminal checkpoint and artifact state
+  consistently; targeted 1, focused 54, and full 549 tests passed.
+  Re-review: `task-12-re-review-round-1.md`.
+
+### v0.2 Task 12 — final review checkpoint and high-risk completion gate
+
+- TDD red: focused final-review/evaluation/models/snapshot command failed 7
+  tests as expected because `FinalReviewRequest`, the final-review runner
+  injection, and pre-final snapshot methods were absent.
+- TDD green: focused final-review/evaluation/models command passed 24; related
+  snapshot/artifact/session-state/review command passed 41; full suite passed
+  549 tests. Compileall, `git diff --check`, and immutable `v0.1.0^{}` hash
+  verification passed.
+- Specification-compliance review: PASS. Final review runs only after valid
+  green frozen-manifest evaluation; standard WARN/REVIEW_REQUIRED remains
+  SUCCESS with bounded artifact warning; high-risk REVIEW_REQUIRED enters the
+  explicit gate; accept succeeds; reject restores the pre-final best and
+  returns FINAL_REVIEW_REJECTED. F0, pytest authority, and patch state remain
+  Harness-owned.
+- Code-quality review: PASS. Review output is typed at the boundary, failures
+  map explicitly, snapshot/state rollback is scoped, and no dependency,
+  fallback authority, broad exception handling, or TUI scope was added.
+- No callable subagent-dispatch capability was exposed; implementation and
+  separate specification/code-quality reviews were coordinator passes.
+
+- Task 13: complete after scoped fix rounds 1 and 2 (commits
+  `560704f..e5e065b`; independent specification-compliance and code-quality
+  reviews PASS). The scrollback-first `prompt_toolkit + Rich` adapter now
+  coordinates pending input, worker events, completion, deterministic
+  transient animation, concurrent guidance, and worker failure propagation
+  without altering Harness authority or semantic artifacts. Focused 39 and
+  full 567 tests passed. Final reviews:
+  `task-13-spec-final-review.md`, `task-13-quality-final-review.md`.
+
+- Task 14: complete after scoped fix round 1 (commits `4a7e27a..9ea3b0b`;
+  independent specification-compliance and code-quality reviews PASS). CLI
+  presentation routing preserves the legacy plain path, defaults capable TTYs
+  to the guided console, keeps non-TTY fail-closed, and confines
+  `--no-animation` to presentation. Regression coverage proves default TTY
+  wiring and lazy terminal-library imports. Focused 29 and full 576 tests
+  passed. Final reviews: `task-14-spec-rereview.md`,
+  `task-14-quality-rereview.md`.
+
+- Task 15: complete after scoped fix rounds 1, 2, and 3 (commits
+  `4bfd9d1..48c4ca9`; independent specification-compliance and code-quality
+  reviews PASS). Mechanism demonstrations now prove preparation acceptance,
+  freeze protection, queued guidance, TTY/plain routing, same-session
+  artifact provenance, recursive presentation leakage rejection, and final
+  review behavior. Focused 41, related 41, and full 588 tests passed;
+  wheel/sdist and fresh wheel-install CLI smoke passed. Final reviews:
+  `task-15-spec-final-review-2.md`, `task-15-quality-final-review-2.md`.

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import re
 import shutil
 import tempfile
 from typing import Callable
@@ -77,7 +78,7 @@ class StabilityRunner:
                 reason="one or more stability runs had a collection or infrastructure error",
             )
 
-        failure_ids = tuple(result.failure_ids for result in results)
+        failure_ids = tuple(_failure_ids(result) for result in results)
         failure_signatures = tuple(_failure_signature(result) for result in results)
         if all(_is_green(result) for result in results):
             return CandidateEvaluation(
@@ -187,7 +188,18 @@ def _is_red(result: TestRunResult) -> bool:
 
 def _failure_signature(result: TestRunResult) -> frozenset[tuple[str, str]]:
     return frozenset(
-        (case.failure_id, case.message)
+        (_stable_text(case.failure_id), _stable_text(case.message))
         for case in result.cases
         if case.is_failure
     )
+
+
+def _failure_ids(result: TestRunResult) -> frozenset[str]:
+    return frozenset(
+        _stable_text(case.failure_id) for case in result.cases if case.is_failure
+    )
+
+
+def _stable_text(value: str) -> str:
+    """Ignore the Harness-owned directory that differs between stability runs."""
+    return re.sub(r"\.stability-\d+-[A-Za-z0-9_-]+", ".stability", value)

@@ -39,6 +39,7 @@ def test_openai_client_sends_expected_request_through_injected_transport():
             {
                 "model": "repair-model",
                 "messages": [{"role": "user", "content": "repair the failing test"}],
+                "temperature": 0.2,
             },
             12,
         )
@@ -58,6 +59,39 @@ def test_openai_client_maps_transport_os_error_to_llm_transport_error():
         client.complete("repair the failing test")
 
     assert isinstance(error.value.__cause__, OSError)
+
+
+def test_openai_client_uses_a_120_second_default_timeout():
+    transport = FakeTransport(
+        response={"choices": [{"message": {"content": "ok"}}]}
+    )
+    client = OpenAICompatibleClient(
+        base_url="https://llm.example/v1",
+        model="repair-model",
+        api_key="test-key",
+        transport=transport,
+    )
+
+    assert client.complete("repair the failing test") == "ok"
+    assert transport.requests[0][3] == 120
+
+
+def test_openai_client_accepts_an_explicit_temperature():
+    transport = FakeTransport(response={"choices": [{"message": {"content": "ok"}}]})
+    client = OpenAICompatibleClient(
+        base_url="https://llm.example/v1", model="repair-model", api_key="test-key",
+        transport=transport, temperature=0.7,
+    )
+    client.complete("prompt")
+    assert transport.requests[0][2]["temperature"] == 0.7
+
+
+def test_openai_client_rejects_temperature_outside_provider_range():
+    with pytest.raises(ValueError, match="temperature"):
+        OpenAICompatibleClient(
+            base_url="https://llm.example/v1", model="repair-model", api_key="test-key",
+            transport=FakeTransport(), temperature=2.1,
+        )
 
 
 def test_model_client_factory_reads_only_requested_role_credential():

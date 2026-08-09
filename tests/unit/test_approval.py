@@ -1,4 +1,6 @@
-from safefix.approval import ApprovalProvider
+import threading
+
+from safefix.approval import ApprovalProvider, DeferredApprovalProvider
 
 
 def test_non_interactive_approval_denies():
@@ -44,3 +46,30 @@ def test_pending_approval_can_be_resolved_without_interactive_prompt():
     assert provider.approve_pending() is True
     assert provider.pending is False
     assert provider.deny_pending() is False
+
+
+def test_deferred_approval_waits_for_explicit_resolution_without_reading_stdin():
+    provider = DeferredApprovalProvider()
+    result: list[bool] = []
+    worker = threading.Thread(target=lambda: result.append(provider.approve("candidate")))
+
+    worker.start()
+    assert provider.wait_until_pending(timeout=0.5)
+    assert provider.pending is True
+    assert provider.approve_pending() is True
+    worker.join(timeout=0.5)
+
+    assert result == [True]
+
+
+def test_deferred_approval_can_be_denied():
+    provider = DeferredApprovalProvider()
+    result: list[bool] = []
+    worker = threading.Thread(target=lambda: result.append(provider.approve("candidate")))
+
+    worker.start()
+    assert provider.wait_until_pending(timeout=0.5)
+    assert provider.deny_pending() is True
+    worker.join(timeout=0.5)
+
+    assert result == [False]

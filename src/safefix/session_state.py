@@ -23,6 +23,7 @@ from .models import (
 from .review import ReviewResult
 from .test_manifest import FrozenTestManifest
 from .testprep.service import PreparationSummary
+from .testprep.models import CoverageRequirement
 
 
 RECENT_EVENT_LIMIT = 10
@@ -73,6 +74,9 @@ class SessionState:
     _guidance_event_summaries: tuple[str, ...] = field(
         default_factory=tuple, init=False, repr=False
     )
+    _explanation_records: tuple[tuple[str, str], ...] = field(
+        default_factory=tuple, init=False, repr=False
+    )
     _high_risk_confirmation: Mapping[str, SafeValue] | None = field(
         default=None, init=False, repr=False
     )
@@ -96,6 +100,10 @@ class SessionState:
     @property
     def guidance_event_summaries(self) -> tuple[str, ...]:
         return self._guidance_event_summaries
+
+    @property
+    def explanation_records(self) -> tuple[tuple[str, str], ...]:
+        return self._explanation_records
 
     @property
     def high_risk_confirmation(self) -> dict[str, SafeValue] | None:
@@ -228,6 +236,15 @@ class SessionState:
             self._guidance_event_summaries, bounded
         )
 
+    def record_explanation(self, question: str, response: str) -> None:
+        try:
+            record = (safe_summary(question), safe_summary(response))
+        except (TypeError, ValueError) as exc:
+            raise SessionStateBoundaryError("invalid session explanation") from exc
+        self._explanation_records = self._append_recent(
+            self._explanation_records, record
+        )
+
     def set_preparation(
         self, summary: PreparationSummary, manifest: FrozenTestManifest
     ) -> None:
@@ -241,6 +258,7 @@ class SessionState:
             raise SessionStateBoundaryError("invalid session metadata: preparation_summary")
         for name in (
             "existing_test_count",
+            "baseline_test_count",
             "generated_candidate_count",
             "generated_accepted_count",
             "generated_pass_accepted",
@@ -255,6 +273,7 @@ class SessionState:
                 raise SessionStateBoundaryError(
                     f"invalid session metadata: preparation_summary.{name}"
                 )
+        _validate_coverage_summary(summary)
         if not isinstance(manifest.baseline_source, BaselineSource):
             raise SessionStateBoundaryError("invalid session metadata: baseline_source")
         if type(manifest.stability_runs) is not int or manifest.stability_runs <= 0:
@@ -348,6 +367,22 @@ class SessionState:
 
 def safe_summary(summary: str) -> str:
     return sanitize_summary(summary, max_chars=MAX_GUIDANCE_CHARS)
+
+
+def _validate_coverage_summary(summary: PreparationSummary) -> None:
+    requirements = summary.coverage_requirements
+    covered = summary.covered_requirement_ids
+    if not isinstance(requirements, tuple) or not isinstance(covered, tuple):
+        raise SessionStateBoundaryError("invalid session metadata: coverage summary")
+    if not all(isinstance(item, CoverageRequirement) for item in requirements):
+        raise SessionStateBoundaryError("invalid session metadata: coverage requirements")
+    requirement_ids = [item.requirement_id for item in requirements]
+    if len(requirement_ids) != len(set(requirement_ids)):
+        raise SessionStateBoundaryError("invalid session metadata: duplicate coverage requirements")
+    if any(not isinstance(item, str) for item in covered):
+        raise SessionStateBoundaryError("invalid session metadata: covered requirement IDs")
+    if not set(covered).issubset(requirement_ids):
+        raise SessionStateBoundaryError("invalid session metadata: unknown covered requirement")
 
 
 def _sanitize_feedback(value: object) -> Feedback:

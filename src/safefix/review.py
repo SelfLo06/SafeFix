@@ -46,6 +46,7 @@ class FinalReviewRequest:
     baseline_summary: str
     final_diff_summary: str
     changed_files: tuple[str, ...]
+    patch_diffs: tuple[tuple[str, str], ...]
     constraints: str
     pytest_summary: str
 
@@ -54,15 +55,27 @@ class FinalReviewService:
     """Present Harness-owned final evidence to the Review Model."""
 
     def review(self, request: FinalReviewRequest, review_client: ReviewClient) -> ReviewResult:
-        prompt = json.dumps(
-            {
-                "baseline_summary": request.baseline_summary,
-                "final_diff_summary": request.final_diff_summary,
-                "changed_files": list(request.changed_files),
-                "constraints": request.constraints,
-                "pytest_summary": request.pytest_summary,
-            },
-            sort_keys=True,
+        evidence = {
+            "baseline_summary": request.baseline_summary,
+            "final_diff_summary": request.final_diff_summary,
+            "changed_files": list(request.changed_files),
+            "patch_diffs": [
+                {"path": path, "diff": diff}
+                for path, diff in request.patch_diffs
+            ],
+            "constraints": request.constraints,
+            "pytest_summary": request.pytest_summary,
+        }
+        prompt = (
+            "Review the final SafeFix candidate using the evidence below. "
+            "Write the summary field in Simplified Chinese. "
+            "Return exactly one JSON object and no Markdown, explanation, tool call, or extra keys.\n"
+            'Required schema: {"verdict":"pass|warn|review_required|not_configured",'
+            '"basis_supported":true,"invented_behavior":false,'
+            '"implementation_coupling":false,"risk":"low|medium|high",'
+            '"summary":"short evidence-based conclusion"}.\n'
+            "Evidence:\n"
+            + json.dumps(evidence, sort_keys=True)
         )
         result = review_client.review(prompt)
         if not isinstance(result, ReviewResult):

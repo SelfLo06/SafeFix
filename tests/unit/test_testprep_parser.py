@@ -32,6 +32,19 @@ def test_parses_one_documented_candidate_and_normalizes_sources():
     assert result[0].touched_existing_tests == ()
 
 
+def test_parses_declared_coverage_ids():
+    result = CandidateParser().parse(
+        json.dumps(candidate_payload(covers=["behavior-1", "behavior-2"]))
+    )
+
+    assert result[0].covers == ("behavior-1", "behavior-2")
+
+
+def test_rejects_duplicate_coverage_ids():
+    with pytest.raises(ParseError, match="coverage IDs must be unique"):
+        CandidateParser().parse(json.dumps(candidate_payload(covers=["behavior-1", "behavior-1"])))
+
+
 def test_candidate_requires_basis_and_sources():
     response = json.dumps(
         {

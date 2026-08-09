@@ -52,6 +52,25 @@ class ContextBuilder:
         }
         if state.manifest_hash is not None:
             context["frozen_manifest_hash"] = safe_summary(state.manifest_hash)
+        if state.preparation_summary is not None:
+            preparation = state.preparation_summary
+            context["test_summary"] = {
+                "baseline_mode": preparation.baseline_source.value,
+                "baseline_test_count": preparation.baseline_test_count,
+                "existing_test_count": preparation.existing_test_count,
+                "generated_candidate_count": preparation.generated_candidate_count,
+                "generated_accepted_count": preparation.generated_accepted_count,
+                "coverage_requirements": [
+                    {
+                        "id": item.requirement_id,
+                        "behavior": safe_summary(item.behavior),
+                        "source_path": item.source_path,
+                        "required_lines": list(item.required_lines),
+                    }
+                    for item in preparation.coverage_requirements
+                ],
+                "covered_requirement_ids": list(preparation.covered_requirement_ids),
+            }
         if state.review_result is not None:
             review = state.review_result
             context["review_summary"] = {

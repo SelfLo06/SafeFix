@@ -157,6 +157,7 @@ def test_final_review_service_passes_only_safe_final_request_to_review_client() 
         baseline_summary="baseline failures: test_a",
         final_diff_summary="src/app.py changed",
         changed_files=("src/app.py",),
+        patch_diffs=(("src/app.py", "--- src/app.py\n+++ src/app.py\n@@\n-value = 1\n+value = 2\n"),),
         constraints="frozen manifest only",
         pytest_summary="1 collected, 0 failed, 0 errors",
     )
@@ -164,7 +165,25 @@ def test_final_review_service_passes_only_safe_final_request_to_review_client() 
     result = review.FinalReviewService().review(request, client)
 
     assert result.verdict is ReviewVerdict.PASS
-    assert json.loads(client.prompts[0])["changed_files"] == ["src/app.py"]
+    assert "Return exactly one JSON object" in client.prompts[0]
+    assert '"changed_files": ["src/app.py"]' in client.prompts[0]
+    assert '"patch_diffs"' in client.prompts[0]
+    assert "-value = 1" in client.prompts[0]
+
+
+def test_final_review_receives_the_accepted_patch_diff(tmp_path: Path) -> None:
+    client = FakeReviewClient(_review(ReviewVerdict.PASS))
+    runner = _runner(
+        tmp_path,
+        mode=AcceptanceMode.STANDARD,
+        reports=[_result("tests.test_app::test_broken"), _result()],
+        responses=[_patch("value = 1", "value = 2")],
+        review_client=client,
+    )
+
+    assert runner.run().stop_reason is StopReason.SUCCESS
+    assert "-value = 1" in client.prompts[0]
+    assert "+value = 2" in client.prompts[0]
 
 
 def test_standard_review_required_still_returns_success_with_artifact_warning(tmp_path: Path) -> None:

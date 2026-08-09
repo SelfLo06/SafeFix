@@ -55,6 +55,14 @@ def test_guidance_is_drained_only_at_ready_boundary() -> None:
     assert queue.drain_ready_guidance() == ()
 
 
+def test_explain_requests_are_separate_from_repair_guidance() -> None:
+    queue = OperatorCommandQueue()
+    queue.submit_explanation("why was the patch rolled back?")
+
+    assert queue.drain_ready_guidance() == ()
+    assert queue.drain_ready_explanations() == ("why was the patch rolled back?",)
+
+
 def test_guidance_buffer_bounds_items_and_total_characters() -> None:
     buffer = GuidanceBuffer(max_items=2, max_chars=10)
     buffer.enqueue("first")

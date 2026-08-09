@@ -113,6 +113,104 @@ def test_guidance_queued_during_llm_call_appears_only_in_next_prompt(tmp_path: P
     assert runner.state.guidance_event_summaries == ("preserve the public return type",)
 
 
+def test_read_tool_result_is_available_to_the_next_repair_prompt(tmp_path: Path) -> None:
+    _legacy_project(tmp_path)
+
+    class ReadingLLM:
+        def __init__(self) -> None:
+            self.prompts: list[str] = []
+
+        def complete(self, prompt: str) -> str:
+            self.prompts.append(prompt)
+            if len(self.prompts) == 1:
+                return '{"tool":"read_file","path":"src/app.py"}'
+            return '{"tool":"finish"}'
+
+    llm = ReadingLLM()
+    from safefix.runner import SessionRunner
+
+    runner = SessionRunner(
+        tmp_path,
+        credentials=FakeCredentials(),
+        llm_client=llm,
+        test_runner_factory=lambda _root, _args: SequentialRunner(
+            [_report("tests.app::test_value")]
+        ),
+    )
+
+    runner.run()
+
+    assert len(llm.prompts) == 2
+    assert '"value = 1\\n"' in llm.prompts[1]
+
+
+def test_explain_request_runs_at_ready_boundary_without_consuming_repair_step(tmp_path: Path) -> None:
+    _legacy_project(tmp_path)
+    queue = OperatorCommandQueue()
+    queue.submit_explanation("why is app.py relevant?")
+
+    class ExplainThenFinishLLM:
+        def __init__(self) -> None:
+            self.prompts: list[str] = []
+
+        def complete(self, prompt: str) -> str:
+            self.prompts.append(prompt)
+            if len(self.prompts) == 1:
+                return "The frozen failure points to app.py."
+            return '{"tool": "finish"}'
+
+    llm = ExplainThenFinishLLM()
+    from safefix.runner import SessionRunner
+    runner = SessionRunner(
+        tmp_path,
+        credentials=FakeCredentials(),
+        llm_client=llm,
+        operator_queue=queue,
+        test_runner_factory=lambda _root, _args: SequentialRunner(
+            [_report("tests.app::test_value")]
+        ),
+    )
+
+    result = runner.run()
+
+    assert result.stop_reason is StopReason.REQUESTED
+    assert runner.state is not None
+    assert runner.state.steps == 1
+    assert runner.state.guidance_event_summaries == ()
+    assert runner.state.explanation_records == (
+        ("why is app.py relevant?", "The frozen failure points to app.py."),
+    )
+    assert "read-only explanation" in llm.prompts[0]
+
+
+def test_completed_runner_answers_explain_without_starting_a_repair_decision(tmp_path: Path) -> None:
+    _legacy_project(tmp_path)
+
+    class FinishThenExplainLLM:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def complete(self, prompt: str) -> str:
+            self.calls += 1
+            return '{"tool": "finish"}' if self.calls == 1 else "The run ended by request."
+
+    llm = FinishThenExplainLLM()
+    from safefix.runner import SessionRunner
+    runner = SessionRunner(
+        tmp_path,
+        credentials=FakeCredentials(),
+        llm_client=llm,
+        test_runner_factory=lambda _root, _args: SequentialRunner(
+            [_report("tests.app::test_value")]
+        ),
+    )
+
+    assert runner.run().stop_reason is StopReason.REQUESTED
+    assert runner.answer_explanation("what happened?") == "The run ended by request."
+    assert runner.state is not None
+    assert runner.state.steps == 1
+
+
 def test_pause_gates_next_repair_decision_until_resume(tmp_path: Path) -> None:
     _legacy_project(tmp_path)
     queue = OperatorCommandQueue()

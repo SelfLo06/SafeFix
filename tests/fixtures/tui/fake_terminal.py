@@ -42,25 +42,28 @@ class FakeConsole:
     def __init__(self) -> None:
         self.lines: list[tuple[object, str | None]] = []
         self.status_updates: list[object] = []
+        self.status_exits = 0
         self.printed = threading.Event()
 
     def print(self, value: object, *, style: str | None = None) -> None:
         self.lines.append((value, style))
         self.printed.set()
 
-    def status(self, value: object):
+    def status(self, value: object, **_kwargs: object):
         self.status_updates.append(value)
-        return _FakeStatus(self.status_updates)
+        return _FakeStatus(self.status_updates, self)
 
 
 class _FakeStatus:
-    def __init__(self, updates: list[object]) -> None:
+    def __init__(self, updates: list[object], console: FakeConsole) -> None:
         self._updates = updates
+        self._console = console
 
     def __enter__(self) -> _FakeStatus:
         return self
 
     def __exit__(self, *_args: object) -> None:
+        self._console.status_exits += 1
         return None
 
     def update(self, value: object) -> None:

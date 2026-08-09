@@ -90,6 +90,25 @@ def test_stable_fail_preserves_failure_ids(tmp_path: Path):
     workspace.cleanup()
 
 
+def test_stability_ignores_its_own_per_run_directory_in_failure_identity(tmp_path: Path):
+    workspace = CandidateWorkspace(tmp_path, "stability-run-directory")
+    path = workspace.stage(candidate())
+
+    def runner(run_path: Path) -> _TestRunResult:
+        failure_id = f"{run_path}::test_generated_value"
+        return result(
+            failure_id,
+            messages={failure_id: f"{run_path}: assertion failed"},
+        )
+
+    evaluation = StabilityRunner(
+        runner, stability_runs=3, candidate_root=workspace.session_root
+    ).evaluate(path)
+
+    assert evaluation.status is CandidateStatus.FAIL
+    workspace.cleanup()
+
+
 def test_invalid_collection_or_infrastructure_run_is_error_not_flaky(tmp_path: Path):
     workspace = CandidateWorkspace(tmp_path, "stability-error")
     path = workspace.stage(candidate())

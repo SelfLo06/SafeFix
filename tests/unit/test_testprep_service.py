@@ -10,6 +10,7 @@ from safefix.models import (
     ReviewVerdict,
     StopReason,
 )
+from safefix.approval import DeferredApprovalProvider
 from safefix.review import ReviewResult
 from safefix.test_manifest import discover_existing_tests
 from safefix.testprep import (
@@ -141,7 +142,11 @@ def _request(
     return request, client, workspace, test_runner
 
 
-def _run_result(*failure_ids: str, valid: bool = True) -> RunResult:
+def _run_result(
+    *failure_ids: str,
+    valid: bool = True,
+    executed_lines: dict[str, frozenset[int]] | None = None,
+) -> RunResult:
     from safefix.junit import TestCaseResult
 
     return RunResult(
@@ -156,6 +161,7 @@ def _run_result(*failure_ids: str, valid: bool = True) -> RunResult:
             for failure_id in failure_ids
         ),
         valid=valid,
+        executed_lines=executed_lines,
     )
 
 
@@ -294,7 +300,9 @@ def test_mixed_flow_keeps_existing_and_promotes_accepted_generated_candidate(tmp
         tmp_path,
         source=BaselineSource.MIXED,
         existing_count=1,
-        test_runner=lambda path: _run_result(),
+        test_runner=lambda path: _run_result(
+            executed_lines={"src/app.py": frozenset({3, 4})}
+        ),
     )
 
     result = PreparationService(candidate_runner=runner).prepare(request)
@@ -327,7 +335,7 @@ def test_generated_only_is_allowed_when_no_existing_tests_are_collected(tmp_path
     assert result.manifest_entries[0].origin is BaselineSource.GENERATED
 
 
-def test_generated_only_is_rejected_when_existing_tests_are_collectible(tmp_path: Path) -> None:
+def test_generated_source_keeps_existing_tests_when_they_are_collectible(tmp_path: Path) -> None:
     request, client, _, _ = _request(
         tmp_path,
         source=BaselineSource.GENERATED,
@@ -336,9 +344,12 @@ def test_generated_only_is_rejected_when_existing_tests_are_collectible(tmp_path
 
     result = PreparationService().prepare(request)
 
-    assert result.stop_reason is StopReason.CONFIG_ERROR
-    assert result.manifest_entries == ()
-    assert client.prompts == []
+    assert result.stop_reason is None
+    assert len(client.prompts) == 1
+    assert {entry.origin for entry in result.manifest_entries} == {
+        BaselineSource.EXISTING,
+        BaselineSource.GENERATED,
+    }
 
 
 def test_absolute_eval_mutation_is_rejected_before_candidate_run(tmp_path: Path) -> None:
@@ -462,7 +473,7 @@ def test_dynamic_wrapper_absolute_original_root_is_rejected_before_stability(
     assert app.read_bytes() == original_app
     assert existing_test.read_bytes() == original_test
     assert len(malicious_client.prompts) == 1
-    assert [event.kind for event in sink.events] == ["model-call"]
+    assert [event.kind for event in sink.events] == ["model-call", "model-call"]
 
 
 def test_invalid_existing_discovery_path_returns_configuration_stop(tmp_path: Path) -> None:
@@ -556,6 +567,211 @@ def test_test_model_is_closed_after_preparation_returns(tmp_path: Path) -> None:
     assert client.closed
 
 
+def test_generation_requires_all_documented_behaviors_and_key_branches(
+    tmp_path: Path,
+) -> None:
+    request, client, _, runner = _request(
+        tmp_path,
+        source=BaselineSource.GENERATED,
+        test_runner=lambda path: _run_result(),
+    )
+    (request.project_root / "README.md").write_text(
+        "slugify must lowercase text, remove punctuation, and trim whitespace.\n",
+        encoding="utf-8",
+    )
+    (request.project_root / "src" / "app.py").write_text(
+        "def slugify(value):\n"
+        "    if not value:\n"
+        "        return ''\n"
+        "    return value.lower()\n",
+        encoding="utf-8",
+    )
+    client.response = json.dumps(
+        {
+            "candidates": [
+                {
+                    "candidate_id": "partial",
+                    "test_source": "def test_slugify():\n    assert True\n",
+                    "basis": "public behavior",
+                    "sources": ["src/app.py"],
+                    "touched_existing_tests": [],
+                    "covers": ["behavior-1"],
+                }
+            ]
+        }
+    )
+
+    result = PreparationService(candidate_runner=runner).prepare(request)
+
+    assert result.stop_reason is StopReason.TEST_PREPARATION_ERROR
+    assert result.manifest_entries == ()
+    assert [item.requirement_id for item in result.summary.coverage_requirements] == [
+        "behavior-1",
+        "behavior-2",
+        "behavior-3",
+        "branch-1",
+    ]
+    assert result.summary.covered_requirement_ids == ("behavior-1",)
+    assert result.summary.candidate_records[-1].candidate_id == "<coverage-gap>"
+
+
+def test_generation_accepts_a_complete_declared_coverage_bundle(tmp_path: Path) -> None:
+    request, client, _, runner = _request(
+        tmp_path,
+        source=BaselineSource.GENERATED,
+        test_runner=lambda path: _run_result(
+            executed_lines={"src/app.py": frozenset({3, 4})}
+        ),
+    )
+    (request.project_root / "README.md").write_text(
+        "slugify must lowercase text and remove punctuation.\n", encoding="utf-8"
+    )
+    (request.project_root / "src" / "app.py").write_text(
+        "def slugify(value):\n"
+        "    if not value:\n"
+        "        return ''\n"
+        "    return value.lower()\n",
+        encoding="utf-8",
+    )
+    client.response = json.dumps(
+        {
+            "candidates": [
+                {
+                    "candidate_id": "complete",
+                    "test_source": "def test_slugify():\n    assert True\n",
+                    "basis": "public behavior",
+                    "sources": ["src/app.py"],
+                    "touched_existing_tests": [],
+                    "covers": ["behavior-1", "behavior-2", "branch-1"],
+                }
+            ]
+        }
+    )
+
+    result = PreparationService(candidate_runner=runner).prepare(request)
+
+    assert result.stop_reason is None
+    assert result.summary.covered_requirement_ids == (
+        "behavior-1",
+        "behavior-2",
+        "branch-1",
+    )
+    assert result.summary.generated_accepted_count == 1
+    assert len(result.manifest_entries) == 1
+
+
+def test_generation_rejects_declared_branch_without_executing_both_outcomes(
+    tmp_path: Path,
+) -> None:
+    request, client, _, runner = _request(
+        tmp_path,
+        source=BaselineSource.GENERATED,
+        test_runner=lambda path: _run_result(
+            executed_lines={"src/app.py": frozenset({3})}
+        ),
+    )
+    (request.project_root / "src" / "app.py").write_text(
+        "def slugify(value):\n"
+        "    if not value:\n"
+        "        return ''\n"
+        "    return value.lower()\n",
+        encoding="utf-8",
+    )
+    client.response = json.dumps(
+        {"candidates": [{
+            "candidate_id": "one-path",
+            "test_source": "def test_slugify():\n    assert True\n",
+            "basis": "public behavior",
+            "sources": ["src/app.py"],
+            "touched_existing_tests": [],
+            "covers": ["branch-1"],
+        }]}
+    )
+
+    result = PreparationService(candidate_runner=runner).prepare(request)
+
+    assert result.stop_reason is StopReason.TEST_PREPARATION_ERROR
+    assert result.summary.candidate_records[0].reason == (
+        "branch execution was not verified: branch-1 run 1 missing lines 4"
+    )
+
+
+def test_production_candidate_runner_verifies_branch_execution(tmp_path: Path) -> None:
+    request, client, _, _ = _request(tmp_path, source=BaselineSource.GENERATED)
+    (request.project_root / "calculator.py").write_text(
+        "def price(value):\n"
+        "    if value:\n"
+        "        return 1\n"
+        "    return 0\n",
+        encoding="utf-8",
+    )
+    client.response = json.dumps(
+        {"candidates": [{
+            "candidate_id": "two-paths",
+            "test_source": "from calculator import price\n\n"
+            "def test_price():\n"
+            "    assert price(True) == 1\n"
+            "    assert price(False) == 0\n",
+            "basis": "public behavior",
+            "sources": ["calculator.py"],
+            "touched_existing_tests": [],
+            "covers": ["branch-1"],
+        }]}
+    )
+
+    result = PreparationService().prepare(request)
+
+    assert result.stop_reason is None
+    assert result.summary.covered_requirement_ids == ("branch-1",)
+
+
+def test_generated_failing_candidate_waits_for_tui_approval_without_stdin(
+    tmp_path: Path,
+) -> None:
+    request, _, _, runner = _request(
+        tmp_path,
+        source=BaselineSource.GENERATED,
+        approval=DeferredApprovalProvider(),
+        test_runner=lambda path: _run_result("candidate::test_generated_value"),
+    )
+    sink = RecordingSink()
+    request = PreparationRequest(**{**request.__dict__, "event_sink": sink})
+    result: list[object] = []
+    import threading
+
+    worker = threading.Thread(
+        target=lambda: result.append(PreparationService(candidate_runner=runner).prepare(request))
+    )
+    worker.start()
+    approval = request.approval_provider
+    assert isinstance(approval, DeferredApprovalProvider)
+    assert approval.wait_until_pending(timeout=0.5)
+    assert any(event.kind == "approval" for event in sink.events)
+
+    assert approval.approve_pending() is True
+    worker.join(timeout=0.5)
+
+    assert len(result) == 1
+    prepared = result[0]
+    assert prepared.summary.generated_fail_accepted_manual == 1  # type: ignore[union-attr]
+
+
+def test_generation_prompt_requires_declared_coverage_ids(tmp_path: Path) -> None:
+    request, client, _, runner = _request(
+        tmp_path,
+        source=BaselineSource.GENERATED,
+        test_runner=lambda path: _run_result(),
+    )
+    (request.project_root / "README.md").write_text(
+        "slugify must lowercase text.\n", encoding="utf-8"
+    )
+
+    PreparationService(candidate_runner=runner).prepare(request)
+
+    assert '"covers":["behavior-1"]' in client.prompts[0]
+    assert "behavior-1: lowercase text" in client.prompts[0]
+
+
 def test_malformed_test_model_output_is_recorded_as_rejected_candidate(tmp_path: Path) -> None:
     request, _, _, _ = _request(
         tmp_path,
@@ -569,6 +785,28 @@ def test_malformed_test_model_output_is_recorded_as_rejected_candidate(tmp_path:
     assert result.summary.generated_candidate_count == 0
     assert result.summary.rejected_count == 1
     assert result.manifest_entries == ()
+
+
+def test_generated_source_keeps_existing_tests_and_gives_model_project_context(tmp_path: Path) -> None:
+    request, client, _, runner = _request(
+        tmp_path,
+        source=BaselineSource.GENERATED,
+        existing_count=1,
+        test_runner=lambda path: _run_result(),
+    )
+
+    result = PreparationService(candidate_runner=runner).prepare(request)
+
+    assert result.stop_reason is None
+    assert {entry.origin for entry in result.manifest_entries} == {
+        BaselineSource.EXISTING,
+        BaselineSource.GENERATED,
+    }
+    prompt = client.prompts[0]
+    assert '"candidates"' in prompt
+    assert '"candidate_id"' in prompt
+    assert "src/app.py" in prompt
+    assert "tests/test_existing.py" in prompt
 
 
 def test_static_rule_rejection_does_not_stage_or_run_candidate(tmp_path: Path) -> None:
@@ -621,6 +859,8 @@ def test_preparation_emits_safe_model_and_acceptance_events(tmp_path: Path) -> N
 
     assert [event.kind for event in sink.events] == [
         "model-call",
+        "model-call",
+        "stability-run",
         "stability-run",
         "acceptance",
     ]

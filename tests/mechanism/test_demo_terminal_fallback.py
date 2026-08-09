@@ -128,10 +128,10 @@ def run_terminal_demo(tmp_path: Path, *, terminal: FakeTerminal, no_animation: b
 
     class PromptSession:
         async def prompt_async(self, _prompt: str) -> str:
-            if terminal.prompt_calls:
+            if terminal.prompt_calls == 2:
                 raise EOFError
             terminal.prompt_calls += 1
-            return "preserve the public API"
+            return "/guide" if terminal.prompt_calls == 1 else "preserve the public API"
 
     def tui_factory(command_queue, controller_factory, capabilities, _no_animation):
         class ArtifactGuidedRepairConsole(GuidedRepairConsole):
@@ -199,7 +199,7 @@ def test_terminal_fallback_preserves_plain_harness_outcome(tmp_path: Path) -> No
     assert result.plain_event_count == 1
     assert result.session_stop_reason is StopReason.SUCCESS
     assert result.exit_code == 0
-    assert "SafeFix stopped: success" in result.plain_output
+    assert "SafeFix 已结束：success" in result.plain_output
 
 
 def test_tty_demo_consumes_fake_input_and_ticks_through_cli_adapter(tmp_path: Path) -> None:
@@ -207,11 +207,11 @@ def test_tty_demo_consumes_fake_input_and_ticks_through_cli_adapter(tmp_path: Pa
     result = run_terminal_demo(tmp_path, terminal=terminal, no_animation=False)
     assert result.tui_factory_call_count == 1
     assert result.session_stop_reason is StopReason.SUCCESS
-    assert terminal.prompt_calls == 1
-    assert result.runner_guidance == ("preserve the public API",)
+    assert terminal.prompt_calls == 2
+    assert result.runner_guidance == ()
     assert result.remaining_guidance == ()
-    assert result.animation_ticks == (0, 1, 2)
-    assert "Status: evaluate" in result.rendered_lines
+    assert result.animation_ticks == ()
+    assert any("SafeFix v0.2" in line for line in result.rendered_lines)
 
 
 def test_no_animation_still_routes_tty_through_adapter_without_ticks(tmp_path: Path) -> None:
@@ -226,7 +226,7 @@ def test_artifact_contains_semantics_not_presentation_frames(tmp_path: Path) -> 
     assert result.artifact["failure_sets"]["baseline"] == [
         "tests/test_semantic.py::test_semantic_artifact"
     ]
-    assert result.runner_guidance == ("preserve the public API",)
+    assert result.runner_guidance == ()
     for text in result.artifact_strings:
         assert not _contains_control(text)
         assert "\x1b" not in text

@@ -3513,3 +3513,108 @@
   final-review/operator/CLI/TUI tests passed 56; full suite passed 607;
   `git diff --check` passed. A final fresh full suite, compile check, and
   staged diff check are required immediately before commit.
+- Implementation commit: `acd75a2` — `fix: preserve paused final review gate`.
+
+## TUI Progress And Model Timeout Repair
+
+- Date: 2026-08-08. User explicitly requested no Superpowers skills; none were
+  used for this repair. Preserved existing dirty log, progress, and report
+  files; no commit was created.
+- Diagnosis: the DeepSeek Repair Model completed the full SafeFix prompt in
+  84.2 seconds. The previous 30-second client timeout therefore retried three
+  times while the TUI showed no activity because the Runner emitted no running
+  model events.
+- Red: `PYTHONPATH=src:. pytest -q tests/unit/test_openai_client.py
+  tests/unit/test_tui_animation.py tests/unit/test_runner_limits.py` failed for
+  the missing 120-second timeout, persistent spinner, and model retry events.
+- Green: focused regression suite passed 47 tests. A real local `--plain`
+  run verified baseline, each request, retry, and safe authentication failure
+  summaries are visible without exposing credentials or raw responses.
+- Specification-compliance review: PASS. Transport retries remain bounded;
+  interactive and plain CLI presentation now receives safe progress events;
+  library event consumers retain their existing contract.
+- Code-quality review: PASS. The timeout is one shared constant, progress
+  reporting is opt-in at the CLI boundary, and failure summaries classify only
+  safe transport categories. No new provider setting, fallback, broad catch,
+  or credential output was added.
+- Verification: `PYTHONPATH=src:. pytest -q` passed 604 tests; `PYTHONPATH=src:.
+  python -m compileall -q src` and `git diff --check` passed.
+
+## TUI Interaction Closure
+
+- Date: 2026-08-08. Continued in `.worktrees/safefix-v0.2`; no commit created.
+  Existing dirty course files and branch-review reports were preserved.
+- TDD red/green: added focused tests for the default explain mode, guide-mode
+  routing, control-mode persistence, queued read-only explanation, post-run
+  explanation, raw-log view state, activity wording, and artifact records.
+  Focused suites passed after the minimum adapter/queue/runner changes.
+- Scope: TUI remains a normal-screen adapter. The existing READY-boundary
+  queue, HITL, safe stop, and atomic repair transaction remain Runner-owned.
+  Explain calls reuse the Repair Model only at a safe boundary and are stored
+  separately from guidance and repair decisions.
+- Single review: specification/code-quality pass performed locally after the
+  delegated reviewer returned an infrastructure 503 before inspecting code.
+  Checked no full-screen application, no new repair-state machine, no direct
+  patch/test action from TUI, no credential artifact/output, and no raw/view
+  state in artifacts.
+- Verification: `PYTHONPATH=src:. python -m pytest tests -q` passed 614;
+  `PYTHONPATH=src:. python -m compileall -q src`, `git diff --check`, and
+  `PYTHONPATH=src:. python -m build` passed. A real pseudo-TTY smoke ran
+  `safefix run . --no-animation` in `tmp/price_calculator`, submitted `/stop`
+  during baseline, and observed safe stop plus the final report/artifact path.
+
+## Explain, Test Model, And Review Model Follow-up
+
+- Date: 2026-08-08. User explicitly requested no Superpowers skills; none were
+  used. The current user requirement supersedes the earlier generated-only
+  design restriction: `/tests generated` now retains already collected tests
+  and adds accepted Test Model candidates to the same frozen manifest.
+- TDD red/green: `tests/unit/test_context.py` and
+  `tests/unit/test_session_setup.py` first failed for the missing frozen test
+  count; `tests/unit/test_testprep_service.py` then failed for generated mode
+  with existing tests and absent project context; `tests/unit/test_final_review.py`
+  failed for absent final diff evidence. Focused suites passed after the
+  minimal typed data-flow and prompt/evidence changes.
+- Scope: Explain context receives the formal baseline test-case count and
+  generation counts. Test Model receives a bounded, non-symlink project
+  context and a strict JSON contract; it has no write or command tools.
+  Review Model receives bounded unified diffs of the accepted best checkpoint
+  and remains verdict-only. Repair transaction, F0, manifest verification,
+  Guardrail, and HITL semantics are unchanged.
+- Verification: `PYTHONPATH=src:. python -m pytest tests -q` passed 623;
+  `PYTHONPATH=src:. python -m compileall -q src`, `git diff --check`, and
+  `python -m build` passed. No live role smoke was run because the current
+  process lacks all three role environment variables.
+
+## v0.2 final console and generated-test follow-up
+
+- Date: 2026-08-08 to 2026-08-09. The user explicitly requested avoiding
+  Superpowers skills for this follow-up; none were used.
+- Implemented the normal-terminal preflight flow: `[tests]` requires manual
+  existing/generated/mixed selection; the frozen baseline is summarized in
+  Chinese through read-only Explain; `[review]` requires on/off; `/start` is
+  required before repair. Empty baselines follow the same flow.
+- Test generation receives bounded project context and an exact JSON contract,
+  records declared behavior/branch coverage, performs stability validation,
+  and exposes TUI-safe deferred approval instead of reading stdin from a
+  worker thread. Repair, Test, and Review activity and bounded raw output are
+  visible in the terminal.
+- Live smoke: generated-only `slug_formatter_no_tests` produced one accepted
+  candidate with four tests. Its frozen baseline found three failures; Repair
+  changed only `src/slug_formatter.py`; all four tests passed; Final Review
+  returned pass with low risk. The artifact records distinct role identities.
+- Focused verification after the deferred-approval fix:
+  `PYTHONPATH=src:. python -m pytest tests/unit/test_approval.py
+  tests/unit/test_tui.py tests/unit/test_testprep_service.py
+  tests/unit/test_testrunner.py -q`; compile check and `git diff --check`
+  were also run. Earlier full-suite verification passed 623 tests and build
+  completed successfully.
+
+## Direct main integration authorization
+
+- Date: 2026-08-09. The user explicitly instructed direct overwrite after
+  finding that the v0.2 implementation was left in
+  `.worktrees/safefix-v0.2`. The four overlapping uncommitted `main` files
+  (`runner.py`, `session_state.py`, `test_readme.py`, and
+  `test_testrunner.py`) are intentionally superseded. The v0.2 changes are
+  committed, then the root `main` worktree is force-aligned to that commit.

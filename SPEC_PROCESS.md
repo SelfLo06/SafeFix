@@ -377,3 +377,26 @@ special attention to duplicated validation, broad exception handling,
 speculative fallback behavior, and excessive defensive programming. Final
 verification must include `test -s SPEC.md`, the full pytest suite, wheel/sdist
 build, `git diff --check`, and clean-status evidence.
+
+---
+
+## 16. v0.2 interactive-console implementation and main integration
+
+The v0.2 implementation evolved from the approved adapter architecture into a
+normal-screen terminal console. The `SessionRunner` remains the sole owner of
+repair state, frozen-baseline semantics, candidate transactions, guardrails,
+approval, rollback, and stop reasons. The TUI only presents semantic events,
+collects operator input, and forwards commands at existing safe boundaries.
+
+The delivered interaction adds a baseline-selection preflight (`[tests]`), a
+Chinese baseline explanation (`[explain]`), explicit final-review choice
+(`[review]`), and explicit `/start` confirmation. Test, Repair, and Review
+roles retain independent configuration and environment-only credentials.
+Generated tests are validated in isolated session workspaces, may require
+operator approval, and freeze the repair baseline without writing into the
+target project's test directory.
+
+On 2026-08-09, the user explicitly authorized direct replacement of the root
+`main` worktree with the complete current `safefix-v0.2` implementation. This
+supersedes preservation of the four pre-existing uncommitted `main` edits and
+records an intentional integration decision rather than an accidental reset.

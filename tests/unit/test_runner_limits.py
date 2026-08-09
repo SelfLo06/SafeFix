@@ -37,6 +37,14 @@ class FailingResponseLLM:
         raise LLMResponseError("invalid response")
 
 
+class EventCollector:
+    def __init__(self) -> None:
+        self.events = []
+
+    def emit(self, event) -> None:
+        self.events.append(event)
+
+
 class CapturingFinishLLM:
     def __init__(self) -> None:
         self.prompt = ""
@@ -44,6 +52,24 @@ class CapturingFinishLLM:
     def complete(self, prompt: str) -> str:
         self.prompt = prompt
         return '{"tool": "finish", "reason": "done"}'
+
+
+def test_repair_prompt_defines_strict_single_tool_call_contract(tmp_path: Path) -> None:
+    _project(tmp_path)
+    llm = CapturingFinishLLM()
+    runner = _runner(
+        tmp_path,
+        [_report(1, "tests.app::test_value")],
+        llm,
+    )
+
+    runner.run()
+
+    assert "exactly one JSON object" in llm.prompt
+    assert "Do not use Markdown fences" in llm.prompt
+    assert '"tool" must be a string' in llm.prompt
+    assert "read_file, list_dir, search_code, apply_patch, finish" in llm.prompt
+    assert "Do not return arrays, tool_calls, or multiple actions" in llm.prompt
 
 
 def _report(exit_code: int, *failure_ids: str) -> _TestRunResult:
@@ -79,7 +105,7 @@ def _runner(
     test_runner = SequentialTestRunner(reports)
     runner_options = {
         key: overrides.pop(key)
-        for key in ("use_memory", "memory_store")
+        for key in ("use_memory", "memory_store", "event_sink", "progress_events")
         if key in overrides
     }
     return SessionRunner(
@@ -92,12 +118,43 @@ def _runner(
     )
 
 
+def test_transport_timeout_emits_visible_safe_retry_and_failure_events(tmp_path: Path) -> None:
+    _project(tmp_path)
+    events = EventCollector()
+    runner = _runner(
+        tmp_path,
+        [_report(1, "tests.app::test_value")],
+        FailingTransportLLM(),
+        event_sink=events,
+        progress_events=True,
+    )
+
+    result = runner.run()
+
+    assert result.stop_reason is StopReason.ERROR
+    model_events = [event for event in events.events if event.kind == "model-call"]
+    assert [event.safe_payload["status"] for event in model_events] == [
+        "running",
+        "retrying",
+        "running",
+        "retrying",
+        "running",
+        "error",
+    ]
+    assert model_events[-1].safe_payload["summary"] == (
+        "Repair Model request failed due to a network error."
+    )
+
+
 def test_parse_error_consumes_step_not_round(tmp_path: Path) -> None:
     _project(tmp_path)
+    events = EventCollector()
     runner = _runner(
         tmp_path,
         [_report(1, "tests.app::test_value")],
         MockLLM(["not JSON", '{"tool": "finish", "reason": "done"}']),
+        event_sink=events,
+        progress_events=True,
     )
 
     result = runner.run()
@@ -106,6 +163,12 @@ def test_parse_error_consumes_step_not_round(tmp_path: Path) -> None:
     assert (result.steps, result.rounds) == (2, 0)
     assert runner.state is not None
     assert runner.state.recent_tool_events[0][1].outcome == "parse_error"
+    assert any(
+        event.safe_payload["summary"] == (
+            "Repair Model response rejected: response must be valid JSON."
+        )
+        for event in events.events
+    )
 
 
 def test_stop_priority_is_max_steps_then_rounds_then_no_progress(tmp_path: Path) -> None:

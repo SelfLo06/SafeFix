@@ -63,6 +63,7 @@ class OperatorCommandQueue:
     ) -> None:
         self._commands: deque[OperatorCommand] = deque()
         self._guidance = guidance or GuidanceBuffer()
+        self._explanations = GuidanceBuffer()
 
     def submit_text(self, text: str) -> OperatorCommand:
         command = self.parse_text(text)
@@ -79,6 +80,13 @@ class OperatorCommandQueue:
             self._commands.append(command)
         else:
             self._guidance.enqueue(command.text or command.kind)
+
+    def submit_explanation(self, text: str) -> None:
+        """Queue a read-only operator question for the next safe boundary."""
+        self._explanations.enqueue(text)
+
+    def drain_ready_explanations(self) -> tuple[str, ...]:
+        return self._explanations.drain_for_ready()
 
     @staticmethod
     def parse_text(text: str) -> OperatorCommand:

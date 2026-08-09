@@ -41,6 +41,14 @@ def test_accepts_simple_public_behavior_candidate(project):
     assert validate_candidate(candidate, project) == ()
 
 
+def test_accepts_import_from_project_src_namespace(project):
+    candidate = make_candidate(
+        "from src.app import parse\n\ndef test_parse():\n    assert parse('x') == 'x'\n"
+    )
+
+    assert validate_candidate(candidate, project) == ()
+
+
 def test_rejects_source_path_escape_and_existing_test_touch(project):
     candidate = make_candidate(
         "def test_parse():\n    assert True\n",

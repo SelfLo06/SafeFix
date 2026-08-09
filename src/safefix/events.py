@@ -19,7 +19,9 @@ EVENT_KINDS = frozenset(
         "candidate",
         "stability-run",
         "acceptance",
+        "approval",
         "guidance",
+        "explain",
         "control",
         "model-call",
         "tool",
@@ -35,6 +37,7 @@ MAX_SAFE_SUMMARY_CHARS = 512
 MAX_SAFE_COLLECTION_ITEMS = 32
 MAX_SAFE_NUMERIC_MAGNITUDE = 10**12
 _REDACTED = "[REDACTED]"
+MAX_RAW_LOG_CHARS = 12000
 _SECRET_KEY_PARTS = (
     "api_key",
     "apikey",
@@ -166,6 +169,7 @@ class SessionEvent:
     timestamp: str
     phase: Phase
     kind: str
+    _raw_text: str | None = field(init=False, repr=False, compare=False, default=None)
     _safe_payload_snapshot: _ImmutableMapping = field(
         init=False, repr=False, compare=False
     )
@@ -177,6 +181,7 @@ class SessionEvent:
         phase: Phase,
         kind: str,
         safe_payload: Mapping[str, object],
+        raw_text: str | None = None,
     ) -> None:
         if isinstance(sequence, bool) or not isinstance(sequence, int):
             raise TypeError("event sequence must be an integer")
@@ -196,7 +201,12 @@ class SessionEvent:
         object.__setattr__(self, "timestamp", sanitize_timestamp(timestamp))
         object.__setattr__(self, "phase", phase)
         object.__setattr__(self, "kind", kind)
+        object.__setattr__(self, "_raw_text", sanitize_raw_log(raw_text) if raw_text is not None else None)
         object.__setattr__(self, "_safe_payload_snapshot", _sanitize_mapping(safe_payload))
+
+    @property
+    def raw_text(self) -> str | None:
+        return self._raw_text
 
     @property
     def safe_payload(self) -> dict[str, object]:
@@ -253,6 +263,16 @@ def sanitize_summary(text: str, *, max_chars: int = MAX_SAFE_SUMMARY_CHARS) -> s
     if len(redacted) <= max_chars:
         return redacted
     return redacted[:max_chars]
+
+
+def sanitize_raw_log(text: str, *, max_chars: int = MAX_RAW_LOG_CHARS) -> str:
+    if not isinstance(text, str):
+        raise TypeError("raw log must be a string")
+    redacted = _SECRET_TEXT_RE.sub(_REDACTED, text)
+    redacted = re.sub(r"(?i)authorization\s*:\s*[^\r\n]+", "authorization: [REDACTED]", redacted)
+    if len(redacted) > max_chars:
+        return redacted[:max_chars] + "\n[raw response truncated]"
+    return redacted
 
 
 def _sanitize_mapping(
