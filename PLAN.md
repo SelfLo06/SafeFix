@@ -729,6 +729,7 @@ history. Later fixes and release-readiness commits build on these slices.
 | 14 CLI | `529027d` |
 | 15 Packaging, README, GitHub Actions | `2a9e7a7`, `b0624bb`, `1cd6fb5` |
 | 16 Mechanism demos | `ba882ea` |
+| Final delivery cleanup | `272a973` |
 
 Final delivery policy: SafeFix is GitHub-hosted, CLI-only, and distributed
 through the GitHub Release wheel and sdist. GitLab CI and course-source files
