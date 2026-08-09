@@ -253,17 +253,11 @@ def _run_command(
                     **client_options,
                 )
             )
-        defer_role_clients = not args.non_interactive and not args.plain and capable_tty
         test_client = None
         review_client = None
         final_review_client = None
-        if not defer_role_clients and config.generate_tests and BaselineSource(config.baseline_source) in {
-            BaselineSource.GENERATED,
-            BaselineSource.MIXED,
-        }:
-            test_client = make_test_client()
         if config.review_base_url.strip() and config.review_model.strip() and (
-            not defer_role_clients or resolved_high_risk
+            args.non_interactive or args.plain or not capable_tty or resolved_high_risk
         ):
             review_client = make_review_client()
             final_review_client = review_client

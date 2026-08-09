@@ -10,6 +10,8 @@ import tempfile
 from typing import Callable, Protocol, Sequence
 
 from ..events import SessionEvent
+from ..credentials import CredentialError
+from ..llm.base import LLMResponseError, LLMTransportError
 from ..models import (
     AcceptanceMode,
     BaselineSource,
@@ -175,6 +177,14 @@ class TestPreparationService:
                 existing_count,
                 stop_reason=StopReason.CONFIG_ERROR,
             )
+        if source is BaselineSource.GENERATED and existing_count:
+            return self._failed_preparation(
+                source,
+                existing_count,
+                "已检测到可收集的已有测试，不能使用 generated-only；"
+                "请选择 existing 或 mixed。",
+                stop_reason=StopReason.CONFIG_ERROR,
+            )
         if generation_enabled and request.config.acceptance_mode is AcceptanceMode.HIGH_RISK:
             if request.high_risk_confirmation is not True:
                 return self._result(
@@ -191,30 +201,33 @@ class TestPreparationService:
                 existing_count,
                 existing_entries=existing_entries,
             )
+        if request.test_client is None:
+            return self._failed_preparation(
+                source,
+                existing_count,
+                "测试模型未配置。请配置 test_base_url、test_model 和 SAFEFIX_TEST_API_KEY。",
+                stop_reason=StopReason.CONFIG_ERROR,
+            )
 
         try:
             result = self._prepare_generated(
                 request, source, existing_count, existing_entries
             )
-        except (OSError, RuntimeError, TypeError, ValueError):
+        except (OSError, RuntimeError, TypeError, ValueError) as error:
             # This is the deliberate preparation boundary: model, staging, and
             # review infrastructure failures stop preparation without inventing
             # candidates or allowing a partial formal manifest.
-            result = self._result(
-                request,
-                source,
-                existing_count,
-                stop_reason=StopReason.TEST_PREPARATION_ERROR,
+            result = self._failed_preparation(
+                source, existing_count, self._failure_summary(error)
             )
         finally:
             try:
                 self._close_test_model(request.test_client)
             except (OSError, RuntimeError, TypeError, ValueError):
-                result = self._result(
-                    request,
+                result = self._failed_preparation(
                     source,
                     existing_count,
-                    stop_reason=StopReason.TEST_PREPARATION_ERROR,
+                    "测试模型在建立 baseline 前关闭失败。",
                 )
         return result
 
@@ -260,6 +273,22 @@ class TestPreparationService:
                 summary.freeze(),
             )
         summary = _SummaryBuilder(source, existing_count, len(candidates))
+        if not candidates:
+            summary.records.append(
+                CandidateAcceptanceRecord(
+                    "<no-candidates>",
+                    "",
+                    None,
+                    False,
+                    False,
+                    False,
+                    "测试模型未返回候选测试：JSON 的 candidates 数组为空。",
+                )
+            )
+            return PreparationResult(
+                self._manifest_entries(request, source, (), existing_entries),
+                summary.freeze(),
+            )
         requirements = self._coverage_requirements(request.project_root)
         summary.coverage_requirements = requirements
         requirements_by_id = {item.requirement_id: item for item in requirements}
@@ -629,6 +658,41 @@ class TestPreparationService:
             else self._manifest_entries(request, source, (), existing_entries)
         )
         return PreparationResult(entries, summary, stop_reason)
+
+    @staticmethod
+    def _failed_preparation(
+        source: BaselineSource,
+        existing_count: int,
+        reason: str,
+        *,
+        stop_reason: StopReason = StopReason.TEST_PREPARATION_ERROR,
+    ) -> PreparationResult:
+        summary = _SummaryBuilder(source, existing_count, 0)
+        summary.error_count = 1
+        summary.records.append(
+            CandidateAcceptanceRecord(
+                "<test-model-request>", "", None, False, False, False, reason
+            )
+        )
+        return PreparationResult((), summary.freeze(), stop_reason)
+
+    @staticmethod
+    def _failure_summary(error: BaseException) -> str:
+        if isinstance(error, CredentialError):
+            return "测试模型凭据缺失或无效。请设置 SAFEFIX_TEST_API_KEY。"
+        if isinstance(error, LLMResponseError):
+            return "测试模型返回了无效的 OpenAI 兼容响应。"
+        if isinstance(error, LLMTransportError):
+            detail = str(error).lower()
+            if "http error 401" in detail or "http error 403" in detail:
+                return "测试模型认证被拒绝。请检查 SAFEFIX_TEST_API_KEY。"
+            if "http error 429" in detail:
+                return "测试模型请求受限（HTTP 429）。"
+            for status_code in (400, 404, 413, 422, 500, 502, 503, 504):
+                if f"http error {status_code}" in detail:
+                    return f"测试模型请求失败（HTTP {status_code}）。"
+            return "测试模型请求因网络错误失败。"
+        return "测试准备在候选校验前失败。"
 
     @staticmethod
     def _prompt(request: PreparationRequest) -> str:

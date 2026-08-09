@@ -226,6 +226,46 @@ def test_generated_baseline_failure_explains_how_to_retry() -> None:
     assert "响应不是候选测试 JSON。" in message
 
 
+def test_test_model_preflight_detail_is_not_presented_as_a_configuration_error() -> None:
+    console = console_with_fake_prompt([])
+
+    message = console._preflight_failure_text(
+        StopReason.CONFIG_ERROR,
+        "测试模型未返回候选测试：JSON 的 candidates 数组为空。",
+    )
+
+    assert "项目配置、凭据或 pytest 测试发现失败" not in message
+    assert "测试模型未返回候选测试" in message
+    assert "SAFEFIX_TEST_API_KEY" not in message
+    assert "/logs on" in message
+
+
+def test_test_model_authentication_failure_names_only_its_role_credential() -> None:
+    console = console_with_fake_prompt([])
+
+    message = console._preflight_failure_text(
+        StopReason.TEST_PREPARATION_ERROR,
+        "测试模型认证被拒绝。请检查 SAFEFIX_TEST_API_KEY。",
+    )
+
+    assert "SAFEFIX_TEST_API_KEY" in message
+    assert "SAFEFIX_REPAIR_API_KEY" not in message
+    assert "SAFEFIX_REVIEW_API_KEY" not in message
+
+
+def test_generated_only_with_existing_tests_names_the_available_test_sources() -> None:
+    console = console_with_fake_prompt([])
+
+    message = console._preflight_failure_text(
+        StopReason.CONFIG_ERROR,
+        "已检测到可收集的已有测试，不能使用 generated-only；请选择 existing 或 mixed。",
+    )
+
+    assert "/tests existing" in message
+    assert "/tests mixed" in message
+    assert "项目配置、凭据或 pytest 测试发现失败" not in message
+
+
 def test_tests_mode_accepts_mix_as_mixed() -> None:
     class TestController:
         state = None

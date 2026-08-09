@@ -165,7 +165,7 @@ def test_generated_setup_without_an_accepted_test_is_a_preparation_error(tmp_pat
 
     assert result.early_stop is not None
     assert result.early_stop.stop_reason is StopReason.TEST_PREPARATION_ERROR
-    assert result.failure_detail == "Test Model 没有产生可接受的测试。"
+    assert result.failure_detail == "测试准备结束，但没有可用的候选诊断信息。"
 
 
 def test_setup_passes_event_sink_to_test_preparation(tmp_path: Path):
@@ -240,7 +240,7 @@ def test_setup_allows_generated_only_after_empty_existing_discovery(tmp_path: Pa
     assert [entry.origin for entry in result.manifest.entries] == [BaselineSource.GENERATED]
 
 
-def test_setup_allows_generated_with_existing_tests(tmp_path: Path):
+def test_setup_allows_mixed_with_existing_tests(tmp_path: Path):
     path = "tests/test_existing.py"
     generated = "generated/test_generated.py"
     generated_path = tmp_path / generated
@@ -248,7 +248,7 @@ def test_setup_allows_generated_with_existing_tests(tmp_path: Path):
     generated_path.write_text("def test_generated():\n    assert True\n", encoding="utf-8")
     result = _setup(
         tmp_path,
-        source=BaselineSource.GENERATED,
+        source=BaselineSource.MIXED,
         existing_paths=(path,),
         existing_count=1,
         generated_entries=(_entry(generated, BaselineSource.GENERATED, "candidate-1"),),

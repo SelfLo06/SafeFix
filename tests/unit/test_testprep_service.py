@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import json
 from pathlib import Path
 import shutil
@@ -11,6 +11,7 @@ from safefix.models import (
     StopReason,
 )
 from safefix.approval import DeferredApprovalProvider
+from safefix.llm.base import LLMTransportError
 from safefix.review import ReviewResult
 from safefix.test_manifest import discover_existing_tests
 from safefix.testprep import (
@@ -50,6 +51,12 @@ class FakeTestClient:
 class FailingCloseTestClient(FakeTestClient):
     def close(self) -> None:
         raise OSError("close failed")
+
+
+class FailingRequestTestClient(FakeTestClient):
+    def complete(self, prompt: str) -> str:
+        del prompt
+        raise LLMTransportError("HTTP Error 401")
 
 
 class FakeReviewClient:
@@ -335,7 +342,7 @@ def test_generated_only_is_allowed_when_no_existing_tests_are_collected(tmp_path
     assert result.manifest_entries[0].origin is BaselineSource.GENERATED
 
 
-def test_generated_source_keeps_existing_tests_when_they_are_collectible(tmp_path: Path) -> None:
+def test_generated_only_rejects_collectible_existing_tests_without_calling_model(tmp_path: Path) -> None:
     request, client, _, _ = _request(
         tmp_path,
         source=BaselineSource.GENERATED,
@@ -344,12 +351,11 @@ def test_generated_source_keeps_existing_tests_when_they_are_collectible(tmp_pat
 
     result = PreparationService().prepare(request)
 
-    assert result.stop_reason is None
-    assert len(client.prompts) == 1
-    assert {entry.origin for entry in result.manifest_entries} == {
-        BaselineSource.EXISTING,
-        BaselineSource.GENERATED,
-    }
+    assert result.stop_reason is StopReason.CONFIG_ERROR
+    assert client.prompts == []
+    assert result.summary.candidate_records[0].reason == (
+        "已检测到可收集的已有测试，不能使用 generated-only；请选择 existing 或 mixed。"
+    )
 
 
 def test_absolute_eval_mutation_is_rejected_before_candidate_run(tmp_path: Path) -> None:
@@ -787,10 +793,55 @@ def test_malformed_test_model_output_is_recorded_as_rejected_candidate(tmp_path:
     assert result.manifest_entries == ()
 
 
-def test_generated_source_keeps_existing_tests_and_gives_model_project_context(tmp_path: Path) -> None:
-    request, client, _, runner = _request(
+def test_empty_candidate_array_records_its_explicit_model_response_reason(tmp_path: Path) -> None:
+    request, _, _, _ = _request(
         tmp_path,
         source=BaselineSource.GENERATED,
+        test_client=FakeTestClient('{"candidates":[]}'),
+    )
+
+    result = PreparationService().prepare(request)
+
+    assert result.summary.candidate_records[0].reason == (
+        "测试模型未返回候选测试：JSON 的 candidates 数组为空。"
+    )
+
+
+def test_test_model_request_failure_records_a_safe_authentication_reason(tmp_path: Path) -> None:
+    request, _, _, _ = _request(
+        tmp_path,
+        source=BaselineSource.GENERATED,
+        test_client=FailingRequestTestClient(),
+    )
+
+    result = PreparationService().prepare(request)
+
+    assert result.stop_reason is StopReason.TEST_PREPARATION_ERROR
+    assert result.summary.candidate_records[0].reason == (
+        "测试模型认证被拒绝。请检查 SAFEFIX_TEST_API_KEY。"
+    )
+
+
+def test_generation_without_a_test_client_reports_its_missing_credential(tmp_path: Path) -> None:
+    request, _, _, _ = _request(
+        tmp_path,
+        source=BaselineSource.GENERATED,
+        test_client=None,
+    )
+    request = replace(request, test_client=None)
+
+    result = PreparationService().prepare(request)
+
+    assert result.stop_reason is StopReason.CONFIG_ERROR
+    assert result.summary.candidate_records[0].reason == (
+        "测试模型未配置。请配置 test_base_url、test_model 和 SAFEFIX_TEST_API_KEY。"
+    )
+
+
+def test_mixed_source_keeps_existing_tests_and_gives_model_project_context(tmp_path: Path) -> None:
+    request, client, _, runner = _request(
+        tmp_path,
+        source=BaselineSource.MIXED,
         existing_count=1,
         test_runner=lambda path: _run_result(),
     )

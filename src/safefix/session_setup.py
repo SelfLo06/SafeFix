@@ -383,14 +383,14 @@ def runner_for(
 
 def _preparation_failure_detail(preparation: PreparationResult) -> str:
     if not preparation.summary.candidate_records:
-        return "Test Model 没有产生可接受的测试。"
+        return "测试准备结束，但没有可用的候选诊断信息。"
     reasons = [
         record.reason
         for record in preparation.summary.candidate_records
         if record.reason
     ]
     if not reasons:
-        return "Test Model 没有产生可接受的测试。"
+        return "测试准备结束，但没有可用的候选诊断信息。"
     return reasons[-1]
 
 

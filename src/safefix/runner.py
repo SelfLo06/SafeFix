@@ -57,6 +57,27 @@ class BaselineRunner(Protocol):
         """Run the configured pytest baseline."""
 
 
+class _LazyTestClient:
+    """Instantiate the Test Model only after source-mode validation."""
+
+    def __init__(self, factory: Callable[[], object]) -> None:
+        self._factory = factory
+        self._client: object | None = None
+
+    def complete(self, prompt: str) -> str:
+        if self._client is None:
+            self._client = self._factory()
+        complete = getattr(self._client, "complete")
+        return complete(prompt)
+
+    def close(self) -> None:
+        if self._client is None:
+            return
+        close = getattr(self._client, "close", None)
+        if callable(close):
+            close()
+
+
 TestRunnerFactory = Callable[[Path, list[str]], BaselineRunner]
 TRANSPORT_ATTEMPTS = 3
 MAX_TOOL_RESULT_CHARS = 4000
@@ -176,9 +197,8 @@ class SessionRunner:
             self._cli_overrides["baseline_source"] = source.value
             self._cli_overrides["generate_tests"] = source is not BaselineSource.EXISTING
             if source is not BaselineSource.EXISTING and self._test_client is None:
-                if self._test_client_factory is None:
-                    raise RuntimeError("Test Model is not configured")
-                self._test_client = self._test_client_factory()
+                if self._test_client_factory is not None:
+                    self._test_client = _LazyTestClient(self._test_client_factory)
         if review is not None:
             if review and self._final_review_client is None:
                 if self._review_client_factory is None:
@@ -218,7 +238,12 @@ class SessionRunner:
             self._test_runner_factory,
             self._preparation_factory or TestPreparationService,
             self._manifest_factory or manifest_from_entries,
-            test_client=self._test_client,
+            test_client=(
+                self._test_client
+                if self._test_client is not None
+                or self._test_client_factory is None
+                else _LazyTestClient(self._test_client_factory)
+            ),
             review_client=self._review_client,
             approval_provider=self._approval,
             event_sink=self._event_sink,

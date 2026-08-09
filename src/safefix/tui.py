@@ -124,9 +124,9 @@ def _localized_summary(kind: str, summary: str) -> str:
             return f"基线已冻结：{match.group(1)} 个失败测试，等待修复。"
     if kind == "model-call":
         if summary == "Test Model request in progress.":
-            return "Test Model 正在生成候选测试。"
+            return "测试模型正在生成候选测试。"
         if summary == "Test Model response received.":
-            return "Test Model 响应已收到，正在校验候选测试。"
+            return "测试模型响应已收到，正在校验候选测试。"
         match = re.fullmatch(r"Repair Model response received(?: in (.+))?\.", summary)
         if match:
             suffix = f"，用时 {match.group(1)}" if match.group(1) else ""
@@ -470,7 +470,7 @@ class GuidedRepairConsole:
                     source_text = {"existing": "已有测试", "generated": "生成测试", "mixed": "混合测试"}[choice]
                     self._print(f"● CONTROL  已选择测试来源：{source_text}。", style="yellow")
                     if choice in {"generated", "mixed"}:
-                        self._print("● TEST  正在请求 Test Model 生成测试", style="cyan")
+                        self._print("● TEST  正在请求测试模型生成测试", style="cyan")
                     else:
                         self._print("● TEST  正在准备已有测试 baseline", style="cyan")
                     self._baseline_event.set()
@@ -594,10 +594,35 @@ class GuidedRepairConsole:
     @staticmethod
     def _preflight_failure_text(reason: StopReason, detail: str | None = None) -> str:
         suffix = f"具体原因：{detail}" if detail else ""
+        if detail and detail.startswith("已检测到可收集的已有测试"):
+            return (
+                "● ERROR  已检测到可收集的已有测试，不能选择 generated-only。"
+                "请输入 /tests existing 或 /tests mixed 后重新建立 baseline。"
+            )
+        if detail == "测试模型认证被拒绝。请检查 SAFEFIX_TEST_API_KEY。":
+            return (
+                "● ERROR  未能建立 baseline：测试模型测试准备失败。"
+                f"{suffix} 请检查 SAFEFIX_TEST_API_KEY 后重新选择 /tests。"
+            )
+        if detail and detail.startswith("测试模型请求"):
+            return (
+                "● ERROR  未能建立 baseline：测试模型请求失败。"
+                f"{suffix} 请检查测试模型端点、模型和服务状态后重新选择 /tests。"
+            )
+        if detail and detail.startswith("测试模型未返回候选测试"):
+            return (
+                "● ERROR  未能建立 baseline：测试模型没有生成候选测试。"
+                f"{suffix} 可执行 /logs on 查看脱敏响应后重新选择 /tests。"
+            )
+        if detail and detail.startswith("测试模型返回了无效"):
+            return (
+                "● ERROR  未能建立 baseline：测试模型响应格式无效。"
+                f"{suffix} 可执行 /logs on 查看脱敏响应后重新选择 /tests。"
+            )
         if reason is StopReason.TEST_PREPARATION_ERROR:
             return (
-                "● ERROR  未能建立 baseline：Test Model 没有产生可接受的测试。"
-                f"{suffix} 可执行 /logs on 查看模型原始响应，检查测试模型配置和返回格式后重新选择 /tests。"
+                "● ERROR  未能建立 baseline：测试模型没有产生可接受的测试。"
+                f"{suffix} 可执行 /logs on 查看脱敏响应，检查测试模型配置和返回格式后重新选择 /tests。"
             )
         if reason is StopReason.CONFIG_ERROR:
             return (
@@ -743,7 +768,7 @@ class GuidedRepairConsole:
                             "mixed",
                         }:
                             self._print(
-                                "● TEST  Test Model 生成统计："
+                                "● TEST  测试模型生成统计："
                                 f"候选 {summary.generated_candidate_count} 个 · "
                                 f"已接受 {summary.generated_accepted_count} 个 · "
                                 f"未接受 {summary.generated_candidate_count - summary.generated_accepted_count} 个。",

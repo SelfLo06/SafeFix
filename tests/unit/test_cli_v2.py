@@ -239,11 +239,11 @@ def test_cli_wires_configured_role_clients_and_review_adapter(tmp_path: Path) ->
 
     assert [(item["base_url"], item["model"], item["api_key"]) for item in clients] == [
         ("https://repair.example/v1", "repair-model", "repair-secret"),
-        ("https://test.example/v1", "test-model", "test-secret"),
         ("https://review.example/v1", "review-model", "review-secret"),
     ]
     assert seen["llm_client"] is clients[0]
-    assert seen["test_client"] is clients[1]
+    assert seen["test_client"] is None
+    assert callable(seen["test_client_factory"])
     assert isinstance(seen["review_client"], ReviewModelClient)
     assert isinstance(seen["final_review_client"], ReviewModelClient)
 

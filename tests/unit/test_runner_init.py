@@ -61,6 +61,67 @@ def test_valid_baseline_freezes_f0(tmp_path: Path) -> None:
         runner.state.F0 = FailureSet(frozenset())
 
 
+def test_generated_preflight_defers_test_model_client_creation(tmp_path: Path) -> None:
+    from safefix.runner import SessionRunner
+
+    created = 0
+
+    def create_test_client() -> object:
+        nonlocal created
+        created += 1
+        return object()
+
+    runner = SessionRunner(
+        tmp_path,
+        test_client_factory=create_test_client,
+    )
+
+    runner.configure_preflight(tests="generated")
+
+    assert created == 0
+
+
+def test_generated_only_with_existing_tests_never_constructs_test_model(tmp_path: Path) -> None:
+    from safefix.models import Config
+    from safefix.runner import SessionRunner
+
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "app.py").write_text("value = 1\n", encoding="utf-8")
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "test_existing.py").write_text(
+        "def test_existing():\n    assert True\n", encoding="utf-8"
+    )
+    created = 0
+
+    def create_test_client() -> object:
+        nonlocal created
+        created += 1
+        return object()
+
+    runner = SessionRunner(
+        tmp_path,
+        credentials=FakeCredentials(),
+        config_loader=lambda *_args, **_kwargs: Config(
+            base_url="https://repair.example/v1",
+            model="repair-model",
+            baseline_source="generated",
+            generate_tests=True,
+            test_base_url="https://test.example/v1",
+            test_model="test-model",
+        ),
+        test_client_factory=create_test_client,
+    )
+
+    result = runner.prepare()
+
+    assert result is not None
+    assert result.stop_reason is StopReason.CONFIG_ERROR
+    assert runner.preflight_failure_detail == (
+        "已检测到可收集的已有测试，不能使用 generated-only；请选择 existing 或 mixed。"
+    )
+    assert created == 0
+
+
 def test_valid_red_report_with_nonstandard_pytest_exit_is_accepted(tmp_path: Path) -> None:
     _project(tmp_path)
     baseline = _TestRunResult(

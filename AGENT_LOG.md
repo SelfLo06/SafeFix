@@ -3618,3 +3618,33 @@
   (`runner.py`, `session_state.py`, `test_readme.py`, and
   `test_testrunner.py`) are intentionally superseded. The v0.2 changes are
   committed, then the root `main` worktree is force-aligned to that commit.
+
+## Test Model Preflight Diagnostics And Source Rules
+
+- Date: 2026-08-09. Reproduced an immediate Test Model preflight failure from
+  the TUI. The preparation boundary had collapsed transport, response, empty
+  candidate, and configuration failures into a generic baseline message.
+- TDD red: `python -m pytest tests/unit/test_testprep_service.py
+  tests/unit/test_session_setup.py tests/unit/test_tui.py -q` failed for the
+  missing safe HTTP 401 reason, zero-candidate detail, and correct TUI cause
+  classification. A later red run of
+  `tests/unit/test_runner_init.py::test_generated_preflight_defers_test_model_client_creation`
+  proved the TUI eagerly constructed the Test Model.
+- Green: focused source-mode, CLI, Runner, session-setup, test-preparation,
+  and TUI suites passed 100 tests. The full suite was also run after the
+  change, and `git diff --check` passed.
+- Behavior: generated-only is rejected when usable existing tests are
+  collected; existing and mixed remain available. Mixed retains existing tests
+  and can add accepted generated candidates. Test Model construction and
+  `SAFEFIX_TEST_API_KEY` lookup are deferred until generation is valid.
+- Diagnostics: all new user-visible Test Model and generated-only errors are
+  Chinese. Authentication, rate-limit, HTTP, network, invalid-response, empty
+  candidate, and missing-model configuration failures receive bounded,
+  secret-free summaries.
+- Specification-compliance review: PASS. The frozen-manifest invariant and
+  single-run Test Model lifecycle are unchanged; generated-only now follows
+  the documented no-existing-tests rule.
+- Code-quality review: PASS after follow-up. The lazy client wrapper is
+  narrowly scoped, does not add fallback credentials, and closes only a
+  constructed client. The end-to-end existing-test/generated-only test proves
+  the rejected choice cannot invoke the Test Model factory.
