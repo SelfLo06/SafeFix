@@ -31,6 +31,8 @@ class ContextBuilder:
             for failure_id in sorted(state.U_best.ids)[:MAX_CONTEXT_FAILURES]
         ]
         context: dict[str, object] = {
+            "baseline_failure_count": len(state.F0.ids),
+            "current_failure_count": len(state.F.ids & state.F0.ids),
             "baseline_failures": [
                 safe_summary(failure_id)
                 for failure_id in sorted(state.F0.ids)[:MAX_CONTEXT_FAILURES]

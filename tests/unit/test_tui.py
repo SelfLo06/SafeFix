@@ -212,6 +212,33 @@ def test_render_event_localizes_final_review_summary() -> None:
     assert rendered.text == "● REVIEW 最终检查通过：修复已通过验证。"
 
 
+@pytest.mark.parametrize(
+    ("summary", "expected"),
+    [
+        (
+            "approval tool=apply_patch decision=requested",
+            "工具 apply_patch 需要审批，请输入 /approve 通过或 /deny 拒绝。",
+        ),
+        (
+            "control command=approval status=pending",
+            "待审批操作已挂起，请输入 /approve 通过或 /deny 拒绝。",
+        ),
+    ],
+)
+def test_render_event_localizes_tool_approval_prompt(summary: str, expected: str) -> None:
+    event = SessionEvent(
+        1,
+        "2026-08-07T00:00:00Z",
+        Phase.DISPATCH,
+        "control",
+        {"summary": summary},
+    )
+
+    rendered = render_event(event, TerminalCapabilities(True, True, True, False))
+
+    assert rendered.text == f"● CONTROL {expected}"
+
+
 def test_generated_baseline_failure_explains_how_to_retry() -> None:
     console = console_with_fake_prompt([])
 

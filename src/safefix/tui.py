@@ -163,6 +163,15 @@ def _localized_summary(kind: str, summary: str) -> str:
             }[match.group(1)]
             return f"最终检查{verdict}：{match.group(2)}"
     if kind == "control":
+        match = re.fullmatch(r"approval tool=([a-z_]+) decision=requested", summary)
+        if match:
+            return f"工具 {match.group(1)} 需要审批，请输入 /approve 通过或 /deny 拒绝。"
+        if summary == "control command=approval status=pending":
+            return "待审批操作已挂起，请输入 /approve 通过或 /deny 拒绝。"
+        if summary == "control command=approve status=accepted":
+            return "审批已通过，继续执行。"
+        if summary == "control command=deny status=accepted":
+            return "审批已拒绝，停止执行该操作。"
         match = re.fullmatch(r"round outcome=(success|better|same|worse) rounds=(\d+)", summary)
         if match:
             outcome = {
@@ -805,7 +814,7 @@ class GuidedRepairConsole:
                             input_task = asyncio.create_task(self._read_input())
                         self._print("● EXPLAIN  正在总结冻结 baseline", style="cyan")
                         controller.answer_explanation(
-                            "Reply in Chinese. Summarize the frozen baseline. State every known failing test and likely bug area; if there are no failures, say that clearly. Confirm that no files have been modified."
+                            "Reply in Chinese. Summarize the frozen baseline. State the total failure count and the visible failing test IDs; the failure ID list may be truncated, so do not call the visible sample the complete set. State the likely bug area. If there are no failures, say that clearly. Confirm that no files have been modified."
                         )
                         self.drain_events_once()
                         self._print(

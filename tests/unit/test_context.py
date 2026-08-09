@@ -59,6 +59,8 @@ def test_context_contains_failure_and_tool_feedback(tmp_path):
     ).build(state)
 
     assert context["current_failures"] == ["case-a"]
+    assert context["baseline_failure_count"] == 2
+    assert context["current_failure_count"] == 1
     assert context["best_summary"] == {"failure_count": 1, "failure_ids": ["case-a"]}
     assert context["recent_tool_feedback"] == [
         {

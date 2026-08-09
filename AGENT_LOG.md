@@ -3783,3 +3783,22 @@
   counters and the established read policy. No duplicate validation, broad
   exception catch beyond the existing boundary, fallback behavior, dead code,
   or implementation-coupled tests were introduced.
+
+## Chinese Approval Prompt And Baseline Explanation Counts
+
+- Date: 2026-08-09. Scope: TUI localization and bounded baseline explanation
+  context only. Approval semantics, command names, guard decisions, and model
+  behavior were not changed.
+- TDD red: new TUI approval-render tests showed the raw English control event;
+  the context count assertion also failed before the new count fields existed.
+  Green: focused TUI/context tests passed (11).
+- Behavior: `approval tool=... decision=requested` and the pending control
+  event now render in Chinese with `/approve` and `/deny` instructions.
+  Explanation context now exposes total and current failure counts, and the
+  explanation prompt explicitly labels failure IDs as a bounded visible list.
+- Verification: the complete `tests` suite completed successfully and
+  `git diff --check` passed. Specification-compliance review: PASS; the
+  requested approval prompt is localized at the presentation boundary and the
+  count clarification preserves bounded context. Code-quality review: PASS;
+  changes are direct mappings and two scalar fields with no new abstraction,
+  broad exception handling, fallback, or scope expansion.
