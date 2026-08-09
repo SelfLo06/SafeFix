@@ -131,6 +131,34 @@ def test_runner_marks_nonempty_junit_report_valid(tmp_path: Path, monkeypatch):
     assert not report_paths[0].exists()
 
 
+def test_collect_test_paths_deduplicates_quiet_flags_and_parses_node_ids(
+    tmp_path: Path, monkeypatch
+):
+    calls = []
+
+    def fake_run(command, **kwargs):
+        calls.append((command, kwargs))
+        return type(
+            "Completed",
+            (),
+            {
+                "returncode": 0,
+                "stdout": "tests/test_pricing_rules.py::test_pricing_rule[item-1]\n",
+                "stderr": "",
+            },
+        )()
+
+    monkeypatch.setattr("safefix.testrunner.subprocess.run", fake_run)
+    tests_dir = tmp_path / "tests"
+    tests_dir.mkdir()
+    (tests_dir / "test_pricing_rules.py").write_text("def test_pricing_rule(): pass\n")
+
+    paths = Runner(tmp_path, pytest_args=("-q", "--tb=short")).collect_test_paths()
+
+    assert paths == ("tests/test_pricing_rules.py",)
+    assert calls[0][0].count("-q") == 1
+
+
 def test_runner_marks_collection_only_report_invalid(tmp_path: Path, monkeypatch):
     def fake_run(command, **kwargs):
         report = Path(next(arg.split("=", 1)[1] for arg in command if arg.startswith("--junitxml=")))

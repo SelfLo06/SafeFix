@@ -3679,3 +3679,18 @@
   becoming a Chinese summary while retaining its branch ID. The full suite
   passed after correcting the presentation mapper to preserve already-Chinese
   records such as the generated-only rule.
+
+## Existing-Test Manifest Collection Fix
+
+- Date: 2026-08-09. Reproduced the stress-project `mixed` failure without a
+  live model request. pytest collected 50 tests but `collect_test_paths()`
+  returned no files because the project passed `-q` and SafeFix appended a
+  second `-q` to `--collect-only`; pytest then emitted only a per-file count.
+- TDD red: a `TestRunner` unit test demonstrated duplicate quiet flags with
+  `pytest_args=("-q", "--tb=short")`. Green: the collection subprocess drops
+  presentation-only `-q`/`-v` arguments and adds one controlled `-q`, which
+  produces parseable node IDs. The direct stress-project reproduction now
+  reports 50 collected tests and `tests/test_pricing_rules.py`.
+- End-to-end preflight replay used the actual stress project and a local empty
+  Test Model response: `mixed` produced a manifest containing
+  `tests/test_pricing_rules.py` with no setup failure and no network request.

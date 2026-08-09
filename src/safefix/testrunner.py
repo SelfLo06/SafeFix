@@ -163,11 +163,14 @@ class TestRunner:
 
     def collect_test_paths(self) -> tuple[str, ...]:
         """Return the project-relative files pytest actually collects."""
+        collection_args = [
+            argument for argument in self.pytest_args if argument not in {"-q", "-v"}
+        ]
         command = [
             sys.executable,
             "-m",
             "pytest",
-            *self.pytest_args,
+            *collection_args,
             "--collect-only",
             "-q",
             *self.target_paths,
