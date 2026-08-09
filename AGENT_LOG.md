@@ -3721,3 +3721,37 @@
   separately in Chinese, and leaves timeout/auth/HTTP classifications intact.
 - Verification: focused service/TUI tests passed 30; the full test suite,
   `compileall`, and `git diff --check` passed.
+
+## Proxy-Safe Test Model Transport
+
+- Date: 2026-08-09. Reproduced the Test Model failure in both the stress
+  project and a minimal project with one existing failing test. The same full
+  request body succeeded with curl but Python urllib failed at about 60
+  seconds with a proxy/TLS record-layer failure. The project size and the
+  test-generation prompt were therefore not the cause.
+- TDD red: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest
+  tests/unit/test_openai_client.py -q` failed because `CurlHTTPTransport` did
+  not exist. Green: curl receives the authorization header through its stdin
+  config, while the JSON body is held in a temporary file; neither secret
+  appears in process arguments. CLI production clients now select this
+  transport. A post-implementation composition regression test was added to
+  lock down the CLI wiring.
+- Verification: focused OpenAI-client, CLI, and test-preparation tests passed
+  56 tests. The complete suite was run with `PYTHONDONTWRITEBYTECODE=1
+  PYTHONPATH=src python -m pytest tests -q` and completed successfully. A
+  real Test Model request using the locally supplied credential returned a
+  two-character response through the new transport; the credential was never
+  printed or stored in the repository. `git diff --check` passed before
+  review.
+- Specification review initially identified `.curlrc` loading, control-byte
+  injection in curl config, and an undocumented curl dependency. The transport
+  now starts with `--disable`, rejects CR/LF in every config value, and the
+  README states the platform dependency. Specification re-review: PASS.
+- Code-quality review then identified Windows file-sharing incompatibility,
+  curl exit 28 being reported as HTTP 000, and an extra ten-second subprocess
+  allowance. The request file now closes before curl opens it and is removed
+  in `finally`; exit 28 maps to the existing timeout summary; the subprocess
+  timeout matches curl's configured deadline. New red/green transport tests
+  cover those cases and header control bytes.
+- Final reviews: specification-compliance PASS and code-quality PASS. Final
+  full-suite, compile, and diff checks passed before commit.

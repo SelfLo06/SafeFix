@@ -7,6 +7,7 @@ endpoint. It is a command-line harness, not a hosted application.
 ## Requirements and platform limits
 
 - Python 3.11 or newer.
+- `curl` available on `PATH` for OpenAI-compatible model requests.
 - Network access from the local process to the OpenAI-compatible `base_url`
   configured for the project.
 

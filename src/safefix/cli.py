@@ -15,7 +15,7 @@ from .llm.openai_compatible import (
     DEFAULT_MODEL_TIMEOUT_SECONDS,
     OpenAICompatibleClient,
 )
-from .llm.roles import UrllibHTTPTransport
+from .llm.roles import CurlHTTPTransport
 from .models import (
     AcceptanceMode,
     Config,
@@ -64,7 +64,7 @@ def production_client(
         base_url=base_url,
         model=model,
         api_key=api_key,
-        transport=UrllibHTTPTransport(),
+        transport=CurlHTTPTransport(),
         temperature=temperature,
         timeout=timeout,
     )
