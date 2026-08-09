@@ -3,9 +3,17 @@ from pathlib import Path
 from safefix.junit import TestCaseResult as _TestCaseResult
 from safefix.models import BaselineSource, Config, StopReason
 from safefix.test_manifest import ManifestEntry
-from safefix.testprep.service import PreparationResult, PreparationSummary
+from safefix.testprep.service import (
+    CandidateAcceptanceRecord,
+    PreparationResult,
+    PreparationSummary,
+)
 from safefix.testrunner import TestRunResult as _TestRunResult
-from safefix.session_setup import SessionSetup, manifest_from_entries
+from safefix.session_setup import (
+    SessionSetup,
+    _preparation_failure_detail,
+    manifest_from_entries,
+)
 
 
 class FakeCredentials:
@@ -156,7 +164,7 @@ def test_setup_builds_existing_only_formal_manifest(tmp_path: Path):
     assert result.baseline is not None and result.baseline.valid
 
 
-def test_generated_setup_without_an_accepted_test_is_a_preparation_error(tmp_path: Path):
+def test_generated_setup_without_a_preparation_diagnostic_names_the_internal_failure(tmp_path: Path):
     result = _setup(
         tmp_path,
         source=BaselineSource.GENERATED,
@@ -165,7 +173,31 @@ def test_generated_setup_without_an_accepted_test_is_a_preparation_error(tmp_pat
 
     assert result.early_stop is not None
     assert result.early_stop.stop_reason is StopReason.TEST_PREPARATION_ERROR
-    assert result.failure_detail == "测试准备结束，但没有可用的候选诊断信息。"
+    assert result.failure_detail == (
+        "测试准备服务未提供失败原因。这是 SafeFix 内部诊断错误；"
+        "请执行 /logs on 后重试。"
+    )
+
+
+def test_preparation_failure_detail_translates_an_audit_reason_for_the_tui() -> None:
+    preparation = PreparationResult(
+        (),
+        PreparationSummary(
+            baseline_source=BaselineSource.GENERATED,
+            candidate_records=(
+                CandidateAcceptanceRecord(
+                    "candidate-1", "", None, False, False, False,
+                    "branch execution was not verified: branch-1 run 1 missing lines 4",
+                ),
+            ),
+        ),
+        StopReason.TEST_PREPARATION_ERROR,
+    )
+
+    assert _preparation_failure_detail(preparation) == (
+        "候选测试未验证所需分支执行：branch-1。"
+        "请调整候选测试后重试。"
+    )
 
 
 def test_setup_passes_event_sink_to_test_preparation(tmp_path: Path):

@@ -619,6 +619,9 @@ def test_generation_requires_all_documented_behaviors_and_key_branches(
     ]
     assert result.summary.covered_requirement_ids == ("behavior-1",)
     assert result.summary.candidate_records[-1].candidate_id == "<coverage-gap>"
+    assert result.summary.candidate_records[-1].reason == (
+        "uncovered requirements: behavior-2, behavior-3, branch-1"
+    )
 
 
 def test_generation_accepts_a_complete_declared_coverage_bundle(tmp_path: Path) -> None:
@@ -791,6 +794,10 @@ def test_malformed_test_model_output_is_recorded_as_rejected_candidate(tmp_path:
     assert result.summary.generated_candidate_count == 0
     assert result.summary.rejected_count == 1
     assert result.manifest_entries == ()
+    assert result.summary.candidate_records[0].reason == (
+        "测试模型返回的候选测试 JSON 格式无效。"
+        "可执行 /logs on 查看脱敏响应后重试。"
+    )
 
 
 def test_empty_candidate_array_records_its_explicit_model_response_reason(tmp_path: Path) -> None:
@@ -835,6 +842,23 @@ def test_generation_without_a_test_client_reports_its_missing_credential(tmp_pat
     assert result.stop_reason is StopReason.CONFIG_ERROR
     assert result.summary.candidate_records[0].reason == (
         "测试模型未配置。请配置 test_base_url、test_model 和 SAFEFIX_TEST_API_KEY。"
+    )
+
+
+def test_high_risk_generation_without_confirmation_records_the_missing_confirmation(tmp_path: Path) -> None:
+    request, _, _, _ = _request(tmp_path, source=BaselineSource.GENERATED)
+    request = replace(
+        request,
+        config=replace(request.config, acceptance_mode=AcceptanceMode.HIGH_RISK),
+        high_risk_confirmation=None,
+    )
+
+    result = PreparationService().prepare(request)
+
+    assert result.stop_reason is StopReason.CONFIG_ERROR
+    assert result.summary.candidate_records[0].reason == (
+        "高风险测试生成需要命令行显式确认："
+        "请使用 --acceptance-mode high-risk 重新运行。"
     )
 
 

@@ -171,10 +171,10 @@ class TestPreparationService:
         try:
             existing_entries = self._existing_manifest_entries(request, source)
         except (ManifestError, OSError, TypeError, ValueError):
-            return self._result(
-                request,
+            return self._failed_preparation(
                 source,
                 existing_count,
+                "无法将已有测试加入冻结清单。请检查测试文件路径和项目文件权限。",
                 stop_reason=StopReason.CONFIG_ERROR,
             )
         if source is BaselineSource.GENERATED and existing_count:
@@ -187,10 +187,11 @@ class TestPreparationService:
             )
         if generation_enabled and request.config.acceptance_mode is AcceptanceMode.HIGH_RISK:
             if request.high_risk_confirmation is not True:
-                return self._result(
-                    request,
+                return self._failed_preparation(
                     source,
                     existing_count,
+                    "高风险测试生成需要命令行显式确认："
+                    "请使用 --acceptance-mode high-risk 重新运行。",
                     stop_reason=StopReason.CONFIG_ERROR,
                 )
 
@@ -227,7 +228,8 @@ class TestPreparationService:
                 result = self._failed_preparation(
                     source,
                     existing_count,
-                    "测试模型在建立 baseline 前关闭失败。",
+                    "测试模型在建立 baseline 前关闭失败。"
+                    "请检查服务状态后重试。",
                 )
         return result
 
@@ -254,7 +256,7 @@ class TestPreparationService:
         )
         try:
             candidates = self._parser.parse(response)
-        except ParseError as exc:
+        except ParseError:
             summary = _SummaryBuilder(source, existing_count, 0)
             summary.rejected_count = 1
             summary.records.append(
@@ -265,7 +267,10 @@ class TestPreparationService:
                     accepted=False,
                     automatic=False,
                     manual=False,
-                    reason=str(exc),
+                    reason=(
+                        "测试模型返回的候选测试 JSON 格式无效。"
+                        "可执行 /logs on 查看脱敏响应后重试。"
+                    ),
                 )
             )
             return PreparationResult(
@@ -692,7 +697,7 @@ class TestPreparationService:
                 if f"http error {status_code}" in detail:
                     return f"测试模型请求失败（HTTP {status_code}）。"
             return "测试模型请求因网络错误失败。"
-        return "测试准备在候选校验前失败。"
+        return "测试准备在候选校验前失败。可执行 /logs on 查看详情后重试。"
 
     @staticmethod
     def _prompt(request: PreparationRequest) -> str:

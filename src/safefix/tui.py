@@ -619,6 +619,11 @@ class GuidedRepairConsole:
                 "● ERROR  未能建立 baseline：测试模型响应格式无效。"
                 f"{suffix} 可执行 /logs on 查看脱敏响应后重新选择 /tests。"
             )
+        if detail and detail.startswith("测试准备服务未提供失败原因"):
+            return (
+                "● ERROR  未能建立 baseline：SafeFix 内部诊断错误。"
+                f"{suffix} 请执行 /logs on 后重新选择 /tests。"
+            )
         if reason is StopReason.TEST_PREPARATION_ERROR:
             return (
                 "● ERROR  未能建立 baseline：测试模型没有产生可接受的测试。"

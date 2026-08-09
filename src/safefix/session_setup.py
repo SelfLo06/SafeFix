@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from pathlib import Path
+import re
 import secrets
 from typing import Callable, Protocol, Sequence
 
@@ -383,15 +384,57 @@ def runner_for(
 
 def _preparation_failure_detail(preparation: PreparationResult) -> str:
     if not preparation.summary.candidate_records:
-        return "测试准备结束，但没有可用的候选诊断信息。"
+        return (
+            "测试准备服务未提供失败原因。这是 SafeFix 内部诊断错误；"
+            "请执行 /logs on 后重试。"
+        )
     reasons = [
-        record.reason
+        _user_facing_preparation_reason(record)
         for record in preparation.summary.candidate_records
         if record.reason
     ]
     if not reasons:
-        return "测试准备结束，但没有可用的候选诊断信息。"
+        return (
+            "测试准备服务未提供失败原因。这是 SafeFix 内部诊断错误；"
+            "请执行 /logs on 后重试。"
+        )
     return reasons[-1]
+
+
+def _user_facing_preparation_reason(record: object) -> str:
+    candidate_id = getattr(record, "candidate_id", "")
+    reason = getattr(record, "reason", "")
+    status = getattr(record, "status", None)
+    accepted = getattr(record, "accepted", False)
+    manual = getattr(record, "manual", False)
+    if any("\u4e00" <= character <= "\u9fff" for character in reason):
+        return reason
+    if candidate_id == "<parse-error>":
+        return "测试模型返回的候选测试 JSON 格式无效。可执行 /logs on 查看脱敏响应后重试。"
+    if candidate_id == "<coverage-gap>" and reason.startswith("uncovered requirements: "):
+        missing = reason.removeprefix("uncovered requirements: ").replace(", ", "、")
+        return f"候选测试未覆盖全部需求：{missing}。请调整候选测试后重试。"
+    if reason.startswith("unknown coverage item: "):
+        items = reason.removeprefix("unknown coverage item: ").replace(", ", "、")
+        return f"候选测试声明了未知需求标识：{items}。请调整候选测试后重试。"
+    if reason.startswith("branch coverage must cite its source: "):
+        items = reason.removeprefix("branch coverage must cite its source: ").replace(", ", "、")
+        return f"候选测试未标注分支覆盖所需源文件：{items}。请调整候选测试后重试。"
+    if reason.startswith("branch execution was not verified:"):
+        branches = sorted(set(re.findall(r"branch-\d+", reason)))
+        label = "、".join(branches) if branches else "所需分支"
+        return f"候选测试未验证所需分支执行：{label}。请调整候选测试后重试。"
+    if status is not None:
+        status_value = getattr(status, "value", status)
+        if status_value == "error":
+            return "候选测试执行出错。可执行 /logs on 查看详情后重试。"
+        if status_value == "flaky":
+            return "候选测试运行不稳定。请调整候选测试后重试。"
+    if candidate_id and not accepted:
+        if manual:
+            return "候选测试需要人工确认，尚未被接受。"
+        return "候选测试未通过验收规则。可执行 /logs on 查看详情后重试。"
+    return reason
 
 
 def _has_collected_tests(result: TestRunResult) -> bool:

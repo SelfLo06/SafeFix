@@ -3648,3 +3648,34 @@
   narrowly scoped, does not add fallback credentials, and closes only a
   constructed client. The end-to-end existing-test/generated-only test proves
   the rejected choice cannot invoke the Test Model factory.
+
+## Test Preparation Failure Diagnostics Follow-up
+
+- Date: 2026-08-09. Investigated a `mixed` baseline run that had collected
+  existing tests, entered Test Model generation, then reported an empty
+  diagnostic fallback. `mixed` remains valid in this situation; no persistent
+  AI-test-set check was introduced.
+- TDD red: focused session-setup, TUI, and test-preparation tests proved that
+  missing preparation records were shown as a generic configuration failure
+  and high-risk confirmation could stop without a record. A second red run
+  proved malformed candidate JSON and branch-verification failures exposed
+  English internal messages.
+- Green: every test-preparation failure path now supplies an actionable
+  Chinese record. The TUI identifies absent records as a SafeFix internal
+  diagnostic error rather than attributing it to TOML, credentials, or pytest.
+  Candidate parse, coverage, validation, stability, and acceptance failures
+  use Chinese user-facing summaries; `/logs on` remains the bounded diagnostic
+  route.
+- Verification: focused suites passed 102 tests before the review follow-up;
+  the final relevant suite passed 67 tests and the full test suite plus
+  `compileall` and `git diff --check` passed. Independent review identified
+  the English parser/coverage leakage and was incorporated before final
+  verification.
+- Review follow-up: the first translation attempt replaced audit-record
+  reasons, which would have lost static-rule and acceptance-policy evidence.
+  The review correctly rejected it. Audit records now retain their original
+  structured reasons; `SessionSetup` derives the Chinese TUI-only summary at
+  the presentation boundary. A regression test covers English branch evidence
+  becoming a Chinese summary while retaining its branch ID. The full suite
+  passed after correcting the presentation mapper to preserve already-Chinese
+  records such as the generated-only rule.

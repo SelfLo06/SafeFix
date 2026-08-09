@@ -253,6 +253,19 @@ def test_test_model_authentication_failure_names_only_its_role_credential() -> N
     assert "SAFEFIX_REVIEW_API_KEY" not in message
 
 
+def test_missing_preparation_diagnostic_is_not_presented_as_project_configuration_error() -> None:
+    console = console_with_fake_prompt([])
+
+    message = console._preflight_failure_text(
+        StopReason.CONFIG_ERROR,
+        "测试准备服务未提供失败原因。这是 SafeFix 内部诊断错误；请执行 /logs on 后重试。",
+    )
+
+    assert "SafeFix 内部诊断错误" in message
+    assert "项目配置、凭据或 pytest 测试发现失败" not in message
+    assert "/logs on" in message
+
+
 def test_generated_only_with_existing_tests_names_the_available_test_sources() -> None:
     console = console_with_fake_prompt([])
 
