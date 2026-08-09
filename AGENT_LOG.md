@@ -3828,3 +3828,27 @@
   run `31317665699` completed successfully. Published Release `v0.2.0` is
   public at `https://github.com/SelfLo06/SafeFix/releases/tag/v0.2.0` and has
   `safefix-0.2.0-py3-none-any.whl` and `safefix-0.2.0.tar.gz` assets.
+
+## Chinese README Test And Usage Guide
+
+- Date: 2026-08-09. Scope: documentation only. The user requested a detailed
+  Chinese README for an unfamiliar teaching assistant. No application code,
+  test code, configuration, release asset, `REFLECTION.md`, ZIP archive, or
+  `submission.jsonc` was changed.
+- Baseline observation: running `python -m pytest` at repository root
+  collects independent fixture projects below `tmp/` and fails their imports.
+  The documented one-command project test entry point is therefore
+  `python -m pytest tests`; it collects only SafeFix's actual test suite.
+- Documentation: README now explains installation, release artifacts,
+  environment-only credential handling, CLI operation, guardrail/feedback
+  behavior, the full test command, deterministic MockLLM operation, and each
+  of the three required mechanism demonstrations with their exact test nodes
+  and observable assertions.
+- Skills/process: `superpowers:using-superpowers`, brainstorming, planning,
+  and worktree setup were consulted. The user explicitly instructed editing
+  directly on `main`, so no temporary worktree was created. This is a prose
+  clarification task, not a behavior change; no red/green production test was
+  required. Focused README contract tests passed 13; mechanism demonstrations
+  passed 15; MockLLM unit tests passed 2. Specification-compliance review:
+  PASS. Documentation-quality review identified and corrected one premature
+  claim about future verification; no other material issue was found.
