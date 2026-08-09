@@ -73,6 +73,23 @@ def test_context_contains_failure_and_tool_feedback(tmp_path):
     ]
 
 
+def test_context_includes_bounded_project_layout(tmp_path):
+    project = tmp_path / "project"
+    (project / "src" / "controlplane").mkdir(parents=True)
+    (project / "src" / "controlplane" / "imports.py").write_text("", encoding="utf-8")
+    (project / "tests").mkdir()
+    (project / "tests" / "test_app.py").write_text("", encoding="utf-8")
+    (project / "secrets.py").write_text("", encoding="utf-8")
+    store = ProjectMemoryStore(project, data_dir=tmp_path / "data")
+
+    context = ContextBuilder(store, project_root=project).build(SessionState(failures("case-a")))
+
+    assert context["project_layout"] == [
+        "src/controlplane/imports.py",
+        "tests/test_app.py",
+    ]
+
+
 def test_context_contains_bounded_guidance_and_safe_review_summary(tmp_path):
     state = SessionState(failures("case-a"))
     state.record_guidance("Authorization: Bearer context-secret " + "x" * 600)

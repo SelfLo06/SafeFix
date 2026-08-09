@@ -70,6 +70,56 @@ def test_read_tool_returns_to_ready(tmp_path: Path) -> None:
     assert "value = 1" in runner.state.recent_tool_events[0][1].summary
 
 
+def test_missing_tool_path_feedback_explains_recovery(tmp_path: Path) -> None:
+    _project(tmp_path)
+    runner = _runner(
+        tmp_path,
+        [
+            '{"tool": "read_file", "path": "controlplane/missing.py"}',
+            '{"tool": "finish"}',
+        ],
+    )
+
+    runner.run()
+
+    assert runner.state is not None
+    feedback = runner.state.recent_tool_events[0][1]
+    assert feedback.summary == "file unavailable. inspect directories with list_dir"
+
+
+def test_repeated_missing_tool_path_stops_session(tmp_path: Path) -> None:
+    _project(tmp_path)
+    runner = _runner(
+        tmp_path,
+        [
+            '{"tool": "read_file", "path": "controlplane/missing.py"}',
+            '{"tool": "read_file", "path": "controlplane/missing.py"}',
+        ],
+    )
+
+    result = runner.run()
+
+    assert result.stop_reason is StopReason.ERROR
+    assert result.steps == 2
+
+
+def test_consecutive_missing_tool_paths_stop_session(tmp_path: Path) -> None:
+    _project(tmp_path)
+    runner = _runner(
+        tmp_path,
+        [
+            '{"tool": "read_file", "path": "controlplane/first.py"}',
+            '{"tool": "read_file", "path": "controlplane/second.py"}',
+            '{"tool": "list_dir", "path": "controlplane"}',
+        ],
+    )
+
+    result = runner.run()
+
+    assert result.stop_reason is StopReason.ERROR
+    assert result.steps == 3
+
+
 @pytest.mark.parametrize(
     "action",
     [

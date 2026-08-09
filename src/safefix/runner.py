@@ -82,6 +82,8 @@ TestRunnerFactory = Callable[[Path, list[str]], BaselineRunner]
 TRANSPORT_ATTEMPTS = 3
 MAX_TOOL_RESULT_CHARS = 4000
 MAX_STATUS_FAILURES = 20
+MAX_IDENTICAL_TOOL_FAILURES = 2
+MAX_CONSECUTIVE_TOOL_FAILURES = 3
 
 
 class SessionRunner:
@@ -136,7 +138,7 @@ class SessionRunner:
         self._event_sequence = 1
         self._use_memory = use_memory
         self._memory_store = memory_store or ProjectMemoryStore(self.project_root)
-        self._context_builder = ContextBuilder(self._memory_store)
+        self._context_builder = ContextBuilder(self._memory_store, self.project_root)
         self._preparation_factory = preparation_factory
         self._manifest_factory = manifest_factory
         self._final_review_client = final_review_client
@@ -144,6 +146,9 @@ class SessionRunner:
         self._high_risk_confirmation = high_risk_confirmation
         self._progress_events = progress_events
         self._recent_tool_results: list[str] = []
+        self._last_failed_tool: ToolCall | None = None
+        self._identical_tool_failures = 0
+        self._consecutive_tool_failures = 0
         self._prepared = False
         self._prepare_result: SessionResult | None = None
         self._preflight_failure_detail: str | None = None
@@ -516,14 +521,26 @@ class SessionRunner:
                     phase=Phase.DISPATCH,
                 )
                 outcome = dispatch(self.project_root, action, self.snapshot_store)
-            except (OSError, ValueError):
-                state.record_tool_event(action, Feedback("error", "tool execution failed"))
+            except (OSError, ValueError) as error:
+                summary = _tool_failure_summary(error)
+                state.record_tool_event(action, Feedback("error", summary))
                 self._emit_progress(
                     "tool",
-                    f"{action.tool.value} failed",
+                    f"{action.tool.value} failed: {summary}",
                     status="error",
                     phase=Phase.DISPATCH,
                 )
+                if action == self._last_failed_tool:
+                    self._identical_tool_failures += 1
+                else:
+                    self._last_failed_tool = action
+                    self._identical_tool_failures = 1
+                self._consecutive_tool_failures += 1
+                if (
+                    self._identical_tool_failures >= MAX_IDENTICAL_TOOL_FAILURES
+                    or self._consecutive_tool_failures >= MAX_CONSECUTIVE_TOOL_FAILURES
+                ):
+                    return self._finalize(StopReason.ERROR)
                 continue
             if outcome is StopReason.REQUESTED:
                 self._emit(
@@ -534,6 +551,9 @@ class SessionRunner:
                 action,
                 Feedback("completed", summary=_tool_result_summary(outcome)),
             )
+            self._last_failed_tool = None
+            self._identical_tool_failures = 0
+            self._consecutive_tool_failures = 0
             if outcome is not None:
                 rendered = _tool_result_summary(outcome)
                 self._recent_tool_results.append(rendered)
@@ -1171,3 +1191,15 @@ def _tool_result_summary(outcome: object) -> str:
     else:
         rendered = json.dumps(outcome, ensure_ascii=False, sort_keys=True)
     return rendered[:MAX_TOOL_RESULT_CHARS]
+
+
+def _tool_failure_summary(error: OSError | ValueError) -> str:
+    if isinstance(error, FileNotFoundError):
+        return "file unavailable. inspect directories with list_dir"
+    if isinstance(error, NotADirectoryError):
+        return "path is not a directory; use list_dir on a directory"
+    if isinstance(error, PermissionError):
+        return "path is not readable"
+    if isinstance(error, ValueError):
+        return safe_summary(str(error))
+    return "tool I/O failure"

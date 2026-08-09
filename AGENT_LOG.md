@@ -3756,3 +3756,30 @@
 - Final reviews: specification-compliance PASS and code-quality PASS. Final
   full-suite, compile, and diff checks passed before commit.
 - Implementation commit: `53339e6 fix: use curl for model transport`.
+
+## Tool Failure Recovery And Loop Guard
+
+- Date: 2026-08-09. Scope: tool-read feedback, repair context, and their unit
+  tests only. Model transport timeouts, retries, generated-test acceptance,
+  and path guardrails were not changed.
+- TDD red: the new focused runner/context tests failed with the old generic
+  `tool execution failed` feedback, no project layout, and no early stop for
+  repeated missing paths. Green: the same focused tests passed after the
+  minimal implementation.
+- Behavior: missing files now produce the safe, actionable feedback `file
+  unavailable. inspect directories with list_dir`; two identical failures, or
+  three consecutive failures without a successful tool result, stop the
+  session. Repair prompts include at most 100 readable project-relative file
+  paths, filtered through the existing read policy.
+- Verification: focused runner-dispatch, runner-limits, context, and read-tool
+  tests passed (46). The full suite command
+  `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest tests -q`
+  completed successfully. `git diff --check` passed, with only repository
+  line-ending warnings.
+- Specification-compliance review: PASS. The change gives the model safe
+  recovery guidance and prevents the observed repeated invalid-path loop,
+  without adding a retry framework or widening tool access.
+- Code-quality review: PASS. The implementation uses bounded runner-local
+  counters and the established read policy. No duplicate validation, broad
+  exception catch beyond the existing boundary, fallback behavior, dead code,
+  or implementation-coupled tests were introduced.
